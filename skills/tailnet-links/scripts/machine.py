@@ -51,7 +51,7 @@ def join():
     key = os.environ.get(AUTH_KEY_VARIABLE)
     if platform.system() != "Linux" or not key:
         raise LinkError("This machine is not on the tailnet. Sign in to Tailscale on it, or on a Linux VM export "
-                        + AUTH_KEY_VARIABLE + " and run setup again.")
+                        + AUTH_KEY_VARIABLE + " with a key from `tailnet-link join-key` and run setup again.")
     if not shutil.which("tailscale"):
         run(["sh", "-c", "curl -fsSL " + INSTALL_SCRIPT_URL + " | sh"], INSTALL_SECONDS)
     with tempfile.NamedTemporaryFile("w") as secret:

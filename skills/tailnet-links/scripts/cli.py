@@ -4,6 +4,7 @@ import os
 import sys
 
 import deliverables
+import joinkey
 import links
 import machine
 import previews
@@ -16,6 +17,7 @@ USAGE = """usage: tailnet-link <target>...   print one HTTPS tailnet URL per tar
        tailnet-link remove <port>   stop previewing a local port
        tailnet-link prune           remove the previews whose server is gone
        tailnet-link setup           join the tailnet when needed, then serve this machine's files
+       tailnet-link join-key        print a one-off key that joins one Linux VM, for a pipe only
 
 A target is a file, a directory, a port (4321) or a local URL (http://localhost:4321/page).
 A file or a directory is copied to the published root; link it again after changing it.
@@ -56,7 +58,14 @@ def rewrite_texts(arguments):
     print(json.dumps({"texts": [rewrite(text, converter.url_for) for text in texts], "notes": converter.notes}))
 
 
-COMMANDS = {"status": show_status, "remove": remove, "prune": prune, "setup": setup, "rewrite": rewrite_texts}
+def print_join_key(_arguments):
+    if sys.stdout.isatty():
+        raise LinkError("join-key prints a credential. Pipe it to the command that joins the VM.")
+    print(joinkey.mint())
+
+
+COMMANDS = {"status": show_status, "remove": remove, "prune": prune, "setup": setup, "rewrite": rewrite_texts,
+            "join-key": print_join_key}
 
 
 def link_targets(arguments):
