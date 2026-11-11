@@ -2,7 +2,7 @@ import re
 
 FENCE = re.compile(r"^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$", re.S | re.M)
 TOKEN = re.compile(
-    r"(?P<link>!?\[[^\]\n]*\]\((?P<target>[^()\s]+)\))"
+    r"(?P<link>(?P<opening>!?\[[^\]\n]*\]\()(?:<(?P<bracketed>[^<>\n]+)>|(?P<target>[^()\s]+))\))"
     r"|(?<!`)`(?P<span>[^`\n]+)`(?!`)"
     r"|(?P<bare>(?<![\w/.:@`\[=~-])(?<!\]\()(?:https?://|file://|~/|/)[^\s`'\"<>()\[\]|]+)"
 )
@@ -18,8 +18,8 @@ def rewrite(text, url_for):
     def replace(match):
         written = match.group(0)
         if match.group("link"):
-            url = url_for(match.group("target"))
-            return written[:match.start("target") - match.start()] + url + ")" if url else written
+            url = url_for(match.group("bracketed") or match.group("target"))
+            return match.group("opening") + url + ")" if url else written
         if match.group("span"):
             url = url_for(match.group("span"))
             return labelled(written, match.group("span"), url) if url else written
