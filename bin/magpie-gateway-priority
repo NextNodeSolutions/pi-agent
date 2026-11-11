@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# launchd confines a Background job to the efficiency cores at priority 4, so one CPU-heavy command on the host stalls the gateway and every Pi session behind it; `magpie daemon install` writes that type.
+set -euo pipefail
+
+LABEL="com.yetone.magpie.serve"
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+REQUIRED_TYPE="Interactive"
+THROTTLED_PRIORITY=4
+DOMAIN="gui/$(id -u)"
+UNLOAD_ATTEMPTS=50
+UNLOAD_INTERVAL_SECONDS=0.2
+READY_RETRIES=30
+READY_BUDGET_SECONDS=40
+
+[[ -f "$PLIST" ]] || exit 0
+
+process_type() {
+  plutil -extract ProcessType raw -o - "$PLIST" 2>/dev/null || echo "unset"
+}
+
+gateway_priority() {
+  local pid
+  pid="$(launchctl list "$LABEL" 2>/dev/null | sed -n 's/.*"PID" = \([0-9]*\);.*/\1/p')"
+  [[ -n "$pid" ]] || return 1
+  ps -o pri= -p "$pid" | tr -d ' '
+}
+
+health_url() {
+  local address
+  if ! address="$(plutil -extract EnvironmentVariables.MAGPIE_ADDR raw -o - "$PLIST" 2>/dev/null)"; then
+    echo "Magpie gateway: $PLIST holds no EnvironmentVariables.MAGPIE_ADDR, so its port is unknown. Reinstall with \`magpie daemon install --addr host:port\`, then run this again." >&2
+    return 1
+  fi
+  echo "http://127.0.0.1:${address##*:}/v1/models"
+}
+
+answers() {
+  curl --silent --output /dev/null --max-time 2 \
+    --retry "$READY_RETRIES" --retry-delay 1 --retry-connrefused \
+    --retry-max-time "$READY_BUDGET_SECONDS" "$1"
+}
+
+reload() {
+  launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
+  local attempt
+  for ((attempt = 0; attempt < UNLOAD_ATTEMPTS; attempt++)); do
+    launchctl list "$LABEL" >/dev/null 2>&1 || break
+    sleep "$UNLOAD_INTERVAL_SECONDS"
+  done
+  launchctl bootstrap "$DOMAIN" "$PLIST"
+}
+
+# plutil rewrites the whole file and drops the marker comment `magpie daemon install` wrote, so it only serves a file without the key.
+set_type() {
+  REQUIRED_TYPE="$REQUIRED_TYPE" perl -0pi -e 's{(<key>ProcessType</key>\s*<string>)[^<]*}{$1$ENV{REQUIRED_TYPE}}' "$PLIST"
+  [[ "$(process_type)" == "$REQUIRED_TYPE" ]] ||
+    plutil -replace ProcessType -string "$REQUIRED_TYPE" "$PLIST"
+}
+
+apply_type() {
+  set_type &&
+    plutil -lint -s "$PLIST" &&
+    reload &&
+    answers "$1"
+}
+
+check() {
+  local found
+  found="$(process_type)"
+  [[ "$found" == "$REQUIRED_TYPE" ]] && return 0
+  echo "Magpie gateway: launchd ProcessType is $found, expected $REQUIRED_TYPE. A CPU-heavy command on this machine will stall every session routed through it. Run \`$0 fix\`: it restarts the gateway, which cuts the replies in flight." >&2
+  return 1
+}
+
+fix() {
+  local url backup priority
+  url="$(health_url)"
+  priority="$(gateway_priority || echo 0)"
+  if [[ "$(process_type)" == "$REQUIRED_TYPE" ]] && ((priority > THROTTLED_PRIORITY)); then
+    echo "Magpie gateway: already $REQUIRED_TYPE, priority $priority"
+    return 0
+  fi
+  backup="$(mktemp)"
+  cp -p "$PLIST" "$backup"
+  if ! apply_type "$url"; then
+    cp -p "$backup" "$PLIST"
+    reload || true
+    echo "Magpie gateway: no answer on $url after the change, so $PLIST is back to its previous content. \`magpie daemon status\` tells whether the service runs." >&2
+    return 1
+  fi
+  rm -f "$backup"
+  priority="$(gateway_priority || echo 0)"
+  if ((priority <= THROTTLED_PRIORITY)); then
+    echo "Magpie gateway: reloaded as $REQUIRED_TYPE but still at priority $priority. Read \`magpie daemon status\` and the job with \`launchctl list $LABEL\`." >&2
+    return 1
+  fi
+  echo "Magpie gateway: $REQUIRED_TYPE, priority $priority"
+}
+
+case "${1:-}" in
+  check) check ;;
+  fix) fix ;;
+  *)
+    echo "usage: ${0##*/} check|fix" >&2
+    exit 2
+    ;;
+esac

@@ -1,10 +1,11 @@
 /**
  * fallback - the model moves this extension performs, plus the status
- * line and the continuation message that go with them.
+ * line that goes with them.
  *
  * `performFailover` moves a session whose model just failed onto the next
  * usable model of the chain and asks the model to pick the interrupted task
- * back up; `restoreOriginal` returns the session to the model it started on,
+ * back up, and `failoverAfterAbort` does the same for a run this extension
+ * aborted itself; `restoreOriginal` returns the session to the model it started on,
  * either when a run settles cleanly on the fallback model or when a turn
  * boundary inside a long fallback run could use it again. A chain with no
  * usable model left also ends on the model the session started on. These are
@@ -12,19 +13,16 @@
  * their user-facing notification, so the decision stays in `FallbackSession`.
  */
 
-import { activeGoal, goalText } from '#lib/goal/state.ts'
 import { FALLBACK_STATUS_KEY as STATUS_KEY } from '#lib/model-fallback/status.ts'
 
 import { modelReference, parseModelReference } from './chain.ts'
-import { FALLBACK_MESSAGE_TYPE } from './fallback-message.ts'
+import { continuationAfterFailover } from './fallback-message.ts'
 
 import type {
 	BoundaryResult,
-	CustomMessageEntryDraft,
 	ExtensionAPI,
 	ExtensionContext,
 } from '@earendil-works/pi-coding-agent'
-import type { FallbackMessageDetails } from './fallback-message.ts'
 import type { FallbackSession, FailureSighting } from './fallback-session.ts'
 
 type RegistryModel = NonNullable<
@@ -88,31 +86,6 @@ function reportFallback(
 	ctx.ui.setStatus(STATUS_KEY, `↯ ${reference} (fallback)`)
 }
 
-/** Continue the same request with the current checklist, without creating human input. */
-function continuationAfterFailover(
-	ctx: ExtensionContext,
-	failure: FailureSighting,
-	candidate: string,
-): CustomMessageEntryDraft {
-	const goal = activeGoal(ctx.sessionManager.getBranch())
-	return {
-		type: 'custom_message',
-		customType: FALLBACK_MESSAGE_TYPE,
-		content: [
-			`The previous model attempt failed (${failure.reason}). The session switched to ${candidate}. Follow the latest human request and resume it from its last verified result. A provider failure is not task completion. Retain the checklist and its existing IDs; only verified results complete items. This recovery message is not a new human request.`,
-			goal ? goalText(goal) : '',
-		]
-			.filter(Boolean)
-			.join('\n'),
-		display: true,
-		details: {
-			failedModel: failure.model,
-			candidate,
-			reason: failure.reason,
-		} satisfies FallbackMessageDetails,
-	}
-}
-
 /** Moves the session to the model it started on; false when it stays put. */
 async function returnToOriginal(
 	pi: ExtensionAPI,
@@ -166,6 +139,32 @@ async function abandonChain(
 	)
 }
 
+async function switchToNextModel(
+	pi: ExtensionAPI,
+	ctx: ExtensionContext,
+	session: FallbackSession,
+	failure: FailureSighting,
+): Promise<string | undefined> {
+	const now = Date.now()
+	session.coolDown(failure, now)
+	const target = resolveTarget(
+		ctx,
+		session.candidatesAfter(failure.model, now),
+	)
+	if (!target) {
+		await abandonChain(pi, ctx, session, failure)
+		return undefined
+	}
+	session.trackSwitch(target.reference)
+	if (await pi.setModel(target.model)) return target.reference
+	session.forgetSwitch(target.reference)
+	ctx.ui.notify(
+		`fallback: no credentials configured for ${target.reference}.`,
+		'error',
+	)
+	return undefined
+}
+
 /** Switch at agent_before_settle and return one same-request continuation. */
 export async function performFailover(
 	pi: ExtensionAPI,
@@ -175,35 +174,40 @@ export async function performFailover(
 ): Promise<BoundaryResult | undefined> {
 	if (ctx.signal?.aborted) return undefined
 	const sessionId = ctx.sessionManager.getSessionId()
-	const now = Date.now()
-	session.coolDown(failure, now)
-	const target = resolveTarget(
-		ctx,
-		session.candidatesAfter(failure.model, now),
-	)
-	if (!target) {
-		await abandonChain(pi, ctx, session, failure)
-		return
-	}
-	session.trackSwitch(target.reference)
-	if (!(await pi.setModel(target.model))) {
-		session.forgetSwitch(target.reference)
-		ctx.ui.notify(
-			`fallback: no credentials configured for ${target.reference}.`,
-			'error',
-		)
-		return
-	}
+	const candidate = await switchToNextModel(pi, ctx, session, failure)
+	if (!candidate) return undefined
 	if (ctx.signal?.aborted || sessionId !== ctx.sessionManager.getSessionId())
 		return undefined
 	session.markFallbackActive(failure.model)
-	reportFallback(ctx, failure, target.reference)
+	reportFallback(ctx, failure, candidate)
 	return {
 		entries: ctx.hasPendingMessages()
 			? []
-			: [continuationAfterFailover(ctx, failure, target.reference)],
+			: [
+					{
+						type: 'custom_message',
+						...continuationAfterFailover(ctx, failure, candidate),
+					},
+				],
 		continue: true,
 	}
+}
+
+/** An aborted run has no settle boundary left to continue from: the continuation starts a new run. */
+export async function failoverAfterAbort(
+	pi: ExtensionAPI,
+	ctx: ExtensionContext,
+	session: FallbackSession,
+	failure: FailureSighting,
+): Promise<void> {
+	const sessionId = ctx.sessionManager.getSessionId()
+	const candidate = await switchToNextModel(pi, ctx, session, failure)
+	if (!candidate || sessionId !== ctx.sessionManager.getSessionId()) return
+	session.markFallbackActive(failure.model)
+	reportFallback(ctx, failure, candidate)
+	pi.sendMessage(continuationAfterFailover(ctx, failure, candidate), {
+		triggerTurn: true,
+	})
 }
 
 /** Return a session that ran cleanly to the model it started on. */

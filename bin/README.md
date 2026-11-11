@@ -21,6 +21,11 @@ shadow a system binary or is pi-owned:
   managed target deleted live; a no-op elsewhere. Run at session start and stop
   by `extensions/commands/chezmoi-reconcile/` and by the Claude Code hooks in
   `~/.claude/settings.json`.
+- `magpie-gateway-priority` — on the machine hosting the Magpie gateway,
+  `check` fails when its launchd job is not `Interactive` and `fix` sets the
+  type and reloads the job, restoring the file when the gateway does not
+  answer afterwards; a no-op elsewhere. `check` runs at session start by
+  `extensions/model/gateway-priority/`.
 
 Personal cross-context tools live in `~/.local/bin` (last in PATH on purpose),
 not here.
