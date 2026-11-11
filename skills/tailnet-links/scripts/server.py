@@ -123,8 +123,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Location", deliverables.MOUNT_PATH + quote(path) + "/")
             self.send_header("Content-Length", "0")
             return self.end_headers()
-        index = directory / INDEX_NAME
-        if index.is_file():
+        index = locate(path + INDEX_NAME)
+        if index and index.is_file():
             return self.send_file(index)
         return self.send_page(HTTPStatus.OK, path, listing(directory, path))
 
