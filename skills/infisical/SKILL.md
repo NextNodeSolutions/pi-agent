@@ -33,7 +33,7 @@ Reserve this project for Pi, Claude, Pots and other AI clients. Keep the root em
 
 Read `~/.config/agent-secrets/core-vault.json` before changing bindings. It owns the project, environment, API domain, shell exports, client secret paths, and shared tool paths. Pi's `bin/provider-key.py` signs in with the machine identity from the environment (`INFISICAL_UNIVERSAL_AUTH_*`) and that domain, never with the user's CLI session, so it resolves keys the same way on this machine and on a `workspace` VM. When the vault does not answer in time it returns the same-named shell export instead, which is why a rotation ends with the refresh and restart below. Infisical's bootstrap credentials stay outside the vault they unlock.
 
-After adding rotated values at the configured paths, run `infisical-refresh`, then open a new shell and restart the clients. Never populate missing keys with placeholder values. The Codex OAuth access token reaches `/clients/pi` through the hourly `pi-token-sync` job of the machine that signed in, and every other machine (the MacBook, the Pots desktops, the workspace VMs) reads it with `~/.pi/agent/bin/pi-token-pull` under its own client secret.
+After adding rotated values at the configured paths, run `infisical-refresh`, then open a new shell and restart the clients. Never populate missing keys with placeholder values. The Codex OAuth access token reaches `/clients/pi` through the hourly `pi-token-sync` job of the machine that signed in, and every other machine (the Pots desktops, the workspace VMs) reads it with `~/.pi/agent/bin/pi-token-pull` under its own client secret.
 
 ## Reference
 

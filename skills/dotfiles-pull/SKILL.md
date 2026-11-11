@@ -2,13 +2,13 @@
 name: dotfiles-pull
 description: >-
     Pull dotfiles changes from the remote (walid-mos/dotfiles) into the chezmoi
-    source repo and apply them to the live config, then fast-forward the
-    ~/.pi/agent checkout of NextNodeSolutions/pi-agent. Direction rule: the Mac
+    source repo and apply them to the live config. Direction rule: the Mac
     Studio is the source of truth, so on the MacBook Pro remote is truth — pull
-    always, without exception. Use when the user asks to pull / récupérer /
+    always, without exception. Pi runs on the Mac Studio only and drives the
+    MacBook's pull over ssh. Use when the user asks to pull / récupérer /
     sync les dotfiles depuis le repo. On the Mac Studio local is truth: use
-    dotfiles-sync instead; this skill only runs there as explicit screw-up
-    recovery.
+    dotfiles-sync instead; pulling the Studio itself is explicit screw-up
+    recovery only.
 ---
 
 # dotfiles Pull
@@ -16,18 +16,21 @@ description: >-
 chezmoi source repo: `~/.local/share/chezmoi`, remote `walid-mos/dotfiles`.
 Companion skill: `dotfiles-sync` owns the push direction — never push from here.
 
-**1. Detect the machine.**
+**1. Pick the target.** Pi runs on the Mac Studio only, so the session is there.
 
-```bash
-hostname
-```
+- MacBook Pro, the default target → remote is truth. Run steps 3 and 4 on it, each command as one single-quoted argument to ssh, unconditionally, no confirmation:
 
-- Hostname contains `macbook` → remote is truth. Pull unconditionally, no confirmation — go straight to step 3.
-- Hostname is `mac-studio` → local is truth here. This run is only legitimate as screw-up recovery; go to step 2.
+    ```bash
+    ssh macbook-pro 'chezmoi git -- status --short'
+    ```
+
+    When ssh does not answer, the MacBook is off the tailnet: stop and say so.
+
+- Mac Studio, only when the user names it → local is truth here. This run is only legitimate as screw-up recovery; go to step 2.
 
 **2. (Mac Studio only) confirm.** Show `chezmoi git -- status --short`, state that these local source changes will be set aside, and proceed only on explicit approval.
 
-**3. Make remote win.** In the source repo:
+**3. Make remote win.** In the target's source repo:
 
 ```bash
 chezmoi git -- stash push --include-untracked -m "pre-pull $(date +%F-%H%M)"   # only when status is non-empty
@@ -48,14 +51,4 @@ The stash keeps whatever was discarded recoverable. Never pop, drop, or delete i
 chezmoi apply
 ```
 
-**5. Update Pi.** `~/.pi/agent` is a Git checkout of `NextNodeSolutions/pi-agent`, outside chezmoi. Without `~/.pi/agent/.git`, stop and point the user to the adopt-in-place steps of the repository's `README.md` (Install): adopting needs a review of local differences. Otherwise, remote is truth the same way:
-
-```bash
-git -C ~/.pi/agent stash push --include-untracked -m "pre-pull $(date +%F-%H%M)"   # only when `git -C ~/.pi/agent status --short` is non-empty
-git -C ~/.pi/agent pull --ff-only
-node ~/.pi/agent/bin/setup.ts
-```
-
-The stash never holds sessions or sign-ins: the repository ignores them. `client/` overlays are not in the repository and never come through this pull.
-
-**6. Report.** One line per repository: up to date or the `--stat` summary of what the pull brought in, plus the stash name if one was created, and any pinned settings `setup.ts` reset. Never echo the content of stashed files (secrets may be among them).
+**5. Report.** Up to date or the `--stat` summary of what the pull brought in, plus the stash name if one was created. Never echo the content of stashed files (secrets may be among them).

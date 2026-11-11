@@ -1,6 +1,6 @@
 # pi-agent
 
-The [Pi](https://github.com/earendil-works/pi) agent directory used at NextNode: extensions, skills, agents, prompts, themes, model routing and the vendored Pi packages. Pi reads it from `~/.pi/agent`, so the checkout lives there on every machine and cloud VM.
+The [Pi](https://github.com/earendil-works/pi) agent directory used at NextNode: extensions, skills, agents, prompts, themes, model routing and the vendored Pi packages. Pi reads it from `~/.pi/agent`, so the checkout lives there on every machine and cloud VM that runs Pi.
 
 ## Install
 

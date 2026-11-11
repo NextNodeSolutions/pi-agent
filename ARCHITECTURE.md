@@ -11,7 +11,7 @@ Ownership map for `extensions/`, `extensions/lib/` and `lib/ui/`, grouped by bra
 
 ## Repository and client overlays
 
-- This directory is the public `NextNodeSolutions/pi-agent` checkout on every machine and VM. `.gitignore` is an allowlist: a new top-level entry stays untracked until it is listed there, so runtime state, sign-ins and caches never reach the repo.
+- This directory is the public `NextNodeSolutions/pi-agent` checkout on every machine and VM that runs Pi. `.gitignore` is an allowlist: a new top-level entry stays untracked until it is listed there, so runtime state, sign-ins and caches never reach the repo.
 - `settings.pinned.json` owns the settings keys every machine shares; `bin/setup` merges them into `settings.json`, which Pi rewrites (default model, changelog version) and stays untracked. Edit a shared key in `settings.pinned.json`, then run `bin/setup`.
 - `client/<name>/` holds one client's private overlay, untracked and never published: `skills/` (found through `settings.pinned.json` `skills`), `skills.json` (merged by `prompt/skill-surface/overlay.ts`) and `magpie-routing.json` (merged by `model/route/spec.ts`). `extensions/lib/client-overlays.ts` lists the overlay files; an overlay adds entries and never redefines one. Client material goes there, never into a tracked file.
 
