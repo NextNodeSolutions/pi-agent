@@ -11,7 +11,7 @@ Read `~/.pi/agent/extensions/DESIGN.md` before restyling or migrating any pi ren
 - Domains (closed list):
   - `ui/` — display surfaces and chat chrome: `renderers/`, `hud-footer/`, `hud-status/`, `hud-telemetry/`, `ask-user-question/`, `ask-user-secret/`.
   - `prompt/` — prompt and editor input path: `attachments/`, `double-escape-clear/`, `inline-skills/`, `skill-surface/`.
-  - `model/` — provider/model behavior: `fallback/`, `clean-provider-errors/`, `route/`.
+  - `model/` — provider/model behavior: `fallback/`, `clean-provider-errors/`, `route/`, `gateway-priority/`.
   - `tools/` — tool-call behavior: `guard/`, `lazy-load/`, `lookup/`, `workspace/`.
   - `fetch/` — web content fetchers: `social/`, `twitter/`.
   - `commands/` — user-invoked commands and workflows: `simplify/`, `usage/`, `goal/`, `context-budget/`, `dump/` (a `/review` command belongs here too).
