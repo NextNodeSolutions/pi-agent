@@ -46,20 +46,21 @@ Facts marked *observed* were verified live on sandbox `bx_5jgvdcgb` (default siz
 - Repos cannot be selected via CLI (`env add-repo` needs a Boat-connected repo) — dashboard-only,
   and moot while the integration is off.
 
-## Tailscale on a sandbox (proven once)
+## Tailscale on a sandbox (observed 2026-11-11 on `small`)
 
-- Not preinstalled. Install with the official script: `curl -fsSL https://tailscale.com/install.sh | sh`
-  (adds the apt repo; `tailscaled` enabled + active, survives resume via systemd).
-- Enrol with an **ephemeral, tagged, reusable** auth key so repeat enrolments leave no residue:
-  `sudo tailscale up --authkey="$KEY" --hostname=<name>`. The operator's key lives in Infisical
-  (project `core-vault`, env `main`, secret `TAILSCALE_AUTHKEY_BOAT`) — fetch it with the local
-  CLI (`infisical secrets get TAILSCALE_AUTHKEY_BOAT --projectId ce69a081-6aec-472d-9ee8-edbb7ed2b72e --env main -o json`)
-  and pass it through a shell variable so the value never lands in logs.
-- MagicDNS worked; `*.ts.net` names resolve and answer from other tailnet devices. An ephemeral node
-  lingers 30–60 min after its sandbox stops and a re-enrol meanwhile gets a `-1` name, so run
-  `sudo tailscale logout` before `boat stop` and `tailscale up` again on resume.
-- The first HTTPS request to a new MagicDNS name waits for Tailscale to obtain its certificate
-  (11 s observed); later requests answer in ~50 ms.
+- Joining a sandbox to the tailnet belongs to `~/.pi/agent/skills/tailnet-links/SKILL.md`, section
+  "A new machine or VM". Never enrol a sandbox by hand. Only what Boat adds is below.
+- Tailscale is not preinstalled, so the first join installs it and took 100 s. A later join took
+  30 to 50 s. `tailscaled` runs as a systemd service.
+- The device takes the sandbox hostname, `box-node-<id>`.
+- A stop and resume kept the device and its node: file links and previews answered again at the
+  same URLs with no new join. The sandbox came back with its processes still running and its boot
+  time unchanged, unlike the 2026-09-27 observation above.
+- Once the tailnet has dropped the device, the next join returns it under the same name, so file
+  links keep their URLs. Its previews are no longer listed: that skill's section "When a link does
+  not open" has the fix. Observed by deleting the device through the Tailscale API and by `tailscale logout` on the
+  sandbox, not by waiting for the tailnet to drop a stopped one.
+- `localhost:47990` belongs to the image's `sunshine` service. Start test servers on another port.
 
 ## Cost reality checks
 

@@ -16,6 +16,8 @@ export default defineConfig({
 		'backups/**',
 		// Vendored third-party skill, not our codebase: never lint it.
 		'skills/impeccable/**',
+		// Vendored Markdown parser (see its SOURCE.md): never lint it.
+		'skills/tailnet-links/scripts/viewer/marked.esm.js',
 		// Disabled code kept for reference: frozen, not maintained here.
 		'disabled-extensions/**',
 		// Vendored pi-subagents package: own tsconfig, tests and gates (see its FORK.md).

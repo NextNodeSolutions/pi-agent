@@ -19,6 +19,7 @@ export default defineConfig({
 		'bin/**',
 		'frontend-check/**',
 		'packages/**',
+		'skills/tailnet-links/scripts/viewer/marked.esm.js',
 		'**/*.md',
 		'auth.json',
 		'mcp.json',
