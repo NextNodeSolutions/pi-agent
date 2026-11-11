@@ -57,8 +57,8 @@ Facts marked *observed* were verified live on sandbox `bx_5jgvdcgb` (default siz
   same URLs with no new join. The sandbox came back with its processes still running and its boot
   time unchanged, unlike the 2026-09-27 observation above.
 - Once the tailnet has dropped the device, the next join returns it under the same name, so file
-  links keep their URLs. Its previews are gone: link each port again and the same URL answers.
-  Observed by deleting the device through the Tailscale API and by `tailscale logout` on the
+  links keep their URLs. Its previews are no longer listed: that skill's section "When a link does
+  not open" has the fix. Observed by deleting the device through the Tailscale API and by `tailscale logout` on the
   sandbox, not by waiting for the tailnet to drop a stopped one.
 - `localhost:47990` belongs to the image's `sunshine` service. Start test servers on another port.
 
