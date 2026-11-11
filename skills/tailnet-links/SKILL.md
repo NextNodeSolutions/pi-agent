@@ -34,7 +34,7 @@ When the human reports a `Links were left as written` warning, it carries the re
 3. Give the printed URL. It stays the same across restarts of the server on that port.
 4. When the work ends, stop the server, then run `tailnet-link prune`.
 
-A dev server that checks the `Host` header refuses the tailnet name. Pi exports the variables of `scripts/dev-server.env` to every command it starts on its own machine, and Vite and Astro read them. When `tailnet-link` reports that a server refuses the host, do what its message says and run it again.
+A dev server that checks the `Host` header refuses the tailnet name. `scripts/dev-server.env` holds the variables that make Vite and Astro accept it. `scripts/shell.zsh`, sourced from `~/.zshenv`, exports them to every zsh of the machine, and Pi exports them to the commands it starts. A server started before that export keeps refusing until it restarts. When `tailnet-link` reports that a server refuses the host, do what its message says and run it again.
 
 ## Published files
 
@@ -65,6 +65,7 @@ A link answers only while its machine is on. The first request to a machine that
 - A Linux VM outside the tailnet joins with the key in `TS_AUTHKEY`. Setup reads it from its environment, hands it to Tailscale and keeps no copy. `workspace start <name> --profile pi --pi-tailnet` does the whole join from the Mac.
 - `tailnet-link join-key`, on a Mac with an `infisical login` session, prints the key for one VM. It works once, within ten minutes, and tags the VM `tag:agent`, which the tailnet policy grants nothing: the human's devices reach the VM and the VM reaches no other machine. Its output is a credential, so always pipe it into the command that runs setup on the VM.
 - In a Pi tool session the command is on `PATH` before setup ran, through `~/.pi/agent/bin`.
+- A machine where a human types commands sources `scripts/shell.zsh` from its `~/.zshenv`. Setup writes no shell file, so add that line with the machine's dotfiles.
 
 ## Other ways to open
 
