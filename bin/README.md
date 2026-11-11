@@ -13,7 +13,7 @@ shadow a system binary or is pi-owned:
 - `pi-drift.ts` — `pnpm run drift`: fails when the running `pi` differs from
   `AUDITED_PI_VERSION` (`extensions/lib/ui/pi-runtime.ts`).
 - `pi-token-pull` — on every machine that did not sign in to Codex (the
-  MacBook, the Pots desktops, the workspace VMs), copies the Codex access
+  Pots desktops, the workspace VMs), copies the Codex access
   token the signed-in machine publishes in the vault into `auth.json`. Needs
   `INFISICAL_UNIVERSAL_AUTH_CLIENT_ID`/`_SECRET` in its environment and the
   vault binding `~/.config/agent-secrets/core-vault.json`.

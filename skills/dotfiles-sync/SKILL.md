@@ -8,7 +8,7 @@ description: >-
 
 # Dotfiles Sync
 
-Direction rule: the Mac Studio is the source of truth — this push skill belongs there. On the MacBook Pro, load `dotfile-pull` instead (remote is truth, pull without exception).
+Direction rule: the Mac Studio is the source of truth — this push skill belongs there. The MacBook Pro only receives: bring it up to date with `dotfiles-pull` (remote is truth, pull without exception).
 
 Keep the chezmoi source repo (`~/.local/share/chezmoi`, remote `walid-mos/dotfiles`) in sync with the live config. chezmoi runs in the default (copy) model: the source is the single truth, live files are copies.
 
