@@ -51,7 +51,9 @@ def status(*flags):
 def host():
     own = status("--peers=false")
     name = own.get("Self", {}).get("DNSName", "").rstrip(".")
-    if own.get("BackendState") != CONNECTED_STATE or not name:
+    # A machine the tailnet dropped keeps reporting Running and its old name, with a sign-in URL pending.
+    is_connected = own.get("BackendState") == CONNECTED_STATE and not own.get("AuthURL")
+    if not is_connected or not name:
         raise LinkError("This machine is not connected to the tailnet. " + SETUP_HINT)
     return name
 
