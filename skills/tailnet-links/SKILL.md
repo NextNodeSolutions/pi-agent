@@ -34,7 +34,7 @@ When the human reports a `Links were left as written` warning, it carries the re
 3. Give the printed URL. It stays the same across restarts of the server on that port.
 4. When the work ends, stop the server, then run `tailnet-link prune`.
 
-A dev server that checks the `Host` header refuses the tailnet name. Pi exports the variables of `scripts/dev-server-env.json` to every command it starts on its own machine, and Vite and Astro read them. When `tailnet-link` reports that a server refuses the host, do what its message says and run it again.
+A dev server that checks the `Host` header refuses the tailnet name. Pi exports the variables of `scripts/dev-server.env` to every command it starts on its own machine, and Vite and Astro read them. When `tailnet-link` reports that a server refuses the host, do what its message says and run it again.
 
 ## Published files
 

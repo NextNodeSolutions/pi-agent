@@ -12,7 +12,7 @@ CONNECT_TIMEOUT_SECONDS = 1
 # Serve reaches a server bound to either loopback family only through the name, never through 127.0.0.1 or ::1.
 BACKEND_PREFIX = "http://localhost:"
 REFUSED_STATUS = 403
-DEV_SERVER_ENV = json.loads((Path(__file__).resolve().parent / "dev-server-env.json").read_text())
+DEV_SERVER_ENV = (Path(__file__).resolve().parent / "dev-server.env").read_text().splitlines()
 
 
 def https_port(port):
@@ -49,9 +49,8 @@ def assert_host_accepted(port, authority):
     origin = BACKEND_PREFIX + str(port) + "/"
     if probe.fetch(origin, {"Host": authority})[0] != REFUSED_STATUS or probe.fetch(origin)[0] == REFUSED_STATUS:
         return
-    environment = " ".join(name + "=" + value for name, value in DEV_SERVER_ENV.items())
     raise LinkError("The server on localhost:" + str(port) + " refuses requests for the host " + authority.split(":")[0]
-                    + ". Restart it with " + environment + " in its environment (Vite, Astro), or allow that host"
+                    + ". Restart it with " + " ".join(DEV_SERVER_ENV) + " in its environment (Vite, Astro), or allow that host"
                     + " in its config (Next: allowedDevOrigins), then run this again.")
 
 

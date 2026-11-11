@@ -10,35 +10,39 @@
  * the text there and back (`rewrite.ts`) and tells the human when a link could
  * not be made. A failed round trip leaves the message as written.
  *
- * It also puts the skill's `dev-server-env.json` into Pi's environment, so a
- * dev server started from a Pi tool accepts requests for the tailnet host.
+ * It also puts the skill's `dev-server.env` into Pi's environment, so a dev
+ * server started from a Pi that no shell of the machine launched still accepts
+ * requests for the tailnet host.
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
-import { Type } from 'typebox'
-import { Value } from 'typebox/value'
 
 import { rewriteTexts } from './rewrite.ts'
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
-const DEV_SERVER_ENVIRONMENT =
-	'skills/tailnet-links/scripts/dev-server-env.json'
+const DEV_SERVER_ENVIRONMENT = 'skills/tailnet-links/scripts/dev-server.env'
+const ASSIGNMENT_SEPARATOR = '='
 const SUBAGENT_CHILD_FLAG = '1'
 const FAILURE_PREFIX = 'Links were left as written: '
-const EnvironmentSchema = Type.Record(Type.String(), Type.String())
 
 function exportDevServerEnvironment(): void {
-	const variables = Value.Parse(
-		EnvironmentSchema,
-		JSON.parse(
-			readFileSync(join(getAgentDir(), DEV_SERVER_ENVIRONMENT), 'utf8'),
-		),
+	const assignments = readFileSync(
+		join(getAgentDir(), DEV_SERVER_ENVIRONMENT),
+		'utf8',
 	)
-	for (const [name, setting] of Object.entries(variables)) {
-		process.env[name] ??= setting
+	for (const line of assignments.split('\n').filter(Boolean)) {
+		const nameLength = line.indexOf(ASSIGNMENT_SEPARATOR)
+		if (nameLength <= 0) {
+			throw new Error(
+				`${DEV_SERVER_ENVIRONMENT} holds one NAME=value per line, not "${line}". Fix that line.`,
+			)
+		}
+		process.env[line.slice(0, nameLength)] ??= line.slice(
+			nameLength + ASSIGNMENT_SEPARATOR.length,
+		)
 	}
 }
 
