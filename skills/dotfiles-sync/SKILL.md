@@ -12,6 +12,8 @@ Direction rule: the Mac Studio is the source of truth — this push skill belong
 
 Keep the chezmoi source repo (`~/.local/share/chezmoi`, remote `walid-mos/dotfiles`) in sync with the live config. chezmoi runs in the default (copy) model: the source is the single truth, live files are copies.
 
+`~/.pi` is outside chezmoi: `~/.pi/agent` is a checkout of the public `NextNodeSolutions/pi-agent` repository. Commit Pi changes there with Git, under its `README.md` and `ARCHITECTURE.md`; never `chezmoi add` anything under `~/.pi`. Its `client/` overlays stay on their machine — the dotfiles repo is public too.
+
 ## Procedure
 
 **1. Scope.** List managed top-level targets:
@@ -53,13 +55,6 @@ chezmoi git -- diff --cached --stat
 ```
 
 Inspect the staged diff and remove any unapproved or secret path from staging before committing. Then branch, commit and merge as `AGENTS.md` at the chezmoi source root says: read it before the first commit.
-
-**modify_ files.** `settings.json` is managed through a `modify_` merge script in
-the source repo (`dot_pi/agent/modify_settings.json`): `chezmoi re-add` silently
-skips it, and a lingering `MM` on `settings.json` after re-add means a pinned key
-changed in live - live wins: hand-edit the pinned JSON inside the script, never
-accept the drift. `skills.json` and `lazy-load.json` are machine-local (ignored): never re-add;
-project routing and defer lists are hand-carried per machine.
 
 ## Rules
 
