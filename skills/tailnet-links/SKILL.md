@@ -36,6 +36,12 @@ When the human reports a `Links were left as written` warning, it carries the re
 
 A dev server that checks the `Host` header refuses the tailnet name. `scripts/dev-server.env` holds the variables that make Vite and Astro accept it. `scripts/shell.zsh`, sourced from `~/.zshenv`, exports them to every zsh of the machine, and Pi exports them to the commands it starts. A server started before that export keeps refusing until it restarts. When `tailnet-link` reports that a server refuses the host, do what its message says and run it again.
 
+## What the machine links by itself
+
+- **A Herdr terminal prints the link.** `scripts/shell.zsh` starts `tailnet-link announce` with each command typed in a Herdr terminal. When the running program shows an `http://localhost` URL for a port it listens on, the terminal prints `➜  Tailnet: <url>` under it, one line per port. A human who types `pnpm dev` needs no other command.
+- **A program that draws the whole screen gets no line**, an agent or an editor for example. Link its port with `tailnet-link <port>`.
+- **The watch is bounded.** It ends when the prompt returns, or `WATCH_SECONDS` of `scripts/announce.py` after a program takes the terminal. Link a server that starts later with `tailnet-link <port>`.
+
 ## Published files
 
 - A link is a copy taken when the link is made. After changing the file, link it again. In Pi, naming the path in the final message does that.

@@ -3,6 +3,7 @@ import json
 import os
 import sys
 
+import announce
 import deliverables
 import joinkey
 import links
@@ -14,6 +15,7 @@ from tailnet import LinkError
 
 USAGE = """usage: tailnet-link <target>...   print one HTTPS tailnet URL per target
        tailnet-link status          previews with their server state, and the file server
+       tailnet-link announce        in a Herdr terminal, print the link of each local URL its running program shows
        tailnet-link remove <port>   stop previewing a local port
        tailnet-link prune           remove the previews whose server is gone
        tailnet-link setup           join the tailnet when needed, then serve this machine's files
@@ -65,7 +67,7 @@ def print_join_key(_arguments):
 
 
 COMMANDS = {"status": show_status, "remove": remove, "prune": prune, "setup": setup, "rewrite": rewrite_texts,
-            "join-key": print_join_key}
+            "join-key": print_join_key, "announce": announce.watch}
 
 
 def link_targets(arguments):

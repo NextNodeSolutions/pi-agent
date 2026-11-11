@@ -22,11 +22,15 @@ class LinkError(Exception):
     pass
 
 
-def run(arguments, timeout=COMMAND_TIMEOUT_SECONDS):
+def completed(arguments, timeout=COMMAND_TIMEOUT_SECONDS):
     try:
-        result = subprocess.run(arguments, capture_output=True, text=True, timeout=timeout)
+        return subprocess.run(arguments, capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.TimeoutExpired) as error:
         raise LinkError("Command did not complete: " + " ".join(arguments) + ". " + str(error)) from error
+
+
+def run(arguments, timeout=COMMAND_TIMEOUT_SECONDS):
+    result = completed(arguments, timeout)
     if result.returncode:
         raise LinkError("Command failed: " + " ".join(arguments) + "\n" + result.stderr.strip())
     return result.stdout.strip()

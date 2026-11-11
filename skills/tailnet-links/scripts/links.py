@@ -9,7 +9,7 @@ import previews
 import tailnet
 from tailnet import LinkError
 
-LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1", "0.0.0.0")
+LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1", "0.0.0.0", "::")
 DEFAULT_HTTP_PORT = 80
 SCHEMELESS_LOCAL = re.compile(r"(localhost|127\.0\.0\.1)(:\d+)?(/.*)?")
 DOCUMENT_SUFFIXES = (
