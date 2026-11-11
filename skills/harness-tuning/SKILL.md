@@ -1,0 +1,89 @@
+---
+name: harness-tuning
+description: Create and maintain Pi skills, extensions, agent instructions (AGENTS.md), and persistent agent-facing docs (ARCHITECTURE.md, PRODUCT.md, …). MUST be loaded whenever any of them is created or modified, to prevent rule duplication, place behavior in the right location, and keep every doc wired so agents actually read it.
+---
+
+# Harness Tuning
+
+Placement discipline for agent instructions: where a rule lives decides whether it gets followed, diluted, or silently lost.
+
+**Load this skill before any creation/modification of a skill, extension, AGENTS.md, or agent-facing doc (ARCHITECTURE.md, PRODUCT.md, …).**
+
+Each artifact kind has its own artifact spec — read it before authoring that kind:
+
+- Skills: `~/.pi/agent/skills/AGENTS.md`
+- Extensions: `~/.pi/agent/extensions/AGENTS.md` — domain-folder layout (`extensions/<domain>/<name>/`) and the mandatory step-by-step for adding or moving an extension; read it before creating, moving, or renaming anything under `extensions/`.
+
+## Decision matrix: where does an instruction go?
+
+| Need | Location | Loading | Salience |
+|---|---|---|---|
+| Global policy, applies to every session | `~/.pi/agent/AGENTS.md` | System prompt, every session | Strong early, **diluted** in long sessions |
+| Tool usage mechanics (when to call it, how to fill params) | Tool description/schema | Re-sent on **every turn** | **Maximal**: read at the moment of the call decision |
+| One-off expertise or workflow | Skill (`~/.pi/agent/skills/`) | Description always in context, body on demand | Good if the description is specific |
+| Behavior/UI impossible to express in text | Extension (`~/.pi/agent/extensions/`) | Code, always active | Deterministic (no salience, it's code) |
+
+**Golden rule**: if an instruction only matters in a specific context, it must NOT be in AGENTS.md.
+
+## Additive docs must be wired
+
+An agent-facing reference doc (ARCHITECTURE.md, PRODUCT.md, …) that nothing points to is dead text. Never create one standalone:
+
+1. If this skill's description lacks the creation trigger, widen it — descriptions are always in context; that is the wire.
+2. Add a one-line read-pointer ("Read X before …") in the artifact spec, skill, or AGENTS.md governing when it must be read. Never duplicate the doc's content there.
+3. Verify the chain: `rg -n '<doc name>'` from context files to the doc — every hop must exist on disk.
+
+## Vendoring third-party skills
+
+Never install a skill through a package manager, marketplace, or registry CLI — `npx skills add` (skills.sh/Vercel), `claude plugin marketplace`, or any equivalent: they run third-party code and write files outside review. Vendor by copying the upstream files (`SKILL.md` plus its license) into `skills/<name>/` byte-identical, and record the upstream repo, revision and date in a `SOURCE.md` beside them so an update is a re-copy diff.
+
+## Directions, not inventories
+
+- An agent-facing doc carries directions only — what a location is for, how to run it, what is binding. Never keep counts of files, folders, or functions in it: the directory is a source of truth the doc cannot outlive, and a doc restating the listing is a cache (see `~/.pi/agent/skills/writing-for-agents/SKILL.md`) that stales on the next added file.
+- Where work goes is stated as a placement rule — "new outputs go in the matching domain folder; opening a folder is reserved for a genuinely new domain" — not an enumeration of current contents. A specific file is found through the folder it lives in (or Spotlight), not through the doc.
+
+## Modifying Pi
+
+Before changing Pi source, dist, or binary:
+
+1. Exhaust the extension APIs, keybindings, and configuration first.
+2. If none covers the need, present the file, behavior, and update consequence, then obtain explicit approval.
+3. Maintain an audited dist patch using `skills/pi-updated/SKILL.md`, never a repository commit.
+
+## Anti-duplication (the most important principle)
+
+1. **Single source of truth per detail** — the rule lives in `AGENTS.md` (Development); applied here: each detail has one home among skill, `AGENTS.md`, and tool description.
+2. **Redundancy only for critical triggers** — the rule whose omission costs the most (e.g., "ALWAYS use tool X") may live in AGENTS.md AND the tool description. Defense-in-depth, assumed.
+3. **No tool-specific parameter mechanics in AGENTS.md** — parameter names and limits belong in tool/skill descriptions. Global rules about which dedicated tool to use and when to ask a human may stay in AGENTS.md.
+
+## Rules for writing rules
+
+- **Brevity** — AGENTS.md is paid in tokens on every turn of every session. Every line must earn its place.
+- **Imperative, no softeners** — "Always X", "Never Y", not "it would be good to". Soft rules get ignored.
+- **Negative + positive alternative** — "Never ask open-ended questions" followed by "...use `ask_user_question`". A prohibition without an exit is poorly followed.
+
+## Checklist: add/modify AGENTS.md
+
+- [ ] The rule applies to **all** sessions (otherwise → skill)
+- [ ] It does not duplicate a detail already in a tool/skill description
+- [ ] One line if possible, imperative, actionable
+- [ ] Positive alternative provided if it's a prohibition
+
+## Verify after modification
+
+Follow the Verify section of the artifact spec you touched (`~/.pi/agent/skills/AGENTS.md` or `~/.pi/agent/extensions/AGENTS.md`). Root `~/.pi/agent/AGENTS.md`: confirm loading in a new session.
+
+## Lint & format
+
+Any code file created or modified under `~/.pi/agent` (extensions, tests, configs) → run from `~/.pi/agent`:
+
+```bash
+pnpm run lint                    # oxlint
+pnpm run type-check              # tsc --noEmit
+pnpm exec oxfmt --write <files>  # format exactly the files you touched
+pnpm run drift                   # running pi version vs AUDITED_PI_VERSION (lib/ui/pi-runtime.ts)
+pnpm run test                    # node --experimental-transform-types --test 'tests/**/*.test.ts' — when tests cover the change
+```
+
+- Fix every error and warning in the files you create or modify. Pre-existing issues in untouched files: leave alone (no unrelated churn).
+- Never format or lint markdown (`skills/**`, `AGENTS.md`) or Pi-managed state files (`models*.json`, `settings.json`, `auth.json`) — excluded by design in `oxfmt.config.ts`.

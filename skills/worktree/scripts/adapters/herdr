@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+READY_WAIT_SECONDS=60
+
+usage() {
+  echo "usage: herdr open --folder <dir> --title <title> [--key <key>] -- <argv...>" >&2
+  exit 64
+}
+fail() { echo "herdr adapter: $2" >&2; exit "$1"; }
+
+caller() {
+  [[ -n "${HC_TERMINAL_ID:-}" ]] || fail 2 "HC_TERMINAL_ID is unset: the caller is not inside a herdr terminal"
+}
+
+open_tab() {
+  local folder="" title="" key=""
+  while (($#)); do
+    case "$1" in
+      --folder) folder="${2:-}"; shift 2 || usage ;;
+      --title) title="${2:-}"; shift 2 || usage ;;
+      --key) key="${2:-}"; shift 2 || usage ;;
+      --) shift; break ;;
+      *) usage ;;
+    esac
+  done
+  [[ -n "$folder" && -n "$title" && $# -gt 0 ]] || usage
+  [[ -d "$folder" ]] || fail 1 "folder does not exist: $folder"
+  folder="$(cd "$folder" && pwd -P)"
+  key="${key:-$folder}"
+  caller
+  local space
+  space="$(herdr-core get "$HC_TERMINAL_ID" --json | jq -er '.labels["herdr.space"] // empty')" \
+    || fail 2 "caller terminal $HC_TERMINAL_ID has no herdr.space label"
+
+  local address hit
+  while read -r address; do
+    hit="$(herdr-core get "$address" --json | jq -c --arg sp "$space" --arg k "$key" --arg f "$folder" '
+      (.labels // {}) as $l
+      | select($l["herdr.space"] == $sp)
+      | select($l["worktree.key"] == $k or ($k == $f and .cwd == $f))
+      | {status: "reused", terminal: .address, tab: $l["herdr.tab"], ready: null}')"
+    [[ -z "$hit" ]] || { echo "$hit"; return 0; }
+  done < <(herdr-core ls --json | jq -r '.terminals[] | select(.state == "live") | .address')
+
+  local tab terminal app
+  tab="tb$(uuidgen | tr -d '-' | tr '[:upper:]' '[:lower:]')"
+  terminal="$(herdr-core run --bg --json --no-parent --keep --cwd "$folder" \
+    --label "herdr.space=$space" --label "herdr.tab=$tab" --label "worktree.key=$key" -- zsh -lc 'exec "$0" "$@"' "$@" | jq -er '.address')" \
+    || fail 1 "hc run failed for: $*"
+  herdr-core wait "$terminal" --timeout "$READY_WAIT_SECONDS" --json >/dev/null || true
+  app="$(herdr-core get "$terminal" --json | jq -r 'select(.state == "live") | .status.app // empty')"
+  herdr-app do tab.rename --id "$tab" --name "$title" | jq -e '.ok == true' >/dev/null \
+    || fail 1 "tab $tab started terminal $terminal but rename failed"
+  jq -nc --arg t "$terminal" --arg tab "$tab" --arg app "$app" \
+    '{status: "created", terminal: $t, tab: $tab, ready: ($app != ""), app: (if $app == "" then null else $app end)}'
+}
+
+command="${1:-}"
+(($#)) && shift
+case "$command" in
+  open) open_tab "$@" ;;
+  *) usage ;;
+esac

@@ -1,0 +1,34 @@
+{
+	"name": "pi-agent",
+	"private": true,
+	"type": "module",
+	"imports": {
+		"#lib/*": "./extensions/lib/*"
+	},
+	"description": "Tooling manifest for the Pi agent extensions: oxlint + oxfmt driven by @nextnode-solutions/standards",
+	"scripts": {
+		"lint": "oxlint --disable-nested-config",
+		"lint:types": "oxlint --disable-nested-config --type-aware",
+		"type-check": "tsc --noEmit",
+		"drift": "node --experimental-transform-types bin/pi-drift.ts",
+		"audit:pi": "node skills/pi-updated/scripts/audit.ts",
+		"format": "oxfmt --write .",
+		"format:check": "oxfmt --check .",
+		"test": "node --input-type=module -e 'import {globSync} from \"node:fs\"; const n = globSync(\"tests/**/*.test.ts\").length; if (!n) { console.error(\"test: no files matched tests/**/*.test.ts - refusing to report success\"); process.exit(1); }' && node --experimental-transform-types --test 'tests/**/*.test.ts'"
+	},
+	"devDependencies": {
+		"@earendil-works/pi-ai": "1.4.0",
+		"@earendil-works/pi-coding-agent": "1.4.0",
+		"@earendil-works/pi-tui": "1.4.0",
+		"@nextnode-solutions/standards": "^1.24.0",
+		"@types/node": "^24.13.6",
+		"oxfmt": "^0.67.0",
+		"oxlint": "^1.83.0",
+		"oxlint-tsgolint": "^7.0.2002",
+		"typebox": "1.3.7",
+		"typescript": "^5.9.3"
+	},
+	"engines": {
+		"node": ">=24.0.0"
+	}
+}

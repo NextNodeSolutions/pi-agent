@@ -1,0 +1,65 @@
+{
+	"group": "router",
+	"classifier": "typesafe/jev-latest",
+	"intentSure": 0.15,
+	"members": [
+		"group/expert",
+		"group/deep",
+		"group/think",
+		"group/fast",
+		"group/instant",
+		"group/ultra",
+		"group/max"
+	],
+	"scopes": {
+		"harness": ["~/.pi/agent", "~/.local/share/chezmoi", "~/.config", "~/.claude", "~/.agents"]
+	},
+	"intents": {
+		"directive": "an explicit instruction to use the strongest model, Fable, maximum thinking or the best intelligence for this task (\"use best intelligence\", \"use fable\", \"max effort\", \"réfléchis à fond\")",
+		"trivial": "chit-chat, an acknowledgement, a test ping, a progress check (\"t'en es où ?\") or one given command to run (\"lance pnpm dev\"); not a go-ahead for pending work, no question about models or routing",
+		"resume": "a bare go-ahead to continue or start the work already discussed (\"reprends\", \"go\", \"vas-y\", \"continue\", \"do all fixes\", \"done\"), with no new content of its own",
+		"git": "committing, pushing, rebasing or merging finished work, opening, updating or merging pull requests, splitting atomic commits, resolving a merge or rebase conflict, deleting stale branches or worktrees",
+		"explain": "a question answered by reading product code, docs, logs or the conversation: why it behaves so, how it works, where it lives, what was done, a diagram; nothing to change yet",
+		"plan": "planning before any code: how to structure a system, which approach and its trade-offs, research to pick a tool, a multi-step plan, roadmap or spec; not how things work today, not writing code",
+		"prod": "a production deploy, migration, rollback or live incident to watch closely through logs, errors and metrics, ready to roll back; a mistake reaches real users or data",
+		"debug": "finding why something is broken when the cause is unknown: a pasted error or failing command, a crash, wrong output or regression to investigate before any fix (\"pourquoi ça fail\", \"check why\")",
+		"tooling": "improving, fixing or asking about the agent's own tooling: pi extensions, skills, AGENTS.md, prompts, model routing, quotas, guards on what agents may run, MCP servers, dotfiles; not product code",
+		"frontend": "frontend or UI code, design, styling or pixel parity, or reviewing, auditing or simplifying existing code where polish matters; not backend code, not a one-line edit",
+		"backend": "writing or fixing backend code, APIs, databases, data cleanup, scripts, CI or infra config, or a broad multi-file refactor; not the agent's own tooling, not just running a command",
+		"ci": "running a build, tests or CI and watching it until it passes, fixing failures and rerunning; local or pull-request work, nothing deployed",
+		"staging": "deploying to staging or preview, or publishing a package release, then watching logs and health checks until it works; not production"
+	},
+	"rules": [
+		{ "intent": "directive", "use": ["group/max", "group/ultra"] },
+		{ "scope": "harness", "intent": "backend", "use": ["group/ultra", "group/max"] },
+		{ "scope": "harness", "intent": "ci", "use": ["group/ultra", "group/max"] },
+		{ "scope": "harness", "intent": "staging", "use": ["group/ultra", "group/max"] },
+		{ "intent": "trivial", "use": ["group/instant", "group/fast"] },
+		{ "intent": "resume", "use": ["group/expert", "group/ultra"] },
+		{ "intent": "git", "use": ["group/think", "group/deep"] },
+		{ "intent": "explain", "use": ["group/deep", "group/expert"] },
+		{ "intent": "plan", "use": ["group/max", "group/ultra"] },
+		{ "intent": "prod", "use": ["group/ultra", "group/max"] },
+		{ "intent": "debug", "use": ["group/ultra", "group/expert"] },
+		{ "intent": "tooling", "use": ["group/ultra", "group/max"] },
+		{ "intent": "frontend", "use": ["group/ultra", "group/expert"] },
+		{ "intent": "backend", "use": ["group/expert", "group/ultra"] },
+		{ "intent": "ci", "use": ["group/expert", "group/ultra"] },
+		{ "intent": "staging", "use": ["group/expert", "group/ultra"] }
+	],
+	"pins": {
+		"group/max": [
+			"best intelligence",
+			"max intelligence",
+			"maximum intelligence",
+			"use fable",
+			"passe par fable",
+			"meilleur modele",
+			"strongest model",
+			"max effort",
+			"reflechis a fond",
+			"ultrathink"
+		],
+		"group/ultra": ["think hard", "use opus", "passe par opus"]
+	}
+}

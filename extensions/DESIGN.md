@@ -1,0 +1,612 @@
+# DESIGN.md — pi rendering surface map + restyle migration list
+
+Single source of truth for restyling pi's TUI. Read this before migrating ANY render surface
+(tool rows, chrome, transcript surfaces) to the house design system.
+
+- Verified against installed `@earendil-works/pi-coding-agent@1.4.0` + `@earendil-works/pi-tui@1.4.0` dist sources.
+- Re-diff this matrix after every pi upgrade; glyph/format details can shift between versions.
+- Ownership rules live in `~/.pi/agent/ARCHITECTURE.md`. This file tracks *what renders*, not *who owns which module*.
+
+## Status legend
+
+- `- [ ]` not migrated (still on pi default styling)
+- `- [x]` migrated (renders through `lib/ui/design-system` or an owned component)
+- `- [~]` intentionally skipped (pi default is accepted)
+
+## Current state
+
+The activity design system now covers **every `ToolExecutionComponent`**, not an allowlist of
+registered tool names. This includes built-ins, package tools such as `subagent`, future/dynamically
+loaded tools, and restored calls whose definition is no longer installed. `compact` tool calls use
+the fallback; Pi's separate compaction-summary card has its own adapter to the same shell.
+
+The first dedicated presentations are **read, grep, glob (Pi's `find`), bash**, plus subagent
+identity. Other tools share the fallback header and preserve their native expanded detail renderer.
+No tool schema, execution function, result payload, or activation list is changed.
+
+Already owned elsewhere: hud-footer, questionnaire dialog/content, prompt top border and telemetry,
+attachment strips, and framed literal user prompts. Assistant responses now belong to `renderers/` and use
+the response hierarchy below. Notifications, manual `!` shell
+blocks, compaction/retry loaders, dialogs and general editor chrome are not tool-execution rows;
+those remain separate migrations below. Do not claim the entire TUI is migrated.
+
+---
+
+## 1. Overlay infrastructure
+
+- [x] Design system: `lib/ui/design-system/theme.ts` owns semantic roles; `palette.ts` reads `themes/catppuccin-latte.json` vars; `terminal-color.ts` owns parsing/blending.
+- [x] Text policy: `lib/ui/terminal-text.ts` owns clipping/wrapping/hanging indent (pi TUI stays the only tokenizer).
+- [x] Frames/surfaces: `lib/ui/align.ts`, `lib/ui/frame.ts`, `lib/ui/selection-marker.ts`, `lib/ui/surface.ts` + `lib/ui/ordered-widget-stack.ts`.
+- [x] Editor decorator composition: `lib/ui/editor-decorator.ts` chains on pi's `getEditorComponent` exactly once per session.
+- [x] Base editor: `lib/ui/editor-decorator.ts` also exports `createDefaultEditor` (pi's `CustomEditor` with `embedWorkingStatus: true`), the base every decorator chains onto.
+- [x] Renderer adapter: `ui/renderers/install-renderers.ts` binds the running CLI's classes; version drift is warned by a widget (`lib/ui/renderer-drift.ts`), never a refused load. No duplicate `registerTool` ownership and no execution passthroughs.
+- [x] Shared activity layout: `lib/ui/activity-line.ts` / `lib/ui/activity-details.ts`; semantic colors come from `lib/ui/design-system`.
+
+## 2. Activity design contract
+
+- **Ordinary tools occupy one collapsed physical line** in every state, except image captures
+  described below. Edit/write instead use
+  standalone panels throughout their lifecycle. Applied mutations show code; pending,
+  cancelled and failed panels show their status/evidence without inventing an applied diff.
+- A fixed two-column rail, fixed status slot and bold tool
+  names in the same accent as the Answer title. The name opens a shared identity column and its
+  count closes it, so counts stack on one right edge and the task text starts on one column for
+  every name that fits; a longer name or count takes the extra width rather than become ambiguous.
+  Then come task text and the quiet timing/failure group. No right-hand disclosure arrow is drawn.
+  Counts retain compact units (`15l`, `1img`, `12f`); async launch receipts use `async`. Errors/cancellations appear
+  at the right, beside elapsed time, never in the count column. Critical diagnostics/warnings still
+  lead the task rather than disappear. Status color never floods the whole row green/red.
+  Only the last collapsed call in a tool chain closes with `╰─`; earlier calls retain `├─`.
+  Hidden thinking and intermediate assistant updates do not split a chain into per-batch endings.
+  Final answers, user messages, terminal notices and panels end it. Expanded ordinary calls
+  keep their detail rail. Panels have their own full frame with no external activity rail.
+  Ordinary rows have no boxes, duplicate titles or blank separators; mutation code uses the framed
+  template below.
+- Rows, expanded details and standalone panels start their own text on the same content column
+  (`ACTIVITY_CONTENT_COLUMN`); the detail gutter and the panel insets derive from it instead of
+  carrying private paddings. Word spacing stays tight even in wide viewports and nothing grows with
+  width. Descriptions use
+  quieter body ink; all normal counts and timing recede, while failures retain semantic color.
+  Vertical breathing room comes from terminal cell metrics (Ghostty's font config), never extra tool rows.
+- Clip by terminal columns at the final viewport width; flatten multiline subjects only in the
+  header. Wide graphemes never overrun the terminal. Expanded content retains the full command,
+  path and result, with an aligned detail gutter.
+- Running rows share one lazy repaint pulse; delivered read/search/bash partial output updates its
+  compact count beside the active spinner, without a `live` prefix. Empty partials keep the count
+  lane empty and remain running, never done; native async tools do
+  not claim launch completion from a partial result. Completed clocks freeze. Measured durations
+  survive `/reload` while Pi retains the same result content; newly loaded, unmeasured history gets
+  no invented duration. Remounting an already-completed component never records a fake zero-time run.
+  Elapsed duration and configured timeout are both visible (`2.4s · 120s max`), clearly distinguished.
+  Execution arguments remain untouched. Compact layouts shed timeout information before elapsed
+  time, and preserve failure labels last. Timing vocabulary and budgets live in `lib/ui/activity-timing.ts`.
+- Click the header in fullscreen mode; keyboard expansion uses Pi's `app.tools.expand` state
+  (Ctrl+O by default). No extra keybinding registration. Expanded native controls retain mouse
+  routing; selection/scrolling are not hijacked.
+- Any result carrying native image components renders as a capture panel: the same full frame as
+  edit/write, with an uppercase heading, a status/timing strip, the captures inside the frame on the
+  shared content column and a footer count. A headless browser check therefore reads like any other
+  action and never floats an image under a one-line row. Several captures stack with one blank framed
+  row above them; expansion adds the text details below the captures. Pi's native image
+  rendering/conversion and the show-images setting are retained, and with images unavailable the row
+  falls back to its ordinary one-line form rather than drawing an empty frame. Expansion never
+  duplicates a screenshot. Truncation/limit warnings remain visible in the summary, full-output paths
+  stay available in details.
+- Native custom detail renderers retain their shared state and separate slot caches. Missing,
+  malformed or throwing renderers fall back to readable source output; they never erase evidence.
+- Pi has no public global tool-renderer hook in the audited release. The private display adapter
+  is deliberate and tested, not a claim of an officially supported API. Upgrade verification is mandatory.
+
+## 3. Tool coverage and first-pass presentations
+
+| Surface | Collapsed presentation | Expanded content |
+|---|---|---|
+| `read` | Filename first, optional `Lstart-end`, muted parent directory (`~` for home), actual line/image count | Complete original path/args and returned text; native images |
+| `grep` | Pattern, root/filter, result-line count (zero for no matches) | Args and complete returned search text |
+| `find` / `glob` | `glob` display label, pattern/root, file count | Args and complete returned paths |
+| `bash` | Conservative command preview, inline count, observed duration + explicit timeout/failure status | Complete original script and returned output; full-output path |
+| `codemode` | The `tools.<name>` calls the script makes (first-use order, repeat counts) or its first code line, script length, `@options` output budget and timeout; nested-call count, failures and printed line/image count | Complete script and returned output; full-output path (`truncated` warning) |
+| `subagent` | Action/agent/workflow identity and topic/task, output count | Original package renderer, including guides and execution detail |
+| `syneva_agent` | `syneva` display label, action + desk session, repository name, `live`/`idle` connection state | Original arguments and attachment description |
+| `frontend_open` | `open` display label; capture panel headed by the page, scheme-less host/path and optional wait selector | Original arguments, page summary, native images |
+| `frontend_batch` | `batch` display label; capture panel headed by the step ids (first … last and count), eval count and capture name | Original arguments, batch result, native images |
+| `frontend_compare` | `compare` display label; mode plus specimen name, compared sides or spec file, scope annotation | Original arguments and diff/spec report |
+| `frontend_pixels` | `pixels` display label; mode plus capture name or compared pair, selector annotation | Original arguments and exact verdict |
+| `frontend_screenshot` | `shot` display label; capture panel headed by selector or `full page`/`viewport`, viewport size | Original arguments, caption and captured image |
+| `frontend_console` | `console` display label, level filter, `last N`, entry count | Original arguments and console text |
+| `frontend_eval` | `eval` display label, single-line expression preview, result count | Original arguments and evaluated result |
+| `bg_wait` | `wait` display label, run id or `any`/`all runs`, `non-blocking` note, timeout cap beside the elapsed clock | Original arguments and wait outcome |
+| `subagent_supervisor` | `supervisor` display label, action + child target, single-line message preview | Original arguments and channel output |
+| `edit` / `write` | Independent panel on the shared content column: uppercase heading, filename/status strip and numbered pastel diff preview | Same code template with the preview limit removed; native fallback when unsupported |
+| `ls` | Filename/directory-name first, quiet home-shortened parent directory | Native call/result content with original arguments |
+| Any other tool | Humanized tool name (separators become spaces), first known or first string argument, status/output count | Original call/result slots, else readable args/output |
+| Compaction summary | Compact tool/token-count identity, `context` + `tokens before` annotation | Complete retained summary |
+
+Coverage does not depend on this table: all tool names pass through the common adapter. The table
+only defines specialized vocabulary, which lives in `tool-presentation.ts` for Pi's own tools and in
+`package-presentations.ts` for tools registered by packages. A tool with no entry keeps the generic
+shell: its name is humanized (`new_mcp_tool` → `new mcp tool`) and its subject is the first known
+argument name, then the first string argument, so a raw identifier or an empty row never reaches the
+transcript. `find` keeps its real execution name; `glob` is a display alias.
+Success on an async launch means the tool returned successfully, not that the background job finished;
+its execution details remain authoritative.
+
+- [x] Dedicated one-line read/grep/glob/bash and subagent identity.
+- [x] One content column for rows, detail gutters and panels; capture panels reuse the file-panel frame.
+- [x] Package vocabulary for `syneva_agent`, the five browser tools and the supervisor/wait tools.
+- [x] Generic shell for write/edit/ls/powershell, web-access tools and unknown tools; an unknown tool's name is humanized rather than printed as a raw identifier.
+- [x] Separate compaction-summary component adapter.
+- [x] Edit/write share an inline and expanded mutation-code view; no separate tool registration or execution wrapper.
+- [ ] Bespoke search-result detail views: retain native content.
+- [x] Consistent filename-first hierarchy for read/edit/write/ls and home-shortened parent paths, without rewriting stored arguments.
+- [x] `ui/renderers/bash-preview.ts` shows a conservative source excerpt: literal leading `cd` setup becomes
+  context, common chaining/redirection tails are omitted with `…`, and quoted operators are preserved.
+  Nested substitutions fall back to the original first line. It never evaluates or rewrites execution.
+- [ ] Path hyperlinks / syntax-enhanced read details: future polish, not hidden requirements.
+
+### Mutation preview contract
+
+- Inspired by the numbered code and pastel rows in [the former mutation view](https://github.com/walid-mos/mac-config/tree/develop-pi/pi/.pi/agent/extensions/mutation-view), not its framing or tool overrides.
+- Successful edits use Pi's persisted, numbered diff. Writes compare against a bounded preflight
+  before-image when available; new files are genuinely all-added. A write without a trustworthy
+  baseline shows labeled neutral written content, not a fictional all-green diff.
+- Edit/write no longer borrow the ordinary bash/read/search header. Their full-width, square file
+  panel has a lilac frame, uppercase `EDIT`/`WRITE` heading, bold filename, quiet directory and a
+  separate status/elapsed strip. The footer owns change counts and fold/expand controls. Pending,
+  failed and unsupported-result views keep the same panel identity; native details remain available.
+  Numbered gutters, `+`/`-` markers and pastel rows retain the house palette. There is no external
+  activity rail, duplicated tool row, rounded corner or far-right disclosure arrow.
+- The default preview is capped by visual rows; expansion uses the same header, widths, colors and
+  exact visible code prefix, only revealing remaining rows. Long lines wrap with continuation gutters.
+  Code/control bytes are displayed safely, not interpreted as Markdown or terminal instructions.
+- The footer carries exact addition/removal counts and the click/Ctrl+O affordance. A single click
+  anywhere on the applied panel opens or folds it; the same code position works in both directions.
+  Press, drag, release and movement events do not toggle. Pi's viewport emits a click only for a
+  stationary gesture, so dragging remains available for selection.
+- No animation timer or asynchronous work runs during rendering. Native renderers previously mounted
+  while a call was pending still receive completion so their resources can settle before replacement.
+- Before-images and diff work are bounded in `change-document.ts` / `write-snapshots.ts`. Special path
+  aliases, unavailable/binary/large baselines, older writes without before-images and oversized replacements use
+  explicit content/native fallbacks. Saved tool arguments/results are untouched; weak caches retain
+  observed write comparisons across `/reload`, not across fresh-process history loading.
+
+## 4. Transcript message surfaces
+
+- [x] Questionnaire transcript cards (own renderer via `registerMessageRenderer` path).
+- [x] Secret cards (`ui/ask-user-secret/transcript.ts`): pending card names the kind and purpose, settled card the status (issued / stored / cancelled) and the origin or key name; no card ever carries a value or a value length.
+- [x] User message: literal source inside the shared rounded house frame through `renderers/`, with a rail-colored **❯** marker, accented **Prompt** label, softly tinted blue border, solid closing rule, preserved paragraph breaks and matching outer gaps. One blank row inside each edge gives the text breathing room; compact viewports omit the marker before sacrificing the label. Frame edges span the same viewport as tool rows; wrapping reserves both rails and inner padding. Extremely narrow viewports drop the frame rather than hide the prompt. Native OSC prompt zones remain intact; reinstall replaces styling closures without stacking frames.
+- [x] Submitted attachments: thumbnails and aliases sit inside the owning prompt frame, above its literal text, with one separating blank row. The native custom entry is relocated, not duplicated; its persisted position and payload are unchanged. Replay and native user rebuilds preserve the placement; unmatched/orphan entries retain their standalone fallback. Draft-editor strip placement is unchanged.
+- [x] Assistant: `ui/renderers/assistant-surface.ts` with centered response landmarks and house Markdown; no raw-source override remains in `renderers/`.
+- [x] Thinking: separate muted content, existing visibility setting and per-run mouse expansion retained; never styled as a final answer.
+- [x] Custom message cards: registered per `customType` through `registerMessageRenderer`; the
+  house cards reuse the tool-panel geometry (square frame on the shared content column, status
+  glyph on the title edge, quiet details, dim footer) with the frame ink blended toward the
+  status role like the mutation panels. A stationary left click anywhere on a card toggles it
+  through Pi's public `MouseRegion`; drag, selection and wheel gestures pass through.
+  Global Ctrl+O still rebuilds cards through `CustomMessageComponent.setExpanded`. Producers own their wire ids and
+  payloads, and renderers never re-etch stored text: `tools/guard/bash-job-card.ts` renders
+  `pi-bash-job-complete` (the completion notification for owned background commands; the minted
+  snapshot line parses through the live `jobSnapshotSchema`, the card is titled by the
+  job's program identity derived from the minted command (`pnpm lint`, `grep`,
+  `node render-cards.mjs`) instead of the generic `job`, collapsed keeps a bounded output
+  preview of 6 rows with a `... N more lines` row, Ctrl+O reveals the verbatim command,
+  every output row plus `cwd`/`receipt`/`full output`, receipts and diagnostics
+  always visible, and the footer states `bash action=status <jobId>`), and `ui/renderers/message-cards.ts` renders
+  `frontend-progress-stop` (the vendored package cannot import the house libraries, so the
+  display owner keeps this card: stop glyph `frontend · stop` title, the minted statement
+  verbatim, `no pass · no release approval` footer). The card panel itself (content-column
+  geometry, settled activity glyphs, collapsed preview row, `messageBody`/`recordObject`
+  helpers) is one shared source in `lib/ui/message-card.ts`, consumed by the guard card and
+  `message-cards.ts` alike. The same file also cards the remaining minted notice family, all
+  of whose minters write the readable text themselves: the vendored subagents package's
+  `subagent-notify` (completed/failed/stopped tones parsed from the first line),
+  `subagent-incremental-child-notify` (`subagent · child`, danger), `subagent_control_notice`
+  (`subagent · wait` accent for supervisor requests, `subagent · stale` for stale children,
+  `subagent · attention` with the `!` glyph otherwise; the tone comes from
+  `details.event.type`/`reason` with a first-line fallback), `subagent_steering_notice`,
+  `subagent-slash-result`, `subagent-slash-text-result`, `subagents-admin`,
+  `subagent-wait-subscription` and `subagent-workflow-result-write-failed` (only the
+  supervisor-request dialog is rendered in-package), plus `syneva-event` — the one display
+  message minted outside the house tree (syneva's pi delivery in its backend). History-only
+  types whose minters no longer exist on disk (`galley-event`, `mcp-oauth-status`,
+  `web-search-content-ready`) keep pi's default box on purpose: no back-compat for dead
+  minters. A malformed or foreign payload returns
+  `undefined` so pi's native box keeps the stored text readable. Long minted bodies stay
+  capped at 6 collapsed rows until a click or global Ctrl+O. `lib/ui/expandable-card.ts`
+  owns per-card expansion through the public renderer path; the skill band's click lives on its patched native surface.
+- [ ] Custom entry cards: `customMessageBg` (`registerEntryRenderer`, TUI-only, not in LLM context).
+- Event order fact (pi 0.85.1): `agent_start` → `turn_start` → the prompt's `message_start`/`message_end`, and a
+  session entry is written **at that `message_end`**. Anything that must land *after* a submitted prompt
+  (e.g. `prompt/attachments`' transcript strip) therefore claims its slot on the following `context`
+  event, the first hook where the prompt is the branch leaf and the reply has not been appended yet.
+  The attachment entry remains after the prompt in storage; the display adapter nests it before the text.
+- [ ] `!` bash row (`bash-execution.js`): `bashMode` bold header pad-1; output `muted`; status muted / `(cancelled)` warning / `(exit N)` error; truncated → full-output path notice. Not overridable — restyle = theme tokens (`bashMode`, `muted`) or rebuild via `registerEntryRenderer`? (verify feasibility before scheduling; may be `- [~]`).
+- [ ] notify lines: NOT toasts — transcript lines: `dim` (consecutive dedupes into one line), `warning`, `Error: msg` in `error`; each after `Spacer(1)`.
+- [x] Compaction summary: common activity shell through `ui/renderers/compaction-surface.ts`, with click and keyboard expansion.
+- [x] Skill invocation card: `ui/renderers/skill-block.ts` renders the parsed skill block as a rose-wash callout band
+  (pink `✦ skill ·` identity, bold skill name, `click / Ctrl+O` hint resolved from Pi's keybindings, source location and house
+  Markdown body when expanded) and `skill-surface.ts` mounts it on Pi's native component, keeping the global toggle; a
+  stationary left click anywhere on the band folds or expands the card, like the mutation panels.
+  The band is painted per column and per row: a pink spine anchors the top-left edge and the rose light it casts eases
+  monotonically into the transcript background, under the text and past it, while each row keeps a diminishing share of
+  the peak, so the glow dissolves to the right and downward with no flat block, no seam and no hard end. Static paint
+  only - no timer, no repaint loop.
+- [ ] Branch-summary cards and live compaction/retry loaders: separate native surfaces, not covered by the tool adapter.
+
+### Response design contract
+
+- Intermediate updates get a short centered muted rule and a smaller, fainter matching rule below
+  their content, including interruption notices. Final answers retain only their wider accented
+  header, restrained ornament and bold **Answer** label. Header/body spacing stays stable during
+  completion; the intermediate footer retires without moving the answer text.
+  Response messages have matching outer top and bottom gaps to separate them from adjacent tool calls;
+  empty/tool-only messages and thinking controls receive no extra response padding.
+- Assistant error/interruption notices use `lib/ui/activity-notice.ts`: the marker aligns with tool status,
+  text aligns with tool names, and long details wrap at that same inset. Both marker and message use
+  bold semantic ink: red for errors, orange for interruptions. This distinguishes notices from normal
+  tool-body text without adding a box, rail, disclosure, or changing the diagnostic wording.
+- Paragraph breaks provide breathing room; headings and list markers use accent, bold prose stays
+  readable neutral ink, links are distinct, and code/quotes have quieter structure. Pi still owns
+  Markdown parsing, syntax highlighting, tables, links and streamed fence handling. Existing Markdown
+  transformers retain their width, message-type, streaming and exception-isolation contracts.
+- Explicit provider phase metadata separates commentary from final text, including mixed messages.
+  Without it, streaming stays neutral; a settled, tool-free `stop` is final. Interrupted, truncated
+  and failed responses keep their notices and are not promoted to final. No text/keyword heuristics.
+- Empty/tool-only messages get no decorative separators. Thinking stays distinct. User prompts keep
+  their separate literal frame; response styling never changes tool execution or stored content.
+- Shared semantic colors and blending implement the fades; there is no second palette. Width-aware
+  cached components avoid repaint-time parsing/blending. Narrow layouts never overflow.
+
+## 5. Chrome (editor + footer + status)
+
+- [x] hud-footer (own implementation; vector quota gauges, `lib/ui/ordered-widget-stack` mounting). Line 2's context gauge merges the Context Budget limit into one window-spanning meter bar on a shared sqrt-warped cell axis: usage fill on the left, the budget wall as one bright cell at the budget's warped cell with fade-to-horizon cells from there to the bar's end bounded at 4 - solid diamonds blending the budget hue toward the base, so the territory dissolves ahead and never wears the usage ramp - a quiet band-hued limit token in the full lane, announced on the `context-budget:saved.v1` bus for immediate repaint.
+- [x] Working indicator (word rotation/shuffle-bag), embedded in the prompt's top border — never a standalone row above it.
+- [x] Editor top border: `ui/hud-telemetry/activity-border.ts` right-aligns its activity block after the
+  loader reserve (`EMBEDDED_LOADER_FIELD_WIDTH`), never over the loader or pi's `↑ N more` scroll label.
+  Readings wear the loading color (pi gives the embedded spinner and its message the editor's own
+  `borderColor`, so numbers, tally icons and the clock mark take that same hue) while their words stay muted
+  (house `muted` ink mixed toward the background at `CHROME_QUIET_RATIO`; `DATA_QUIET_RATIO` is only the
+  numbers' fallback for an editor without a border color). Until the provider reports a count the track
+  sweeps through the readings' columns with the wait named at the row's right edge - nothing blank - and the
+  renderer fixes block width, so neither a landing count nor the loader rotation can move it. A settled
+  block stays frozen (`✓ mm:ss`) until the next prompt: no retire timer exists. Layout depends on pi's
+  `── <status> ──…` border; re-diff on upgrade (§10).
+- [ ] Editor: border color = `getThinkingBorderColor(level)` (`thinkingOff`→`thinkingMax`), `bashMode` in `!` mode; border glyphs `── label ──`. Editor is replaceable via `setEditorComponent`/editor-decorator — decide scope (border tint vs full owner-drawn editor).
+- [x] Goal widget: two restrained lines above the editor, not a duplicate footer status. The first shows a fixed-width completion track and exact count; the second shows the next pending concrete task, original request before declaration, completion or a blocker. Long text clips at terminal columns, narrow widths fall back to one line. `/goal` opens a framed checklist with selection, full item/evidence reading and paused-goal navigation; `h` or `/goal-widget hide|show` saves visibility across sessions. Hiding does not suppress the independent error-colored Jev warning. Completion remains visible until the next human prompt; an empty checklist is already hidden. The `/dump` receipt also retires on the next human prompt. Other widget restyling remains open.
+- [ ] Autocomplete menu: in-editor `SelectList` (`accent` selection, `muted` descriptions) + `borderMuted` border. Only reachable via theme tokens unless the editor is fully owned. Mark `- [~]` initially.
+
+## 6. Dialogs & overlays
+
+- [x] Questionnaire (select/multi/confirm-like flows inside the house questionnaire).
+- [x] Secret entry (`ui/ask-user-secret/secret-dialog.ts`): house frame, purpose and destination lines, one `•` per typed character behind an accent `>` prompt, Enter submits, Esc cancels, five-minute timeout cancels; the pi-tui `Input` is never rendered, only measured.
+- [x] Model picker (`/models`): owns its chrome in `ctx.ui.custom` - header (one labelled line each for the session model, the startup default and the ctrl+p count, then the agent pins; `model-picker-words.ts` owns those three names), tab strip for session/ctrl+p/fallbacks/agents, search, one shared reasoning column (`model-picker-effort.ts`: squares plus the level's own name, right-aligned, inherited/off/unavailable spelled out - a width-safe `!` marker stands in for `unsupported` below 72 columns - never an invented `auto`), price gauge with its formula disclosed, click-to-select and wheel over the list. Chain and toggle edits persist as they are made; a session model or reasoning choice is pending until enter, so escape changes nothing. The Ctrl+P list tab (labelled `ctrl+p`) lists the `enabledModels` entries once each, every row saying `Ctrl+P list`, `in Ctrl+P list via <pattern>` or `not in Ctrl+P list`: enter toggles membership - an exact entry leaves the list, a session-only model joins it as its own exact entry, a model a saved pattern already covers is added as one - backspace removes an entry whole (a wildcard included, which the footer labels it for), and alt+up/down saves their manual order as one list. The session catalogue's enter adds the highlighted model to that same list as its own exact entry and ctrl+x removes that entry again; one legend line above the catalogue says what the list and the startup default are, its ctrl+s saves the highlighted row as the startup default new sessions begin with (pi's own `defaultProvider`/`defaultModel`, and a save of the default already in place writes nothing), and enter switches the session model instead when the row already runs here; the session search field owns every printable character - `space` and every letter stay text, so a model id is searchable to its last character. A wildcard moves whole, is never expanded, and a membership toggle never rewrites one. Since pi resolves the scope at session start (and `ctx.scopedModels` is read-only) the tab states that an edit applies from the next session start while the picker's own session list and agents tab follow it immediately: the catalogue re-reads the list on every keystroke, so a model the list names exactly leaves the `available` rest for the `in Ctrl+P list next session` group (between `in Ctrl+P list now` and `available`, tagged `not cycling now  in Ctrl+P list`) the moment it is added and drops back when it is removed - no relaunch needed to see it in the right list. It still names pi's own `/scoped-models` selector for the same list - a built-in command no extension can dispatch, so the tab states it rather than faking an action. A row the running session does not cycle is tagged `not cycling now`, never `out of Ctrl+P list`, so a model a saved pattern covers reads as two separate facts rather than a contradiction. The agents tab lists every agent the `subagents` package reports (its roster read over pi's event bus, `agent-roster.ts`) with the model it would run - named as a pin, the agent's own definition, `subagents.defaultModel` or an inherited session model - plus the same reasoning column, where left/right writes only that agent's thinking (clamped to the model's own levels) and enter or a click opens the inline model editor; a pin whose agent no longer exists stays listed, marked `no such agent`, so it can be repointed; the editor opens on the pinned model or on an explicit no-model-change row when the agent has no model row (a stored level alone, or a model the catalogue cannot resolve, which the header names as not in the catalogue), shows a stored level the pinned model does not accept, marked `unsupported`, and an untouched save writes nothing; a labeled divider below the agents separates `/context-budget`, which opens the same model catalogue but saves only `context-budget.json`; no duplicate `/subagents` launcher remains, and `/dump` stays deterministic.
+- [x] Context Budget limit picker (`/context-budget`): focused `ctx.ui.custom` overlay with house `framedBlock`, saved/in-use limits, Pi `Input` above `SelectList`, numeric search and paste, current-value marker, and the model-capped value on larger choices. Overlay focus keeps Home/End/Page keys out of transcript scrolling. Arrows/PageUp/PageDown/Home/End navigate; Enter saves asynchronously; Escape cancels silently. Focus reaches the input, list height follows the terminal, and there is no animation. It opens during generation without interrupting the model (`commands/context-budget/limit-picker.ts`).
+- [ ] `ctx.ui.select/confirm/input/editor` built-in dialogs — colors only (`text/accent/dim/muted`, keyHint `muted/dim`). Decide `- [~]` or replace with `ctx.ui.custom` house dialogs reusing `lib/ui/frame.ts`.
+- [ ] Transient overlays: BorderedLoader (spinner + `border` frame), countdown dialogs — colors only. `- [~]` unless UX says otherwise.
+- [ ] Fullscreen `ctx.ui.custom` for anything that needs owned chrome (pattern stays in extensions docs; do not duplicate here).
+
+## 7. Fixed-in-code blacklist (theme cannot touch; override needed or accepted)
+
+Confirmed glyphs/dims in pi 0.85.1 — record decisions here instead of re-discovering:
+
+- [ ] `Spacer(1)` spacings + `Box(1,1)` paddings (user msg, tool rows, custom cards) → only via `renderShell: "self"` / owned components.
+- [x] Working status: pi prints the loader as a standalone row above the widget container — whose `Spacer(1)` then reads as a blank gap above the prompt — unless the editor opts into the border with `embedWorkingStatus: true`.
+- [ ] Markdown glyphs: quote border `│ ` (+ italic quote), fences ` ```lang `, hr `"─".repeat(min(w,80))`, bullets `- ` / `1. ` / preserved markers / task `[x] ``[ ] `, tables bordered with `─`, h1 = bold+underline, h2+ = bold, links `mdLink` underline + ` (url)` in `mdLinkUrl` when href ≠ text, `addition/deletion` reusing `toolDiffAdded/Removed`, LaTeX via `renderLatex`, mermaid → ASCII art.
+- [ ] Editor glyphs `── `, ` ──`; settings cursor `accent "→ "`; hud-footer glyphs `↑ ↓ R W CH •` (irrelevant — hud-footer is owned).
+- [ ] Spinner frames `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏` @80ms (pi-tui Loader default) — replaced by `setWorkingIndicator` (done). Re-checked in 0.86.1: `pi-tui` loader frames unchanged; pi's dist no longer inlines them.
+- [ ] Phrase set `... (N more lines, to expand)`, `[Truncated: ...]`, `[invalid arg]`, `[invalid content arg - expected string]` — restyle = our own phrasing in tool renderer overrides.
+- [ ] `PS>`/`$` prompts — inside tool renderers, overridable. (`[skill]` cards are house-styled by `renderers/`, not this layer.)
+- [ ] Easter eggs (`/arminsayshi`, daxnuts, earendil announcement), mermaid ASCII colors — `- [~]`.
+
+## 8. Token coverage checklist (theme layer, for hot-reload tuning)
+
+53 required tokens + optional `thinkingMax`, `searchMatchBg/Text`, optional `export {pageBg, cardBg, infoBg}`.
+House rule per `ARCHITECTURE.md`: `palette.ts` reads `themes/catppuccin-latte.json` vars — no second hex table.
+
+- [ ] Map every generalized token group to palette vars: core 13 (`accent`, `border`, `borderAccent`, `borderMuted`, `success`, `error`, `warning`, `muted`, `dim`, `text`, `thinkingText`, `scrollbarTrack/Thumb`), backgrounds 11 (+2 opt: `selectedBg`, `searchMatch*`, `userMessage*`, `customMessage*`, `toolPendingBg`, `toolSuccessBg`, `toolErrorBg`, `toolTitle`, `toolOutput`), markdown 10, diffs 3, syntax 9 (cli-highlight theme mapping: title→`syntaxFunction`, class/type→`syntaxType`, tag→`syntaxPunctuation`, name→`syntaxKeyword`, attr/variable/params→`syntaxVariable`), thinking borders 7, `bashMode`.
+- [ ] Verify no-lang highlight fallback → `mdCodeBlock`.
+- [ ] Editor `EditorTheme.borderColor` derived from `borderMuted` (or per-level thinking tokens after §5 decision).
+- [ ] Acceptance: theme hot-reload works from `~/.pi/agent/themes/` edit (automatic).
+
+## 9. Verification protocol (per migrated tool/surface)
+
+1. `pnpm run lint && pnpm run type-check` from `~/.pi/agent`; `pnpm exec oxfmt --write` touched files; `pnpm run test` when covered logic changed.
+2. `/reload` in the session.
+3. Visual pass for this slice: read/grep/glob/bash and subagent `list`/`guide` in pending,
+   streaming, failed and settled states; narrow terminal; mouse expansion and keyboard expansion;
+   image read; compaction card; unknown tool. One collapsed line, aligned gutter, no flashing status rows.
+   For responses: intermediate/tool-calling text, final answers, mixed provider phases, streaming
+   completion, interruption, Markdown/code/links, thinking expansion, and narrow/resized viewports.
+   For submitted prompts: single/multiline source, paragraphs, code indentation, Unicode, consecutive
+   prompts, surrounding tool/answer alignment, and reload from the former unboxed presentation.
+   For attachments: Kitty/iTerm2 thumbnails, alias-only/narrow fallback, repeated prompts reusing
+   aliases, resume without the original image files, and exactly one strip inside each owning frame.
+4. Fullscreen vs regular: mouse input is fullscreen-only; keyboard expansion must work in both.
+5. Mutation checks: new file, overwrite, multiple edit hunks, empty/whitespace code, long/wide lines,
+   failed/pending calls, missing/large baselines, preview click, expanded selection and Ctrl+O. Verify
+   the code prefix does not move or change color on expansion, repeated clicks fold at the same
+   position, and ordinary tool chains close before independent mutation panels.
+6. Reload: no stacked rails or old timers; measured durations survive native remounting and extension reload.
+   Calls with identical text but different result content/IDs never inherit another call's duration;
+   fresh history without recorded measurements stays unknown.
+7. Automated contracts (currently absent): `tests/` was deleted on 2026-09-19 at the owner's request - a copy sits in
+   `backups/tests-20260919-123023`, and `pnpm run test` matches nothing until tests return. Until then every
+   verification here is manual, and no surface may claim an automated contract it no longer has.
+   The explicit one-line regression was observed failing with the former two-line renderer.
+8. Verify with Pi's real extension loader and bundled runtime, not just TypeScript import success.
+   Automated tests do not establish font-specific visual quality; inspect the live TUI after `/reload`.
+
+## 10. Version-drift workflow
+
+Compatibility audit 1.1.0 → 1.4.0 (2026-10-25, `pi-updated`): installed bundle reports
+1.4.0. Extension API and class-level ABI audits pass. Hygiene's real loader loads
+32 extensions with zero errors and warnings. The configured Syneva package path has
+no resolved package.json and is skipped by the manifest audit.
+
+Changelog review covers 1.2.0, 1.3.0 and 1.4.0. Prompt-reading
+`before_agent_start` handlers already guard `messageType === 'user'`; system-prompt
+handlers use fields shared by both event variants. No house handler uses
+`before_provider_headers`, summary `reserveTokens`, or MCP resource counts.
+The Latte theme schema URL now points to the published theme schema. Existing
+colors already live under `vars`. Workspace Pi development dependencies now match
+1.4.0 so type-checking uses the installed API. Busy-during-start, restored active
+tools, queued codemode workers and dialog ownership fixes need no adapter changes.
+
+Renderer diff against npm-packed 1.1.0: bash delegates timing to shared helpers,
+read and tree labels use normalized line ranges, settings add share destination
+and clarify hardware cursor behavior, and the compaction indicator accepts editor
+colors. User/assistant/tool component implementations are unchanged. Markdown adds
+CJK emphasis handling and prevents unclosed display math from consuming tables.
+Accept these upstream fixes without replacing their parsers or drawing code.
+
+All four registered dist patch scripts ran. Prompt history was already patched;
+Mermaid readable and bundled implementations, clipboard OSC52 and copy-command
+removal were reapplied. Marker checks and inode equality confirm patcher aliases
+reach the audited running tree. Mermaid readable and bundled files pass
+`node --check`. The complete renderer/Markdown diff is in the disposable
+`/tmp/pi-audit-1.1-to-1.4.diff`.
+
+`AUDITED_PI_VERSION` and the verified header now record 1.4.0 after the
+compatibility audits passed. A fresh headless `pi -p 'Reply READY without calling tools.'` from
+`/Users/walid-mos/Development` timed out after 120 seconds without a reply, so
+end-to-end startup is not proven despite the clean live loader. The live §9
+visual pass remains unverified. The stale-session check flagged
+PIDs 30042, 72121, 44501 and 89024. Exit and relaunch those sessions instead of
+using `/reload`, then finish the visual pass and gates before closing this audit.
+
+Runtime coverage correction, 2026-10-30: the pass above did not exercise deferred
+vendored-package operations. Subagents still required `@earendil-works/chord` and
+its `/context` export, which installed Pi 1.4.0 no longer provides. The production
+runner peer resolver now removes those obsolete requirements. Extension loading
+alone could not catch that failure because resolution runs only when a child starts.
+
+`pnpm run audit:pi` passes against the installed global Pi 1.4.0. Report:
+`/var/folders/kx/jx7vscdj55s6djfrtk1_d1_c0000gn/T/pi-update-audit-DIBPK6/report.json`.
+The package audit resolves the production runner peers, creates foreground and
+background child sessions with production hooks, and shuts them down without a
+model request. The frontend package audit opens isolated Brave and executes
+navigation, DOM evaluation, screenshot capture and shutdown. Removing the
+frontend package's runtime entry made the gate exit 1, naming the missing
+`piAudit` field. Restoring the entry restored a passing gate. Root lint, root and
+package type checks, standalone audit-script type checks and drift checks pass.
+Lint retains the unrelated `remote-grep.ts` generic-name warning. The earlier
+unverified interactive and paid-model flows remain unverified by these operations.
+
+`lib/ui/pi-runtime.ts` owns `AUDITED_PI_VERSION` and `detectPiDrift`. The renderers
+warn on drift and still install, so an incompatible adapter can fail at install
+or render time. Read `~/.pi/agent/skills/pi-updated/SKILL.md` before upgrading Pi
+or changing a package's Pi integration. It owns the audit procedure and completion
+criteria. Static checks cannot see instance-level fields such as `host.text`,
+`contentContainer` or message shapes. Those need the §9 visual pass. Attachment composition also depends on
+`InteractiveMode.addCustomEntryToChat`, `CustomEntryComponent`'s native leading spacer/rebuild,
+and `UserMessageComponent`'s child layout. The thumbnail boundary separates iTerm2 cursor-up
+from its OSC with a style reset: Pi 0.85.1 otherwise mismeasures and can truncate the image payload.
+Mutation rendering also relies on the public numbered-diff format and on execution-end extension
+handlers preceding the TUI's result update. Re-check `createResultRegion` when upgrading: Pi wraps
+renderer content in its own click-to-toggle region, which expanded mutation code must bypass.
+
+Drift record 0.86.1 → 0.87.1 (2026-09-23, `pi-updated`): class-level ABI intact, no adapter
+changes. pi-tui's `↑ N more` scroll-end indicator now centers on the full editor width and truncates
+before the scrollbar column (`tui-alt-screen.js`) — the prompt's activity block keeps its
+right-aligned reserve; recheck overlap on a narrow viewport in the next §5/§9 pass. 0.87.1 adds
+`custom_message` replay and a compaction-boundary chat rebuild (`interactive-mode.js`); the rebuild
+still adds the same `CompactionSummaryMessageComponent`, so `compaction-surface.ts` is unaffected,
+and custom message cards remain on the §4 open list. Image `resizeOptions` plumbing
+(`core/tools/read.js`, `utils/tool-result-images.js`) only feeds provider-side input limits, not the
+display pipeline. No glyph/format drift in `dist/core/tools/renderers/`, the patched message
+components, or `pi-tui/dist/components/markdown.js`.
+
+Drift record 0.87.1 → 0.99.1 (2026-09-30, `pi-updated`; no 0.88–0.98 releases exist):
+extension-audit, abi-audit and the four dist patches (editor prompt-history, mermaid never-drop,
+clipboard OSC 52, remove `/copy`) all land on the 0.99.1 tree — pnpm re-keyed the install dir
+(`3e4f681e…` body→alias symlink to `590f-18d…`); no stale copies to patch. Class-level ABI intact,
+no adapter changes. Audited surfaces touched by 0.99.0-release notes: `system` theme is the new
+default and extensions gain `theme.style()`/`theme.colors`/`theme.appearance` and `#rgb`/`oklch()`
+colors in theme files (adapters keep their own color sourcing; recheck accent colors with §9 under a
+light vs dark terminal). 0.99.0 changes collapsed-title rendering for calls WITHOUT a custom
+call renderer (generic `key=value` pairs, MCP titled `server/tool`) — surfaces covered by house
+renderers are unaffected; uncovered tools (extension-declared, MCP) may render differently, fix
+§3 coverage next migration if unwanted. Bash structured results now carry 1 MiB output
+(`truncated`/`full_output_path`) — house bash preview caps; no template changes. Build switched to
+TS 7.0 / ES2024 and tsx→Node type-stripping: extension TS still loads via type stripping, no
+change needed. Visual pass (§9) pending the user's `/reload`.
+
+Re-audit 0.99.1 → 0.99.1 (2026-09-30, same day, `pi-updated`): nothing to migrate — installed and
+audited versions equal (widget would not flag it). Evidence trail: changelog-diff empty range,
+extension-audit 18/18 ✓, abi-audit 26/26 ✓, prompt-history patch intact ('already patched'),
+and sha256 of display dist (53 renderer/interactive files + pi-tui markdown.js) identical across
+the two independent 0.99.1 installs — glyph re-diff and §9 visual pass therefore have an empty
+surface set for this run. Executed §9-class render sweep (disposable spike, no files kept): with
+the real adapters installed against the running bundle and initTheme('dark'), tool
+pending/settled/failed states at widths 80/50, keyboard expansion (setExpanded 1→5 lines), mouse
+click-toggle through the adapter-patched handleMouse ({handled:true}, 1↔5 lines both ways),
+assistant markdown (✦ Answer heading/bold/code) and the compaction card all render with zero
+adapter throws; light-vs-dark executed programmatically — identical stripped structure under both
+initTheme appearances with appearance-specific 24-bit SGR codes (e.g. bg rgb(37,65,49) dark vs
+rgb(222,233,225) light). Only the human eye-on-terminal judgment of accent comfort stays open
+whenever that /reload diff is exercisable.
+
+Extension hygiene record 0.99.1 (2026-09-30, same-day `pi-updated` step 4): the
+0.99.1 loader enforces two package-shape rules — the host-provided set (`typebox`,
+`@earendil-works/pi-*`, legacy `@mariozechner/pi-*`) must stay out of a loaded
+package's `dependencies` (declare peer dependencies; pi supplies them at
+runtime), and a loaded extension registering `command:mcp` / `tool:codemode` /
+`tool:tool_search` shadows pi's new replaceable builtins (loader keeps the
+extension and warns about the builtin it hid). House decisions: pi-mcp-adapter
+keeps `command:mcp`, so global settings carries `-builtin:mcp` — the adapter
+stays the owner until a deliberate migration. Recording the parity delta for
+that migration: what pi-mcp-adapter uniquely keeps over `builtin:mcp` is
+install-by-URL on the `mcp` gateway tool, the `mcpScript` multi-call surface,
+and the claude-plugin/app-bridge loaders; what the builtin uniquely adds is the
+`pi mcp` CLI and OAuth flows. Both read `~/.pi/agent/mcp.json`, so profiles
+stay compatible. pi-web-access fixed its own manifest upstream (0.34.0) —
+refresh with `pi update npm:pi-web-access`, never vendor a copy; pi-subagents
+and syneva moved `typebox` to peer/devDependencies in their repos, with installs
+refreshed per repo toolchain. Instrumentation lives in
+`skills/pi-updated/scripts/hygiene-audit.ts` (static manifest/name mirror plus
+the live loader pass); same-day evidence: five settings packages clean,
+codemode and tool-search unshadowed, live pass 27 extensions / 0 errors /
+0 warnings.
+
+Widget-registry crash investigation (2026-09-30, pi 0.99.1): `OrderedWidgetHost.render`
+called `renderSegments` on a process-global registry whose shape guard checked only
+`register`, `render` and `unregister`. `/reload` could therefore reuse a registry
+created before segment rendering existed. `lib/ui/surface.ts` now versions that
+changed contract under a new global key and requires `renderSegments` in its guard.
+No Pi dependency patch or display-contract change. Verification: lint, type-check
+and formatting pass; two real-loader passes from `/tmp` each load 27 extensions
+with zero errors or warnings and retain one shared registry; both placements render
+without throwing. A real interactive child completes `/reload` without the TypeError.
+The current session still needs `/reload` to load the corrected module.
+
+Drift record 0.99.1 → 1.0.1 (2026-10-03, `pi-updated`; covers 0.99.2, 1.0.0, 1.0.1): changelog has no
+Breaking Changes sections. 1.0.0 makes fullscreen the default TUI mode — settings already pin
+`tuiMode: "fullscreen"`, no behavior change. 1.0.1 adds `pi.registerToolRenderer()` (draws calls for
+not-yet-registered tools, e.g. MCP in resumed sessions) — unused by the house renderers, no action.
+Codemode scripts probing tools with `typeof tools.name` must switch to `"name" in tools` (codemode
+scripts only, no extension impact). extension-audit 52/52 ✓, hygiene-audit clean (28 extensions,
+0 errors / 0 warnings, run before and after the adapter bump), abi-audit 26/26 ✓, all four dist
+patches reapplied on the 1.0.1 tree (prompt-history into the hoisted `.pnpm/node_modules` pi-tui
+editor.js, mermaid never-drop into mermaid.js + inlined chunk-5OEJBNHG.js, clipboard OSC 52,
+remove `/copy`). Glyph re-diff against an `npm pack`ed 0.99.1 baseline (old pnpm store dir is
+gone): `dist/core/tools/renderers/` drift is `bash.js` only — upstream dropped its per-instance
+cache component for a `VisualLinePreview`/`Spacer` flow; the house bash row keeps its own
+`ui/renderers/bash-preview.ts` presentation, no adapter change. Interactive drift outside
+login/oauth/easter-egg files: `tool-execution.js` moves Kitty image conversion to pi-tui's
+`setImageTranscoder`/`ensurePngTranscoder` with `imageSources` reuse (removed
+`maybeConvertImagesForKitty`/`convertedImages` — no adapter references them), and `user-message.js`
+wraps Markdown directly instead of in a `Box` (identical output; adapters patch
+`rebuild`/`clear`/`addChild` only). pi-tui 0.99.1 → 1.0.1: `markdown.js` holds parsed tokens in a
+`WeakRef` and flattens lines, `box.js`/`text.js` flatten lines, `image.js` gains the PNG
+transcoder + LRU png cache (1.0.1 fixes JPEG/GIF/WebP via `Image` not appearing in Ghostty/Kitty)
+— memory/normalization, no glyph/token drift. No adapter changes; §9 visual pass pending the
+user's `/reload`.
+
+Package record 1.0.1 (2026-10-03): pi-web-access 0.34.0 → 0.35.0 via `pi update --extensions`;
+pi-mcp-adapter 2.35.0 → 5.0.0 (`pi install npm:pi-mcp-adapter@5.0.0`). v4 made `mcpScript` opt-in
+and v5 ignores top-level `settings` in Pi's `mcp.json`, so the adapter got its own
+`~/.pi/agent/mcp-adapter.json` with `settings.scriptMode: true` (keeps the `mcpScript` tool) and
+`mcpFooterStatus: "off"` migrated out of `mcp.json`. v5 also owns writing `-builtin:mcp` — already
+in house settings. `pi-mcp-adapter doctor`: 10/10 servers ok. syneva and pi-frontend-check
+checkouts sit at their `origin/main`; `packages/subagents` is vendored (no remote).
+
+Drift record 1.0.1 → 1.0.2 (2026-10-04, `pi-updated` light pass after the update broke async
+subagent spawns): the 11:52 update replaced the pnpm store (11bd3 → 8d19/3e4f); sessions started
+around it resolved `piPackageRoot` into the deleted 1.0.1 store, so the subagents async runner
+refused to launch ("Background children require the host npm package…") — /simplify's lens fan-out
+died on it. Fresh sessions resolve all 12 host peer aliases cleanly. Changelog 1.0.1→1.0.2 adds
+only `samplingParamsByThinkingLevel`; no extension-surface change. Audits: hygiene ✓ (live loader
+29 extensions, 0 errors), ABI ✓, extension-audit clean after the 2026-10-04 Superset removal: the old 1 ✗ (`session_end` in
+superset-hooks.ts) went away with the extension — the user had Superset deleted everywhere; the
+root-level flat file and the Claude-settings Superset hooks were removed with it. All four dist patches reapplied.
+Verified: probe workflow through the async runner + `simplifier` agent returned structured output.
+§9 visual pass not needed (no display change in 1.0.2).
+
+Tooling record 1.0.2 (2026-10-04): added `stale-session-check.ts` + a Scope step to `pi-updated`.
+Motivation: a pre-update session (process started before the 11:52 store swap) failed extension
+loads with jiti "Cannot find module '../dist/babel.cjs'" on `ui/renderers/index.ts` — its
+in-memory jiti resolved into the deleted 11bd3 store; only extensions with a warm transform
+cache loaded. Disk-side audits (changelog/API/hygiene/ABI) resolve the installed tree and
+cannot see a running process's module paths, so the skill now compares each running pi
+process's ps lstart against the installed package dir's mtime and says restart, not /reload
+(argv is hidden by process.title, so detection is start-time based). Verified live: flagged
+the stale pid hosting the failing session, spared a post-install one.
+
+Drift record 1.0.2 → 1.0.3 (2026-10-05, `pi-updated`; store `8d19`/`3e4f` → `1296d`): changelog
+breaking change is one provider rename — `azure-openai-responses` → `azure` (auth.json/models.json/settings keys);
+no house config uses it and pi-ai@1.0.3 keeps the API name `azure-openai-responses` while new
+Foundry deployments (e.g. azure/deepseek-v4-pro) carry api `openai-completions` — both strings
+already in subagent-prompt-runtime's `PROMPT_CACHE_KEY_APIS`/`COMPOSITE_TOOL_ID_APIS`, so no house
+fix. extension-audit 50/50 ✓, hygiene-audit 28 extensions / 0 errors / 0 warnings, abi-audit ✓
+(6 exports + 12 prototype methods). All four dist patches reapplied on the 1.0.3 tree: the 19:58
+install had wiped them (first runs printed `patched`, reruns `already patched`; the printed
+`3e4f681e…` paths are body→alias spellings whose realpath lands in the single `1296d` tree —
+verified via realpath on every target). Glyph/format re-diff against npm-packed 1.0.2 baselines:
+`dist/core/tools/renderers/` and pi-tui `markdown.js` byte-identical; interactive components
+only `mermaid.js` (= the never-drop patch); rest of the tree is non-display work
+(`config.js` `detectInstallChange` restart hint, `output-accumulator.js` + new
+`utils/output-files.js` truncated-output files, `codemode` `image()` temp files, `mcp` binary
+resources, `model-resolver` azure rename, `interactive-mode.js` dead-terminal `ENOTTY` handling,
+pi-tui `keybindings.js` remap). Keybinding remap to verify on the next real session:
+`Home`/`End` now move the editor cursor to line start/end, transcript top/bottom moved to
+`Ctrl+Home`/`Ctrl+End` (1.0.2 previously bound both). §9 visual pass not needed — no render
+surface changed; stale sessions (2 pids) restart before any keyboard judgment.
+
+Drift record 1.0.3 → 1.0.4 (2026-10-06, `pi-updated`; pnpm re-keyed the install to the
+`146ae-18dbfd…` store, the `3e4f681e…` dir keeps alias symlinks into it — the patch prints their
+`3e4f…` spellings, realpath resolves them into the single 1.0.4 tree): no Breaking Changes. The two
+extension-surface entries both miss the house: `ToolLoadout` gains `getPromptGuidelines()` (nothing
+under `extensions/` references `prepareLoadout`/`ToolLoadout`) and codemode built-ins are frozen
+before script runs (no house codemode script patches built-ins). extension-audit 51/51 ✓,
+hygiene-audit 5 packages clean / no builtin shadowing / live loader 31 extensions 0 errors 0
+warnings, abi-audit 7 exports + 16 prototype methods ✓. All four dist patches reapplied first-run
+`patched`; content verified in the running 1.0.4 tree by grep (prompt-history helpers +
+PROMPT_HISTORY_LIMIT in pi-tui editor.js, `HERDR_ENV` osc52-first in clipboard.js,
+truncateDanglingArrows + `Mermaid diagram warning` advisory in mermaid.js and chunk-H33F2TZD.js, no
+`/copy` registration). Glyph/format re-diff against npm-packed 1.0.3 baselines (no 1.0.3 tree
+survived — the install replaced it): renderers byte-identical; interactive components differ only
+in mermaid.js (= the never-drop patch); pi-tui dist differs only in editor.js (= the
+prompt-history patch). Display-adjacent upstream change is the #10143 highlight fix:
+utils/syntax-highlight.js applies the formatter per line, so colors survive past the first line of
+multiline strings/comments in fenced code (reaches house surfaces through the shared Markdown
+`theme.highlightCode` path), plus one additive syntax token mapping (`subst` → `text`) in the
+interactive theme. Rest of the tree is changelog-named non-display work (mcp OAuth native client
++ `--no-mcp`, codemode built-in freezing + image temp files, core/tools/read image blocks, cli
+args `--tools` patterns, resource-loader, system-prompt/loadout hints, agent-session/sdk).
+§9 visual pass pending the user's restart: render a fenced block containing a multiline string
+and a comment; the pre-update session (pid 6141) must fully restart before judging anything.
+Close-out also aligned the workspace pins (`~/.pi/agent/package.json` devDependencies pi-ai / pi-coding-agent / pi-tui 1.0.3 → 1.0.4, lockfile re-verified): the stale 1.0.3 pin was why
+`pnpm run drift` first ran the local `.bin` `pi` shim at 1.0.3 while `pi --version` (global bin)
+already reported 1.0.4; drift now prints `pi 1.0.4: audited version` and tsc type-checks against
+the same 1.0.4 declarations the extension-audit verified.
+
+Drift record 1.0.4 → 1.1.0 (2026-10-11, `pi-updated`; install re-keyed to the `7e68-18dd…`
+store, the patcher printed `3e4f681e…` spellings — audit-path realpath + inode equality
+verified, one physical hardlinked tree): no Breaking Changes. Extension-surface entries are all
+additive: `durationMs` + `outputPad` in the tool render context and `tool_execution_end`,
+`aborted` on `agent_settled`, OSC 7501 program status, `+name`/`-name` `--tools` entries,
+GPT-6 Luna image classifier (`models.classify()` gains `images`), Claude Haiku 5.5, llama.cpp
+decision models via `/v1/systemone`, live `/mcp` manager, codemode output delimiters. The one
+display-semantic change: `outputPad` (existing setting, sourced from
+`settingsManager.getOutputPad()`) now also applies to `!` command output, tool output, and
+summary blocks — previously only user messages, assistant messages, and thinking. House settings
+run `outputPad: 0` / `editorPaddingX: 0`, so tool rows, `!` blocks, compaction/branch summary
+cards, and custom entries/messages shift one cell left after /reload, aligning with messages
+already at 0; house `tool-surface.ts` draws no hardcoded left padding and `frame.ts` keeps its
+own insets for framed surfaces. bash.js prefers a final result's recorded `durationMs` for the
+`Took` line (monotonic, survives reloads; clock fallback, #10549) — house bash row keeps its own
+presentation. Audits: extension-audit ✓ ('extension API intact'), hygiene-audit 5 packages
+clean / no builtin shadowing / live loader 32 extensions 0 errors 0 warnings, abi-audit 7
+exports + 13 prototype methods ✓. All four dist patches reapplied first-run `patched`; verified
+on the running tree by grep (`HERDR_ENV` osc52-first, `truncateDanglingArrows` + advisory
+warning, no `/copy` registration) and `node --check` clean on all four files; mermaid mini
+chunk is now chunk-OIM2DMFI.js. Glyph/format re-diff against npm-packed 1.0.4 baselines:
+pi-tui `markdown.js` byte-identical; pi-tui `box.js`/`text.js` add `setPaddingX()` only
+(new API, unused by house code); `editor.js` = the prompt-history patch; renderers differ only
+in `bash.js` (durationMs) and `edit.js` (outputPad); interactive components differ only in the
+outputPad threading, the settings-selector description text, and `mermaid.js` (= the
+never-drop patch); `user-message.js`/`assistant-message.js` unchanged — outputPad already
+applied there in 1.0.4. Close-out: `AUDITED_PI_VERSION` 1.0.4 → 1.1.0, workspace pins pi-ai /
+pi-coding-agent / pi-tui 1.0.4 → 1.1.0, lockfile re-verified. §9 visual pass pending the
+user's /reload: confirm tool rows, `!` blocks and summary cards render flush-left (outputPad 0)
+aligned with messages, and the bash `Took` line.

@@ -1,0 +1,59 @@
+{
+  "theme": "catppuccin-latte/catppuccin-macchiato",
+  "npmCommand": [
+    "pnpm",
+    "--config.strict-dep-builds=false"
+  ],
+  "extensions": [
+    "extensions/prompt",
+    "extensions/model",
+    "extensions/tools",
+    "extensions/fetch",
+    "extensions/ui",
+    "extensions/commands",
+    "-builtin:mcp"
+  ],
+  "packages": [
+    "npm:pi-web-access@0.47.0",
+    "./packages/subagents",
+    "./packages/pi-frontend-check",
+    "npm:pi-mcp-adapter@5.0.0"
+  ],
+  "skills": [
+    "client"
+  ],
+  "hideThinkingBlock": true,
+  "editorPaddingX": 0,
+  "outputPad": 0,
+  "autocompleteMaxVisible": 10,
+  "markdown": {
+    "mermaid": "streaming"
+  },
+  "doubleEscapeAction": "tree",
+  "treeFilterMode": "no-tools",
+  "tuiMode": "fullscreen",
+  "fullscreenExitOutput": "transcript",
+  "compaction": {
+    "enabled": false,
+    "keepRecentTokens": 20000
+  },
+  "defaultTools": [
+    "read",
+    "bash",
+    "edit",
+    "write",
+    "grep",
+    "find",
+    "ls",
+    "codemode"
+  ],
+  "subagents": {
+    "modelScope": {
+      "enforce": true,
+      "allow": [
+        "inherit",
+        "magpie/*"
+      ]
+    }
+  }
+}

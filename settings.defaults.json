@@ -1,0 +1,64 @@
+{
+  "defaultProvider": "magpie",
+  "defaultModel": "group/router",
+  "enabledModels": [
+    "magpie/group/router",
+    "magpie/group/instant",
+    "magpie/group/think",
+    "magpie/group/deep",
+    "magpie/group/expert",
+    "magpie/group/ultra",
+    "magpie/group/max"
+  ],
+  "modelThinkingLevels": {
+    "magpie/group/router": "medium",
+    "magpie/group/fast": "high"
+  },
+  "terminal": {
+    "images": "kitty"
+  },
+  "subagents": {
+    "agentOverrides": {
+      "researcher": {
+        "model": "magpie/group/fast",
+        "thinking": "off"
+      },
+      "scout": {
+        "model": "magpie/group/fast",
+        "thinking": "off"
+      },
+      "delegate": {
+        "model": "magpie/group/fast",
+        "thinking": "max"
+      },
+      "worker": {
+        "model": "magpie/group/fast",
+        "thinking": "low"
+      },
+      "reviewer": {
+        "model": "magpie/group/expert",
+        "skills": [
+          "coding"
+        ],
+        "systemPromptMode": "append",
+        "systemPrompt": "Bias findings toward the minimum-change ladder in the coding skill: when the request can be met by simplifying, deleting, or reusing existing code, prefer that finding over feedback that adds code, and flag additive fixes that duplicate something already present. Simplest is not dumbest: never argue a fix is too small when it is correct on edge cases. Laziness never justifies cutting validation, error handling, security, or accessibility corners."
+      },
+      "oracle": {
+        "model": "magpie/group/ultra",
+        "thinking": "xhigh",
+        "skills": [
+          "coding"
+        ],
+        "systemPromptMode": "append",
+        "systemPrompt": "When advising, prefer the smallest change that solves the root cause: weigh simplify, delete, and reuse options before recommending additive ones, and challenge proposals that only add code. Simplest is not dumbest: the recommendation must be correct on edge cases - never a cut corner (validation, error handling, security, accessibility stay)."
+      },
+      "simplifier": {
+        "model": "magpie/group/deep",
+        "thinking": "medium"
+      },
+      "verifier": {
+        "model": "magpie/group/fast"
+      }
+    }
+  }
+}

@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() { echo "usage: cloud-checkout --repo <dir> --branch <name> (--from <local-ref> | --track <origin/branch>)" >&2; exit 64; }
+started=""
+fail() {
+  echo "cloud-checkout: $1" >&2
+  if [[ -n "$started" ]]; then
+    if workspace stop "$vm" >/dev/null 2>&1; then echo "cloud-checkout: stopped $vm" >&2
+    else echo "cloud-checkout: $vm may still be running: workspace stop $vm" >&2; fi
+  fi
+  exit 1
+}
+
+repo="" branch="" from="" track=""
+while (($#)); do
+  case "$1" in
+    --repo) repo="${2:-}"; shift 2 || usage ;;
+    --branch) branch="${2:-}"; shift 2 || usage ;;
+    --from) from="${2:-}"; shift 2 || usage ;;
+    --track) track="${2:-}"; shift 2 || usage ;;
+    *) usage ;;
+  esac
+done
+[[ -n "$repo" && -n "$branch" ]] || usage
+if [[ -n "$from" && -n "$track" ]] || [[ -z "$from" && -z "$track" ]]; then usage; fi
+git check-ref-format --branch "$branch" >/dev/null || fail "invalid branch name: $branch"
+
+boat="$(command -v boat || echo "$HOME/.ascii/bin/boat")"
+[[ -x "$boat" ]] || fail "boat CLI not found"
+command -v workspace >/dev/null || fail "workspace CLI not found"
+
+main="$(git -C "$repo" worktree list --porcelain | sed -n '1s/^worktree //p')"
+url="$(git -C "$repo" remote get-url origin)" || fail "the repository has no origin remote"
+url="$(sed -E 's#^git@([^:]+):#https://\1/#; s#^ssh://git@([^/]+)/#https://\1/#' <<<"$url")"
+dir="/home/user/$(basename "$main")"
+
+bundle_ref="" upstream=""
+if [[ -n "$track" ]]; then
+  base="$(git -C "$repo" rev-parse --verify "$track^{commit}")" || fail "unknown remote ref: $track"
+  upstream="$track"
+else
+  base="$(git -C "$repo" rev-parse --verify "$from^{commit}")" || fail "unknown ref: $from"
+  upstream="$(git -C "$repo" rev-parse --abbrev-ref --symbolic-full-name "$from@{upstream}" 2>/dev/null || true)"
+  [[ "$upstream" == origin/* ]] || upstream=""
+  if (( $(git -C "$repo" rev-list --count "$from" --not --remotes=origin) > 0 )); then
+    bundle_ref="$(git -C "$repo" rev-parse --symbolic-full-name "$from")"
+    [[ -n "$bundle_ref" ]] || bundle_ref="HEAD"
+  fi
+fi
+
+vm="$(tr '[:upper:]' '[:lower:]' <<<"$branch" | sed -E 's/[^a-z0-9]+/-/g; s/^-+//' | cut -c1-63 | sed -E 's/-+$//')"
+[[ -n "$vm" ]] || fail "cannot derive a VM name from $branch"
+known="$(workspace list | awk -v n="$vm" '$1 == n { print "yes" }')"
+id="$(workspace start "$vm" --profile pi -d | tail -n1)" || fail "workspace start $vm failed"
+[[ -n "$id" ]] || fail "workspace start $vm printed no VM id"
+started=yes
+
+remote_bundle=""
+if [[ -n "$bundle_ref" ]]; then
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' EXIT
+  git -C "$repo" bundle create --quiet "$tmp/wt.bundle" "$bundle_ref" --not --remotes=origin
+  remote_bundle="/tmp/worktree-$vm.bundle"
+  "$boat" --no-update ssh "$id" -- bash -c 'cat > "$1"' _ "$remote_bundle" < "$tmp/wt.bundle" \
+    || fail "copying the bundle to $id failed"
+fi
+
+read -r status current head < <("$boat" --no-update ssh "$id" -- bash -c '
+set -euo pipefail
+dir=$1 url=$2 branch=$3 base=$4 upstream=$5 bundle=$6 bundle_ref=$7
+[ -d "$dir/.git" ] || git clone --quiet "$url" "$dir"
+cd "$dir"
+git fetch --quiet origin
+[ -z "$bundle" ] || { git fetch --quiet "$bundle" "$bundle_ref"; rm -f "$bundle"; }
+if git show-ref --verify --quiet "refs/heads/$branch"; then
+  status=reused
+  [ "$(git branch --show-current)" = "$branch" ] || git switch --quiet "$branch"
+else
+  status=created
+  git cat-file -e "$base^{commit}"
+  git switch --quiet -c "$branch" "$base"
+  [ -z "$upstream" ] || git branch --quiet --set-upstream-to="$upstream"
+fi
+printf "%s %s %s\n" "$status" "$(git branch --show-current)" "$(git rev-parse HEAD)"
+' _ "$dir" "$url" "$branch" "$base" "$upstream" "$remote_bundle" "$bundle_ref") \
+  || fail "checkout of $branch on $id failed"
+
+[[ "$current" == "$branch" ]] || fail "VM $id is on $current, not $branch"
+[[ "$status" == reused || "$head" == "$base" ]] || fail "VM $id HEAD $head differs from base $base"
+
+jq -nc --arg status "$status" --arg vm "$vm" --arg id "$id" --arg path "$dir" --arg branch "$branch" \
+  --arg head "$head" --arg base "$base" --arg resumed "${known:-no}" \
+  '{status: $status, vm: $vm, id: $id, path: $path, branch: $branch, head: $head, base: $base, vm_existed: ($resumed == "yes")}'

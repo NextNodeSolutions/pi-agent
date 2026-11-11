@@ -1,0 +1,5 @@
+{
+	"summaryModel": "magpie/group/mini",
+	"maxContextTokens": 184000,
+	"keepRecentTokens": 20000
+}

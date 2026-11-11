@@ -1,0 +1,175 @@
+import { createHash } from 'node:crypto'
+import { statSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { resolve } from 'node:path'
+
+import { checkpointReadResults } from '#lib/context-budget/retained-reads.ts'
+import { quote } from '#lib/runtime/remote.ts'
+import { runtimeFor } from '#lib/runtime/runtime.ts'
+
+import type { Runtime } from '#lib/runtime/runtime.ts'
+
+/** Durable metadata only: no file contents or secrets enter this entry. */
+export const READ_LEDGER_ENTRY = 'pi-read-ledger-v2'
+const MAX_READS = 128
+const READ_ENTRY_FIELDS = 4
+type CompletedRead = { signature: string; callId: string; contentHash: string }
+
+function contentHash(content: unknown): string {
+	return createHash('sha256')
+		.update(JSON.stringify(content) ?? '')
+		.digest('hex')
+}
+
+interface PendingRead {
+	key: string
+	signature: string
+	generation: number
+}
+
+/** Identical successful reads are useful only while their source is unchanged. */
+export class ReadLedger {
+	private readonly completed = new Map<string, CompletedRead>()
+	private readonly visible = new Map<string, string>()
+	private readonly pending = new Map<string, PendingRead>()
+	private generation = 0
+
+	clear(): void {
+		this.generation += 1
+		this.completed.clear()
+		this.pending.clear()
+		this.visible.clear()
+	}
+
+	snapshot(): [string, string, string, string][] {
+		return [...this.completed].map(([key, read]) => [
+			key,
+			read.signature,
+			read.callId,
+			read.contentHash,
+		])
+	}
+
+	/** Refuse only while the exact successful source result is still model-visible. */
+	observe(
+		messages: readonly {
+			role: string
+			toolCallId?: string
+			toolName?: string
+			content?: unknown
+			summary?: unknown
+			isError?: boolean
+		}[],
+	): void {
+		this.visible.clear()
+		const retained = messages
+			.filter(message => message.role === 'compactionSummary')
+			.flatMap(message => checkpointReadResults(message.summary))
+		for (const read of retained)
+			this.visible.set(read.toolCallId, contentHash(read.content))
+		for (const message of messages) {
+			if (
+				message.role !== 'toolResult' ||
+				message.toolName !== 'read' ||
+				message.isError ||
+				!message.toolCallId
+			)
+				continue
+			this.visible.set(message.toolCallId, contentHash(message.content))
+		}
+	}
+
+	restore(snapshot: unknown): void {
+		this.clear()
+		if (!Array.isArray(snapshot)) return
+		for (const entry of snapshot.slice(-MAX_READS)) {
+			if (
+				!Array.isArray(entry) ||
+				entry.length !== READ_ENTRY_FIELDS ||
+				!entry.every(field => typeof field === 'string')
+			)
+				continue
+			const [key, signature, callId, hash] = entry
+			if (key && signature && callId && hash)
+				this.completed.set(key, {
+					signature,
+					callId,
+					contentHash: hash,
+				})
+		}
+	}
+
+	async begin(
+		callId: string,
+		cwd: string,
+		input: { path: string; offset?: number | null; limit?: number | null },
+	): Promise<boolean> {
+		const path = resolve(cwd, input.path.replace(/^~\//, `${homedir()}/`))
+		const signature = await this.signature(path)
+		if (!signature) return false
+		const key = JSON.stringify([
+			path,
+			input.offset ?? 1,
+			input.limit ?? null,
+		])
+		const previous = this.completed.get(key)
+		if (
+			previous?.signature === signature &&
+			this.visible.get(previous.callId) === previous.contentHash
+		)
+			return true
+		this.pending.set(callId, {
+			key,
+			signature,
+			generation: this.generation,
+		})
+		return false
+	}
+
+	complete(callId: string, isError: boolean, content: unknown): void {
+		const read = this.pending.get(callId)
+		this.pending.delete(callId)
+		if (!read || isError || read.generation !== this.generation) return
+		this.completed.delete(read.key)
+		this.completed.set(read.key, {
+			signature: read.signature,
+			callId,
+			contentHash: contentHash(content),
+		})
+		if (this.completed.size > MAX_READS) {
+			const oldest = this.completed.keys().next().value
+			if (oldest) this.completed.delete(oldest)
+		}
+	}
+
+	private async signature(path: string): Promise<string | undefined> {
+		const runtime = runtimeFor(path)
+		if (runtime.isRemote) return remoteSignature(runtime, path)
+		try {
+			const file = statSync(path)
+			if (!file.isFile()) return undefined
+			return `${file.dev}:${file.ino}:${file.size}:${file.mtimeMs}:${file.ctimeMs}`
+		} catch {
+			// An unreadable or missing file must reach the original read tool.
+			return undefined
+		}
+	}
+}
+
+/** A Boat stat has one-second mtimes: the content hash keeps a same-second, same-size edit visible. */
+async function remoteSignature(
+	runtime: Runtime,
+	path: string,
+): Promise<string | undefined> {
+	try {
+		const target = quote(runtime.toTarget(path))
+		const probe = await runtime.run(
+			`test -f ${target} && stat -L -c '%s:%Y:%Z' -- ${target} && sha1sum -- ${target}`,
+			'/',
+		)
+		if (probe.exitCode !== 0) return undefined
+		return probe.stdout.replace(/\s+/g, ' ').trim()
+	} catch {
+		return undefined
+	}
+}

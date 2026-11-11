@@ -1,0 +1,49 @@
+# Allowlist: everything at the top level stays untracked unless listed here, so
+# sign-ins, sessions, caches, client overlays and machine state never get published.
+/*
+!/.gitignore
+!/README.md
+!/AGENTS.md
+!/ARCHITECTURE.md
+!/agents/
+!/bin/
+!/context-budget.json
+!/extensions/
+!/frontend-check.json
+!/keybindings.json
+!/lazy-load.json
+!/magpie-routing.json
+!/mcp.json
+!/models.json
+!/npm/
+!/oxfmt.config.ts
+!/oxlint.config.ts
+!/package.json
+!/packages/
+!/plans/
+!/pnpm-lock.yaml
+!/pnpm-workspace.yaml
+!/prompts/
+!/security/
+!/settings.defaults.json
+!/settings.pinned.json
+!/skills/
+!/skills.json
+!/themes/
+!/tsconfig.json
+
+# Pi downloads these macOS/Linux binaries itself; syneva writes its own shim.
+/bin/fd
+/bin/rg
+/bin/syneva
+/skills/impeccable/scripts/bin/
+
+# Plans are personal working state; only the method and templates are shared.
+/plans/*
+!/plans/README.md
+!/plans/templates/
+
+node_modules/
+__pycache__/
+.DS_Store
+*.tmp

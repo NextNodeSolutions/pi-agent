@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+(($# == 2)) || { echo "usage: cloud-session <vm-name> <remote-dir>" >&2; exit 64; }
+vm="$1" dir="$2"
+reply=""
+
+say() { printf '\n\033[1m[worktree cloud]\033[0m %s\n' "$*"; }
+
+stop_vm() {
+  workspace stop "$vm" >/dev/null && return 0
+  say "stopping $vm FAILED: it may still be running. Check with: workspace stop $vm"
+  return 1
+}
+
+leave() {
+  stop_vm
+  exit 0
+}
+trap leave HUP TERM INT
+
+run_pi() {
+  if [[ -n "$reply" ]]; then
+    workspace start "$vm" -- bash -lc 'cd "$1" && exec pi -c -- "$2"' _ "$dir" "$reply"
+  else
+    workspace start "$vm" -- bash -lc 'cd "$1" && exec pi -c' _ "$dir"
+  fi
+}
+
+prompt_resume() {
+  say "$vm is stopped and its disk kept."
+  say "Type a reply to resume with it, Enter alone to just resume, Ctrl-D to close."
+  IFS= read -r -e -p '> ' reply
+}
+
+while :; do
+  say "starting $vm..."
+  if run_pi; then
+    stty sane 2>/dev/null
+    prompt_resume || leave
+    continue
+  fi
+  stty sane 2>/dev/null
+  reply=""
+  stop_vm
+  say "workspace start $vm failed; its message is above. Enter retries, Ctrl-D closes."
+  IFS= read -r _ || exit 1
+done

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+skill_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+name="$(tr -d '[:space:]' < "$skill_dir/terminal.conf")"
+adapter="$skill_dir/scripts/adapters/$name"
+[[ -x "$adapter" ]] || { echo "terminal: no executable adapter for '$name' at $adapter" >&2; exit 1; }
+exec "$adapter" "$@"

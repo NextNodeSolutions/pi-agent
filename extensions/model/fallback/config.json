@@ -1,0 +1,14 @@
+{
+	"autoFallback": true,
+	"restoreOnSuccess": true,
+	"fastFailover": true,
+	"transientRetryLimit": 1,
+	"retryDelayMs": 2000,
+	"rateLimitRetryLimit": 2,
+	"rateLimitRetryDelayMs": 20000,
+	"exclusionTtlMs": 300000,
+	"chain": [
+		"openai-codex/gpt-6.1-sol",
+		"inco/glm-5.3-flash:fast"
+	]
+}

@@ -1,0 +1,61 @@
+# pnpm 12 requires an explicit decision for any package shipping install scripts.
+# esbuild: postinstall installs its platform-specific binary (required).
+# protobufjs: postinstall only prints version-scheme warnings; writes nothing.
+# '@google/genai': publishes no scripts/ directory, so install-time is a no-op.
+# node_modules is a symlink into ~/.pi/generated; pnpm 12 refuses to create its
+# hoist directory through it, so hoisting stays off (extensions import declared deps only).
+hoist: false
+allowBuilds:
+    '@google/genai': false
+    esbuild: true
+    protobufjs: true
+minimumReleaseAgeExclude:
+    - playwright-core@1.64.0-alpha-2026-10-02
+    - '@oxfmt/binding-android-arm-eabi@0.67.0'
+    - '@oxfmt/binding-android-arm64@0.67.0'
+    - '@oxfmt/binding-darwin-arm64@0.67.0'
+    - '@oxfmt/binding-darwin-x64@0.67.0'
+    - '@oxfmt/binding-freebsd-x64@0.67.0'
+    - '@oxfmt/binding-linux-arm-gnueabihf@0.67.0'
+    - '@oxfmt/binding-linux-arm-musleabihf@0.67.0'
+    - '@oxfmt/binding-linux-arm64-gnu@0.67.0'
+    - '@oxfmt/binding-linux-arm64-musl@0.67.0'
+    - '@oxfmt/binding-linux-ppc64-gnu@0.67.0'
+    - '@oxfmt/binding-linux-riscv64-gnu@0.67.0'
+    - '@oxfmt/binding-linux-riscv64-musl@0.67.0'
+    - '@oxfmt/binding-linux-s390x-gnu@0.67.0'
+    - '@oxfmt/binding-linux-x64-gnu@0.67.0'
+    - '@oxfmt/binding-linux-x64-musl@0.67.0'
+    - '@oxfmt/binding-openharmony-arm64@0.67.0'
+    - '@oxfmt/binding-win32-arm64-msvc@0.67.0'
+    - '@oxfmt/binding-win32-ia32-msvc@0.67.0'
+    - '@oxfmt/binding-win32-x64-msvc@0.67.0'
+    - '@oxlint/binding-android-arm-eabi@1.82.0'
+    - '@oxlint/binding-android-arm64@1.82.0'
+    - '@oxlint/binding-darwin-arm64@1.82.0'
+    - '@oxlint/binding-darwin-x64@1.82.0'
+    - '@oxlint/binding-freebsd-x64@1.82.0'
+    - '@oxlint/binding-linux-arm-gnueabihf@1.82.0'
+    - '@oxlint/binding-linux-arm-musleabihf@1.82.0'
+    - '@oxlint/binding-linux-arm64-gnu@1.82.0'
+    - '@oxlint/binding-linux-arm64-musl@1.82.0'
+    - '@oxlint/binding-linux-ppc64-gnu@1.82.0'
+    - '@oxlint/binding-linux-riscv64-gnu@1.82.0'
+    - '@oxlint/binding-linux-riscv64-musl@1.82.0'
+    - '@oxlint/binding-linux-s390x-gnu@1.82.0'
+    - '@oxlint/binding-linux-x64-gnu@1.82.0'
+    - '@oxlint/binding-linux-x64-musl@1.82.0'
+    - '@oxlint/binding-openharmony-arm64@1.82.0'
+    - '@oxlint/binding-win32-arm64-msvc@1.82.0'
+    - '@oxlint/binding-win32-ia32-msvc@1.82.0'
+    - '@oxlint/binding-win32-x64-msvc@1.82.0'
+    - oxfmt@0.67.0
+    - oxlint@1.82.0
+    - '@earendil-works/chord@1.0.3 || 1.0.4'
+    - '@earendil-works/pi-agent-core@1.0.3 || 1.0.4'
+    - '@earendil-works/pi-ai@1.0.3 || 1.0.4'
+    - '@earendil-works/pi-codemode@1.0.3 || 1.0.4'
+    - '@earendil-works/pi-coding-agent@1.0.3 || 1.0.4'
+    - '@earendil-works/pi-mcp@1.0.3 || 1.0.4'
+    - '@earendil-works/pi-telemetry@1.0.3 || 1.0.4'
+    - '@earendil-works/pi-tui@1.0.3 || 1.0.4'
