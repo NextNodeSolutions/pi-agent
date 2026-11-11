@@ -21,8 +21,10 @@
  * `retry.ts` (the bounded wait and failed-attempt omission), `chain.ts` (candidate
  * ordering), `cooldowns.ts` (which models the chain may not move to),
  * `fallback-session.ts` (the per-session decision
- * state), `failover.ts` (the model moves, status line and continuation
- * message), `fallback-message.ts` (the transcript renderer), `command.ts`
+ * state), `failover.ts` (the model moves and their status line),
+ * `gateway-watch.ts` / `gateway-liveness.ts` (abort a request the Magpie
+ * gateway stopped serving), `fallback-message.ts` (the continuation message
+ * and its transcript renderer), `command.ts`
  * (the `/models` command, status text and persisted config),
  * `command-filter.ts` (keeps the model commands `/models` replaces, and the
  * inert `llama` row, out of the slash menu), `picker.ts`
@@ -59,6 +61,7 @@ import {
 } from './failover.ts'
 import { registerFallbackRenderer } from './fallback-message.ts'
 import { FallbackSession } from './fallback-session.ts'
+import { watchGateway } from './gateway-watch.ts'
 import { failedAttemptOmission, waitForRetryDelay } from './retry.ts'
 
 import type {
@@ -77,6 +80,7 @@ export default function modelFallback(pi: ExtensionAPI): void {
 	watchProviderResponses(pi, session)
 	watchRunOutcome(pi, session)
 	watchBoundaries(pi, session)
+	watchGateway(pi, session)
 	watchModelSelection(pi, session)
 	watchCompaction(pi, session)
 	registerFallbackRenderer(pi)
