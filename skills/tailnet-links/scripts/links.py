@@ -45,14 +45,19 @@ def link(target, wait_seconds):
     return published(unquote(parsed.path) if parsed.scheme == "file" else target)
 
 
-def document(target, directory):
-    parsed = urlsplit(target)
-    written = unquote(parsed.path) if parsed.scheme == "file" else target
+def existing_document(written, directory):
     try:
         path = Path(directory, Path(written).expanduser())
         return path if path.suffix.lower() in DOCUMENT_SUFFIXES and path.is_file() else None
     except (OSError, ValueError):
         return None
+
+
+# A path is read as written first, so a file whose name holds a percent sign still converts.
+def document(target, directory):
+    parsed = urlsplit(target)
+    written = unquote(parsed.path) if parsed.scheme == "file" else target
+    return existing_document(written, directory) or existing_document(unquote(written), directory)
 
 
 class Converter:
