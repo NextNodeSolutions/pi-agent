@@ -41,6 +41,7 @@ A dev server that checks the `Host` header refuses the tailnet name. `scripts/de
 - **A Herdr terminal prints the link.** `scripts/shell.zsh` starts `tailnet-link announce` with each command typed in a Herdr terminal. When the running program shows an `http://localhost` URL for a port it listens on, the terminal prints `➜  Tailnet: <url>` under it, one line per port. A human who types `pnpm dev` needs no other command.
 - **A program that draws the whole screen gets no line**, an agent or an editor for example. Link its port with `tailnet-link <port>`.
 - **The watch is bounded.** It ends when the prompt returns, or `WATCH_SECONDS` of `scripts/announce.py` after a program takes the terminal. Link a server that starts later with `tailnet-link <port>`.
+- **The root page lists the servers.** The URL `tailnet-link setup` prints shows the linked servers that are running, each with its project directory, above the published files. It is the bookmark for a phone, which has no terminal to read.
 
 ## Published files
 
