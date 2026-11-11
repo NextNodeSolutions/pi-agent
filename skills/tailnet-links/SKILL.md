@@ -51,6 +51,7 @@ Run `tailnet-link status` on the machine the URL names.
 | Status says | Do |
 |---|---|
 | A preview is `dead` | Restart the server on that port. The same URL answers again. |
+| The preview is not listed | The machine signed out of Tailscale or joined again, which drops its previews. Run `tailnet-link <port>` again. The same URL answers. |
 | The file server is `down` | Run `tailnet-link setup`. |
 | Everything is `live` | The reader's device is off the tailnet or signed in as someone else. Ask the human to check Tailscale on it. |
 
