@@ -50,8 +50,9 @@ def assert_host_accepted(port, authority):
     if probe.fetch(origin, {"Host": authority})[0] != REFUSED_STATUS or probe.fetch(origin)[0] == REFUSED_STATUS:
         return
     raise LinkError("The server on localhost:" + str(port) + " refuses requests for the host " + authority.split(":")[0]
-                    + ". Restart it with " + " ".join(DEV_SERVER_ENV) + " in its environment (Vite, Astro), or allow that host"
-                    + " in its config (Next: allowedDevOrigins), then run this again.")
+                    + ". Restart it with " + " ".join(DEV_SERVER_ENV) + " in its environment (Vite, Astro), then run this again."
+                    + " Another server takes the host through its start command or its environment."
+                    + " A change to the project's files needs the human's approval first.")
 
 
 def ensure(port, name, wait_seconds):

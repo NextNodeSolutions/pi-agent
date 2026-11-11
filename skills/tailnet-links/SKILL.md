@@ -36,6 +36,8 @@ When the human reports a `Links were left as written` warning, it carries the re
 
 A dev server that checks the `Host` header refuses the tailnet name. `scripts/dev-server.env` holds the variables that make Vite and Astro accept it. `scripts/shell.zsh`, sourced from `~/.zshenv`, exports them to every zsh of the machine, and Pi exports them to the commands it starts. A server started before that export keeps refusing until it restarts. When `tailnet-link` reports that a server refuses the host, do what its message says and run it again.
 
+**Projects stay as they are.** A link works through the machine alone: the variables of `scripts/dev-server.env`, the shell hook and Tailscale Serve. Leave the project's config, scripts and env files unchanged, so every repository links without setup. A framework that reads its allowed hosts from the environment gets its variable added to `scripts/dev-server.env`, once for all repositories. When only a change inside the project makes its server answer, ask the human first and name the difficulty that change avoids.
+
 ## What the machine links by itself
 
 - **A Herdr terminal prints the link.** `scripts/shell.zsh` starts `tailnet-link announce` with each command typed in a Herdr terminal. When the running program shows an `http://localhost` URL for a port it listens on, the terminal prints `➜  Tailnet: <url>` under it, one line per port. A human who types `pnpm dev` needs no other command.
