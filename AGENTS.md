@@ -84,8 +84,9 @@ Never use `~/.pi/agent` as a scratch or deliverable directory (including `tmp/`)
 
 ## Links and dev servers
 
-- **Load `~/.pi/agent/skills/tailnet-links/SKILL.md` before giving the human a file or link to open, opening on another device, or starting or sharing a dev server.** It owns deliverable publication, HTTPS previews, open routing and peer verification.
-- Change Tailscale Serve mappings only with human authorization. Preserve unrelated routes, keep previews tailnet-only, and leave firewall settings and certificate verification enabled.
+- **Give the human a `tailnet-link` URL for whatever they will open**: a file, a directory, a local server. It opens on every device of theirs. Pi converts document paths and running `localhost` URLs in the final message by itself. Anywhere else, Claude Code included, run `tailnet-link <target>` and give the URL it prints.
+- **Load `~/.pi/agent/skills/tailnet-links/SKILL.md` before starting or sharing a dev server, when a link does not open, or when setting links up on a machine.**
+- Change Tailscale Serve only through `tailnet-link`. Funnel, `serve reset`, routes it did not create, ACL and firewall changes need human authorization.
 
 ## Git
 
