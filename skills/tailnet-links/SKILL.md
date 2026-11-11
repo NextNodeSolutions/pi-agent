@@ -61,7 +61,7 @@ A link answers only while its machine is on. The first request to a machine that
 `tailnet-link setup` makes a machine serve links. It installs the file server as a service, mounts it on Tailscale Serve at `/deliverables` and links the command into `~/.local/bin`. Run it once per machine. Running it again is safe and repairs a file server that is `down`.
 
 - A Mac must be signed in to Tailscale first.
-- A Linux VM outside the tailnet joins with the key in `TS_AUTHKEY`. Setup reads it from its environment and stores it nowhere. `workspace start <name> --profile pi --pi-tailnet` does the whole join from the Mac.
+- A Linux VM outside the tailnet joins with the key in `TS_AUTHKEY`. Setup reads it from its environment, hands it to Tailscale and keeps no copy. `workspace start <name> --profile pi --pi-tailnet` does the whole join from the Mac.
 - `tailnet-link join-key`, on a Mac with an `infisical login` session, prints the key for one VM. It works once, within ten minutes, and tags the VM `tag:agent`, which the tailnet policy grants nothing: the human's devices reach the VM and the VM reaches no other machine. Its output is a credential, so always pipe it into the command that runs setup on the VM.
 - In a Pi tool session the command is on `PATH` before setup ran, through `~/.pi/agent/bin`.
 
