@@ -5,6 +5,7 @@ import plistlib
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 import deliverables
@@ -24,6 +25,7 @@ INSTALL_SECONDS = 300
 AUTH_KEY_VARIABLE = "TS_AUTHKEY"
 OWNER_VARIABLE = "TAILNET_LINK_OWNER"
 SERVER_READY_SECONDS = 15
+PEER_LIST_SECONDS = 20
 CERTIFICATE_SECONDS = 90
 HEALTH_PATH = "/" + deliverables.VIEWER_PREFIX + "/viewer.css"
 MOUNT = {"Proxy": deliverables.ORIGIN}
@@ -69,15 +71,24 @@ def connected_host():
         return tailnet.host()
 
 
-def owner_login():
-    explicit = os.environ.get(OWNER_VARIABLE)
-    if explicit:
-        return explicit
+def owner_logins():
     status = tailnet.status()
     own = status["Self"]
     devices = [own] if not own.get("Tags") else [peer for peer in (status.get("Peer") or {}).values() if not peer.get("Tags")]
     users = status.get("User") or {}
-    logins = {users.get(str(device.get("UserID")), {}).get("LoginName") for device in devices} - {None}
+    return {users.get(str(device.get("UserID")), {}).get("LoginName") for device in devices} - {None}
+
+
+def owner_login():
+    explicit = os.environ.get(OWNER_VARIABLE)
+    if explicit:
+        return explicit
+    # A machine that just joined learns its peers a moment after tailscale up returns.
+    deadline = time.monotonic() + PEER_LIST_SECONDS
+    logins = owner_logins()
+    while not logins and time.monotonic() < deadline:
+        time.sleep(probe.POLL_SECONDS)
+        logins = owner_logins()
     if len(logins) != 1:
         raise LinkError("Cannot tell whose devices may read published files (logins seen: " + (", ".join(sorted(logins)) or "none")
                         + "). Run: " + OWNER_VARIABLE + "=<tailscale login> tailnet-link setup")
