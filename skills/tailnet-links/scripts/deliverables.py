@@ -69,6 +69,16 @@ def tree_files(source):
         yield from (path for path in paths if path.is_file() and not path.is_symlink())
 
 
+# Hidden names are left alone: another publication of the same tree may hold a pending copy there.
+def remove_stale(target, kept):
+    for folder, _, names in os.walk(target, topdown=False):
+        stale = [path for path in (Path(folder, name) for name in names if is_published(name)) if path not in kept]
+        for path in stale:
+            path.unlink()
+        if Path(folder) != target and not os.listdir(folder):
+            os.rmdir(folder)
+
+
 def publish(path):
     source = Path(path).expanduser().resolve()
     if not source.exists():
@@ -81,8 +91,10 @@ def publish(path):
     if size > MAX_PUBLISH_BYTES:
         raise LinkError(str(source) + " holds " + str(size // MEGABYTE) + " MB, over the "
                         + str(MAX_PUBLISH_BYTES // MEGABYTE) + " MB a link may publish. Link a smaller file or directory.")
-    for file in files:
-        copy_file(file, target / file.relative_to(source) if source.is_dir() else target)
+    copies = {target / file.relative_to(source) if source.is_dir() else target: file for file in files}
+    remove_stale(target, copies)
+    for copy, file in copies.items():
+        copy_file(file, copy)
     return target
 
 
