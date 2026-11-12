@@ -12,4 +12,4 @@
 	done
 	[[ -o interactive && -n $HC_TERMINAL_ID && -r $scripts/terminal.zsh ]] || return 0
 	source $scripts/terminal.zsh
-} ${(%):-%x}
+} "${(%):-%x}"
