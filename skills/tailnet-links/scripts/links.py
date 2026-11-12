@@ -1,5 +1,6 @@
 import functools
 import re
+from collections import namedtuple
 from pathlib import Path
 from urllib.parse import unquote, urlsplit, urlunsplit
 
@@ -9,8 +10,10 @@ import previews
 import tailnet
 from tailnet import LinkError
 
-LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1", "0.0.0.0")
+LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1", "0.0.0.0", "::")
 DEFAULT_HTTP_PORT = 80
+NOT_A_URL = urlsplit("")
+LocalServer = namedtuple("LocalServer", "port path query fragment")
 SCHEMELESS_LOCAL = re.compile(r"(localhost|127\.0\.0\.1)(:\d+)?(/.*)?")
 DOCUMENT_SUFFIXES = (
     ".html", ".htm", ".md", ".markdown", ".pdf", ".csv", ".xlsx", ".docx", ".pptx",
@@ -18,14 +21,28 @@ DOCUMENT_SUFFIXES = (
 )
 
 
+# A message or a command line holds any text, and urlsplit raises on a host it cannot read, so that text is read as a path.
+def split(target):
+    try:
+        return urlsplit(target)
+    except ValueError:
+        return NOT_A_URL
+
+
+# urlsplit keeps a port that is not a number and raises only when it is read, so the port is read here once.
 def local_server(target):
     written = "http://localhost:" + target if target.isdigit() else target
-    parsed = urlsplit("http://" + written if SCHEMELESS_LOCAL.fullmatch(written) else written)
-    return parsed if parsed.scheme == "http" and parsed.hostname in LOCAL_HOSTS else None
+    parsed = split("http://" + written if SCHEMELESS_LOCAL.fullmatch(written) else written)
+    if parsed.scheme != "http" or parsed.hostname not in LOCAL_HOSTS:
+        return None
+    try:
+        return LocalServer(parsed.port or DEFAULT_HTTP_PORT, parsed.path, parsed.query, parsed.fragment)
+    except ValueError:
+        return None
 
 
 def preview(server, wait_seconds):
-    base = previews.ensure(server.port or DEFAULT_HTTP_PORT, tailnet.host(), wait_seconds)
+    base = previews.ensure(server.port, tailnet.host(), wait_seconds)
     return urlunsplit(("https", urlsplit(base).netloc, server.path, server.query, server.fragment))
 
 
@@ -39,7 +56,7 @@ def link(target, wait_seconds):
     server = local_server(target)
     if server:
         return preview(server, wait_seconds)
-    parsed = urlsplit(target)
+    parsed = split(target)
     if parsed.scheme in ("http", "https"):
         raise LinkError("Only a local file, a directory or a localhost server can be linked, not " + target)
     return published(unquote(parsed.path) if parsed.scheme == "file" else target)
@@ -55,7 +72,7 @@ def existing_document(written, directory):
 
 # A path is read as written first, so a file whose name holds a percent sign still converts.
 def document(target, directory):
-    parsed = urlsplit(target)
+    parsed = split(target)
     written = unquote(parsed.path) if parsed.scheme == "file" else target
     return existing_document(written, directory) or existing_document(unquote(written), directory)
 
@@ -69,7 +86,7 @@ class Converter:
     def convert(self, target):
         server = local_server(target)
         path = None if server else document(target, self.directory)
-        if not path and not (server and previews.is_listening(server.port or DEFAULT_HTTP_PORT)):
+        if not path and not (server and previews.is_listening(server.port)):
             return None
         try:
             return preview(server, 0) if server else published(path)
