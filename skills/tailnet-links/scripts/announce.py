@@ -24,19 +24,11 @@ def is_line_mode(terminal):
     return bool(termios.tcgetattr(terminal)[LOCAL_FLAGS] & termios.ICANON)
 
 
-def shown_server(url):
-    try:
-        server = links.local_server(url.rstrip(TRAILING_PUNCTUATION))
-        return (server.port or links.DEFAULT_HTTP_PORT, server) if server else None
-    except ValueError:
-        return None
-
-
 # The first URL a program shows for a port is its entry page, so that one is linked.
 def shown_servers(address):
     screen = run(["hc", "read", address, "--lines", HISTORY_LINES])
-    servers = [server for server in map(shown_server, SHOWN_URL.findall(screen)) if server]
-    return dict(reversed(servers))
+    servers = [links.local_server(url.rstrip(TRAILING_PUNCTUATION)) for url in SHOWN_URL.findall(screen)]
+    return {server.port: server for server in reversed(servers) if server}
 
 
 def pending(address, job, announced):
