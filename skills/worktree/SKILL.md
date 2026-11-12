@@ -47,7 +47,7 @@ Once the checkout exists, created or reused, start `scripts/draft-pr '<checkout>
 ## Open the tab
 
 ```bash
-~/.pi/agent/skills/worktree/scripts/terminal open --folder '<checkout>' --title '<branch>' -- pi
+~/.pi/agent/skills/worktree/scripts/terminal open --folder '<checkout>' --title "$(git -C '<checkout>' branch --show-current)" -- pi
 ```
 
 It opens a tab beside the caller without moving focus, or reuses the tab already sitting in that folder, and prints one JSON line. Read [terminal-port.md](terminal-port.md) for the output fields, exit codes, and how to switch terminals; load it when the script fails or the user changes terminal.

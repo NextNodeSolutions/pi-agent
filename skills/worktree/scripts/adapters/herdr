@@ -13,6 +13,84 @@ caller() {
   [[ -n "${HC_TERMINAL_ID:-}" ]] || fail 2 "HC_TERMINAL_ID is unset: the caller is not inside a herdr terminal"
 }
 
+repository() {
+  local common
+  common="$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
+  (cd "$common" && pwd -P)
+}
+
+main_worktree() {
+  local entry
+  IFS= read -r -d '' entry < <(git -C "$1" worktree list --porcelain -z) || return 1
+  printf '%s\n' "${entry#worktree }"
+}
+
+space_folder() {
+  local terminal
+  terminal="$(jq -er 'first(.tabs[].terminals[].terminal) // empty' <<<"$1")" || return 1
+  herdr-core get "$terminal" --json | jq -er '.foreground.cwd // .cwd // empty'
+}
+
+project_space() {
+  local folder="$1" caller_space="$2" common spaces candidate live_folder
+  common="$(repository "$folder")" || { echo "$caller_space"; return; }
+  spaces="$(herdr-app ls)" || fail 1 "cannot inspect project spaces"
+  while IFS= read -r candidate; do
+    live_folder="$(space_folder "$candidate")" || continue
+    [[ "$(repository "$live_folder")" == "$common" ]] || continue
+    jq -r '.id' <<<"$candidate"
+    return
+  done < <(jq -c --arg caller "$caller_space" '
+    .spaces | sort_by(.id != $caller)[] | select(.machine == null)' <<<"$spaces")
+  printf 'sp%s\n' "$(uuidgen | tr -d '-' | tr '[:upper:]' '[:lower:]')"
+}
+
+pin_space() {
+  local space="$1" folder="$2" common candidate live_folder checkout main name
+  common="$(repository "$folder")" || return 0
+  candidate="$(herdr-app ls | jq -ec --arg space "$space" '.spaces[] | select(.id == $space)')" \
+    || fail 1 "cannot inspect space $space"
+  live_folder="$(space_folder "$candidate")" || return 0
+  [[ "$(repository "$live_folder")" == "$common" ]] || return 0
+  checkout="$(git -C "$live_folder" rev-parse --show-toplevel)"
+  main="$(main_worktree "$folder")"
+  name="${main##*/}"
+  jq -e --arg checkout "${checkout##*/}" --arg project "$name" '
+    .named != true and (.name == $checkout or .name == $project)' <<<"$candidate" >/dev/null || return 0
+  herdr-app do space.rename --id "$space" --name "$name" | jq -e '.ok == true' >/dev/null \
+    || fail 1 "space $space could not be named $name"
+}
+
+reuse_tab() {
+  local folder="$1" key="$2" space="$3" caller_space="$4" address hit
+  while read -r address; do
+    hit="$(herdr-core get "$address" --json | jq -c \
+      --arg sp "$space" --arg caller "$caller_space" --arg k "$key" --arg f "$folder" '
+      (.labels // {}) as $l
+      | select($l["herdr.space"] == $sp or ($l["herdr.space"] == $caller and .cwd == $f))
+      | select($l["worktree.key"] == $k or ($k == $f and .cwd == $f))
+      | {status: "reused", terminal: .address, tab: $l["herdr.tab"], ready: null}')"
+    [[ -z "$hit" ]] || { echo "$hit"; return 0; }
+  done < <(herdr-core ls --json | jq -r '.terminals[] | select(.state == "live") | .address')
+  return 1
+}
+
+create_tab() {
+  local folder="$1" title="$2" key="$3" space="$4" tab terminal app
+  shift 4
+  tab="tb$(uuidgen | tr -d '-' | tr '[:upper:]' '[:lower:]')"
+  terminal="$(herdr-core run --bg --json --no-parent --keep --cwd "$folder" \
+    --label "herdr.space=$space" --label "herdr.tab=$tab" --label "worktree.key=$key" -- zsh -lc 'exec "$0" "$@"' "$@" | jq -er '.address')" \
+    || fail 1 "hc run failed for: $*"
+  herdr-core wait "$terminal" --timeout "$READY_WAIT_SECONDS" --json >/dev/null || true
+  app="$(herdr-core get "$terminal" --json | jq -r 'select(.state == "live") | .status.app // empty')"
+  pin_space "$space" "$folder"
+  herdr-app do tab.rename --id "$tab" --name "$title" | jq -e '.ok == true' >/dev/null \
+    || fail 1 "tab $tab started terminal $terminal but rename failed"
+  jq -nc --arg t "$terminal" --arg tab "$tab" --arg app "$app" \
+    '{status: "created", terminal: $t, tab: $tab, ready: ($app != ""), app: (if $app == "" then null else $app end)}'
+}
+
 open_tab() {
   local folder="" title="" key=""
   while (($#)); do
@@ -29,31 +107,20 @@ open_tab() {
   folder="$(cd "$folder" && pwd -P)"
   key="${key:-$folder}"
   caller
-  local space
-  space="$(herdr-core get "$HC_TERMINAL_ID" --json | jq -er '.labels["herdr.space"] // empty')" \
+  local caller_space space hit
+  caller_space="$(herdr-core get "$HC_TERMINAL_ID" --json | jq -er '.labels["herdr.space"] // empty')" \
     || fail 2 "caller terminal $HC_TERMINAL_ID has no herdr.space label"
+  space="$(project_space "$folder" "$caller_space")"
+  if hit="$(reuse_tab "$folder" "$key" "$space" "$caller_space")"; then
+    local reused_terminal reused_space
+    reused_terminal="$(jq -r '.terminal' <<<"$hit")"
+    reused_space="$(herdr-core get "$reused_terminal" --json | jq -r '.labels["herdr.space"]')"
+    pin_space "$reused_space" "$folder"
+    echo "$hit"
+    return
+  fi
 
-  local address hit
-  while read -r address; do
-    hit="$(herdr-core get "$address" --json | jq -c --arg sp "$space" --arg k "$key" --arg f "$folder" '
-      (.labels // {}) as $l
-      | select($l["herdr.space"] == $sp)
-      | select($l["worktree.key"] == $k or ($k == $f and .cwd == $f))
-      | {status: "reused", terminal: .address, tab: $l["herdr.tab"], ready: null}')"
-    [[ -z "$hit" ]] || { echo "$hit"; return 0; }
-  done < <(herdr-core ls --json | jq -r '.terminals[] | select(.state == "live") | .address')
-
-  local tab terminal app
-  tab="tb$(uuidgen | tr -d '-' | tr '[:upper:]' '[:lower:]')"
-  terminal="$(herdr-core run --bg --json --no-parent --keep --cwd "$folder" \
-    --label "herdr.space=$space" --label "herdr.tab=$tab" --label "worktree.key=$key" -- zsh -lc 'exec "$0" "$@"' "$@" | jq -er '.address')" \
-    || fail 1 "hc run failed for: $*"
-  herdr-core wait "$terminal" --timeout "$READY_WAIT_SECONDS" --json >/dev/null || true
-  app="$(herdr-core get "$terminal" --json | jq -r 'select(.state == "live") | .status.app // empty')"
-  herdr-app do tab.rename --id "$tab" --name "$title" | jq -e '.ok == true' >/dev/null \
-    || fail 1 "tab $tab started terminal $terminal but rename failed"
-  jq -nc --arg t "$terminal" --arg tab "$tab" --arg app "$app" \
-    '{status: "created", terminal: $t, tab: $tab, ready: ($app != ""), app: (if $app == "" then null else $app end)}'
+  create_tab "$folder" "$title" "$key" "$space" "$@"
 }
 
 command="${1:-}"
