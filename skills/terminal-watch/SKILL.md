@@ -30,7 +30,7 @@ Never type into, resize, restart or interrupt the watched terminal: it belongs t
 - `long-running command exited`: it exited after a long run without errors or Ctrl+C, the way a dev server vanishes silently.
 - `stopped`: the watched terminal ended or was removed, and the watcher exited with it.
 
-A repeated headline is throttled. Jev then reads each alert block before it is sent and keeps the ones it judges self-explained, such as Ctrl+C fallout or a failure the process recovered from, out of your prompt; without `TYPESAFE_API_KEY` or when Jev fails, the alert is sent. Every alert still lands in `alerts.log`, closed by a `---` line naming why it was sent, skipped or throttled.
+A repeated headline is throttled. Jev then reads each alert block before it is sent and keeps the ones it judges self-explained out of your prompt: Ctrl+C fallout, or a single restart whose only error was the hand-over between the old and new server. A restart storm, a race or a request error stays an alert even when the server comes back; without `TYPESAFE_API_KEY` or when Jev fails, the alert is sent. Every alert still lands in `alerts.log`, closed by a `---` line naming why it was sent, skipped or throttled.
 
 ## On an alert
 
