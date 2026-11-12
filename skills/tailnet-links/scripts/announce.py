@@ -17,6 +17,7 @@ TTY = "/dev/tty"
 LOCAL_FLAGS = 3
 POLL_SECONDS = 1
 WATCH_SECONDS = 60
+LIMIT_SECONDS = 600
 # ps exits 1 for a process that ended.
 ENDED_EXITS = (1,)
 URL_END = r"\s\x00-\x1f\x7f\"'`<>()\[\]{}|"
@@ -111,8 +112,10 @@ def watch(arguments):
         return
     signal.signal(signal.SIGTTOU, signal.SIG_IGN)
     tty = os.open(TTY, os.O_RDWR | os.O_NOCTTY)
+    # Each program that takes the terminal renews the watch, so a command that runs programs without end needs its own limit.
+    limit = time.monotonic() + LIMIT_SECONDS
     job, is_own, attempted, deadline = None, False, set(), time.monotonic() + WATCH_SECONDS
-    while is_running(command) and time.monotonic() < deadline:
+    while is_running(command) and time.monotonic() < min(deadline, limit):
         foreground = os.tcgetpgrp(tty)
         if foreground != job:
             job, is_own, deadline = foreground, is_started_by(command, foreground), time.monotonic() + WATCH_SECONDS
