@@ -15,7 +15,6 @@ from tailnet import LinkError
 
 USAGE = """usage: tailnet-link <target>...   print one HTTPS tailnet URL per target
        tailnet-link status          previews with their server state, and the file server
-       tailnet-link announce        in a Herdr terminal, print the link of each local URL its running program shows
        tailnet-link remove <port>   stop previewing a local port
        tailnet-link prune           remove the previews whose server is gone
        tailnet-link setup           join the tailnet when needed, then serve this machine's files
