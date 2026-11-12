@@ -62,11 +62,13 @@ def is_started_by(command, job):
     # A program the shell became through exec keeps the shell's process number.
     if job == command.shell:
         return True
-    # A shell that has a record runs its own watcher, and its record stays when it becomes a program through exec.
-    if command.record.with_name(str(job)).exists():
-        return False
     # The first program of a pipeline may have ended, so the job is the shell's when any program of its group is its child.
     return bool(run(["pgrep", "-g", str(job), "-P", str(command.shell)], empty_exits=NO_MATCH_EXITS))
+
+
+# A shell that has a record runs its own watcher, and its record stays when it becomes a program through exec.
+def has_own_watcher(command, job):
+    return job != command.shell and command.record.with_name(str(job)).exists()
 
 
 # The terminal keeps the typed command and what earlier commands printed, so a URL is this command's once the
@@ -134,8 +136,9 @@ def follow(command, tty):
         foreground = os.tcgetpgrp(tty)
         if foreground != job:
             job, is_own, deadline = foreground, is_started_by(command, foreground), time.monotonic() + WATCH_SECONDS
+        # A job may become a shell after it took the terminal, so its record is looked for at each reading.
         # A program that reads its keys itself draws its own screen, so a line is written only under one that prints lines.
-        if is_own and is_line_mode(tty):
+        if is_own and not has_own_watcher(command, job) and is_line_mode(tty):
             attempted |= announce(command, tty, job, pending(command, job, attempted))
         time.sleep(POLL_SECONDS)
 
