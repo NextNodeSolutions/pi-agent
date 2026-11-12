@@ -94,6 +94,6 @@ def has_locked(handle):
 def serve_lock():
     STATE.mkdir(parents=True, exist_ok=True)
     with open(STATE / "serve.lock", "w") as handle:
-        wait_until(lambda: has_locked(handle), LOCK_SECONDS, "Another tailnet-link has held this machine's Serve configuration for "
-                   + str(LOCK_SECONDS) + " seconds. End that command, then run this again.")
+        wait_until(lambda: has_locked(handle), LOCK_SECONDS, "Other tailnet-link commands kept this machine's Serve configuration locked for "
+                   + str(LOCK_SECONDS) + " seconds. Run this again once they have ended.")
         yield
