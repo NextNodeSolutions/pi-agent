@@ -96,13 +96,22 @@ def line(server):
         return FAILURE_LINE + str(error)
 
 
-def announce(tty, job, servers):
-    for server in servers.values():
+# A link takes seconds to make. The command may end, leave the terminal or take its screen meanwhile, so it is
+# checked before each link and again before each line.
+def is_showing(command, tty, job):
+    return is_running(command) and os.tcgetpgrp(tty) == job and is_line_mode(tty)
+
+
+def announce(command, tty, job, servers):
+    attempted = set()
+    for port, server in servers.items():
+        if not is_showing(command, tty, job):
+            break
         text = line(server) + "\n"
-        # Linking takes seconds, so the line is dropped when the program left the terminal or took its screen meanwhile.
-        if os.tcgetpgrp(tty) == job and is_line_mode(tty):
+        if is_showing(command, tty, job):
             os.write(tty, text.encode())
-    return set(servers)
+        attempted.add(port)
+    return attempted
 
 
 # A program that opens a port raises no event, so the foreground job is read on a timer while it may still start one.
@@ -121,5 +130,5 @@ def watch(arguments):
             job, is_own, deadline = foreground, is_started_by(command, foreground), time.monotonic() + WATCH_SECONDS
         # A program that reads its keys itself draws its own screen, so a line is written only under one that prints lines.
         if is_own and is_line_mode(tty):
-            attempted |= announce(tty, job, pending(command, job, attempted))
+            attempted |= announce(command, tty, job, pending(command, job, attempted))
         time.sleep(POLL_SECONDS)
