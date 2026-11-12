@@ -34,9 +34,9 @@ When the human reports a `Links were left as written` warning, it carries the re
 3. Give the printed URL. It stays the same across restarts of the server on that port.
 4. When the work ends, stop the server, then run `tailnet-link prune`.
 
-A dev server that checks the `Host` header refuses the tailnet name. `scripts/dev-server.env` holds the variables that make Vite and Astro accept it. `scripts/shell.zsh`, sourced from `~/.zshenv`, exports them to every zsh of the machine, and Pi exports them to the commands it starts. A server started before that export keeps refusing until it restarts. When `tailnet-link` reports that a server refuses the host, do what its message says and run it again.
+A dev server that checks the `Host` header refuses the tailnet name. `scripts/dev-server.env` holds the variables that make Vite and Astro accept it. `scripts/shell.zsh` exports them to every zsh of the machine, and Pi exports them to the commands it starts on its own machine. A server started before that export keeps refusing until it restarts. When `tailnet-link` reports that a server refuses the host, do what its message says and run it again.
 
-**Projects stay as they are.** A link works through the machine alone: the variables of `scripts/dev-server.env`, the shell hook and Tailscale Serve. Leave the project's config, scripts and env files unchanged, so every repository links without setup. A framework that reads its allowed hosts from the environment gets its variable added to `scripts/dev-server.env`, once for all repositories. When only a change inside the project makes its server answer, ask the human first and name the difficulty that change avoids.
+**Projects stay as they are.** A link works through the machine alone: the variables of `scripts/dev-server.env`, the shell hook and Tailscale Serve. Leave the project's config, scripts and env files unchanged. A framework that reads its allowed hosts from the environment gets its variable added to `scripts/dev-server.env`, once for all repositories. When only a change inside the project makes its server answer, ask the human first and name the difficulty that change avoids.
 
 ## What the machine links by itself
 
