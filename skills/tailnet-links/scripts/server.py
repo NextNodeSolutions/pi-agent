@@ -12,6 +12,10 @@ from urllib.parse import quote, unquote, urlsplit
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import deliverables
+import listeners
+import previews
+import tailnet
+from tailnet import LinkError
 
 VIEWER = Path(__file__).resolve().parent / "viewer"
 PAGE = (VIEWER / "page.html").read_text()
@@ -28,6 +32,9 @@ DOCUMENT = '<article id="document"></article><script type="module" src="' + ASSE
 REFUSAL = ("<h1>Not your device</h1><p>Published files open only on a device signed in to Tailscale as the owner of"
            " this machine. Servers and cloud machines are refused.</p>")
 PARENT_ROW = '<li><a href="../">../</a></li>'
+SERVER_ROW = '<li><a href="{url}">{place}</a><span>{origin}</span></li>'
+SERVERS_HEADING = "<h1>Servers</h1>"
+NO_SERVER = "<p>No linked server is running on this machine.</p>"
 
 for suffix, kind in UNREGISTERED_TYPES.items():
     mimetypes.add_type(kind, suffix)
@@ -83,6 +90,38 @@ def listing(directory, request_path):
     return "<h1>" + html.escape(request_path) + '</h1><ul class="listing">' + parent + rows + "</ul>"
 
 
+def home_relative(directory):
+    try:
+        return str("~" / Path(directory).relative_to(Path.home()))
+    except ValueError:
+        return directory
+
+
+# The directory is a label, so a server whose directory cannot be read is still listed, under its origin.
+def server_directory(port):
+    try:
+        return listeners.directory(port)
+    except LinkError:
+        return None
+
+
+def server_row(name, port):
+    origin = "localhost:" + str(port)
+    directory = server_directory(port)
+    place = home_relative(directory) if directory else origin
+    return SERVER_ROW.format(url=previews.url(name, port), place=html.escape(place), origin=origin if directory else "")
+
+
+def servers():
+    try:
+        name = tailnet.read_host()
+        live = filter(previews.is_listening, previews.owned_ports(tailnet.serve_config(), name))
+        rows = "".join(server_row(name, port) for port in live)
+    except LinkError as error:
+        return SERVERS_HEADING + "<p>" + html.escape(str(error)) + "</p>"
+    return SERVERS_HEADING + ('<ul class="listing">' + rows + "</ul>" if rows else NO_SERVER)
+
+
 def chunks(target, first, length):
     with open(target, "rb") as reader:
         reader.seek(first)
@@ -123,10 +162,15 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Location", deliverables.MOUNT_PATH + quote(path) + "/")
             self.send_header("Content-Length", "0")
             return self.end_headers()
-        index = locate(path + INDEX_NAME)
+        # The root answers at more than one address (/, //, %2F), so it is known by its directory and listed under /.
+        is_root = directory == deliverables.ROOT.resolve()
+        shown_path = "/" if is_root else path
+        # The root is the page that lists the servers, so a published index.html never replaces it.
+        index = None if is_root else locate(path + INDEX_NAME)
         if index and index.is_file():
             return self.send_file(index)
-        return self.send_page(HTTPStatus.OK, path, listing(directory, path))
+        files = listing(directory, shown_path)
+        return self.send_page(HTTPStatus.OK, shown_path, servers() + files if is_root else files)
 
     def send_page(self, status, title, body):
         page = PAGE.format(title=html.escape(title), assets=ASSETS, body=body).encode()

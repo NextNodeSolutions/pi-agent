@@ -34,7 +34,18 @@ When the human reports a `Links were left as written` warning, it carries the re
 3. Give the printed URL. It stays the same across restarts of the server on that port.
 4. When the work ends, stop the server, then run `tailnet-link prune`.
 
-A dev server that checks the `Host` header refuses the tailnet name. Pi exports the variables of `scripts/dev-server-env.json` to every command it starts on its own machine, and Vite and Astro read them. When `tailnet-link` reports that a server refuses the host, do what its message says and run it again.
+A dev server that checks the `Host` header refuses the tailnet name. `scripts/dev-server.env` holds the variables that make Vite and Astro accept it. `scripts/shell.zsh` exports them to every zsh of the machine, and Pi exports them to the commands it starts on its own machine. A server started before that export keeps refusing until it restarts. When `tailnet-link` reports that a server refuses the host, do what its message says and run it again.
+
+**Projects stay as they are.** A link works through the machine alone: the variables of `scripts/dev-server.env`, the shell hook and Tailscale Serve. Leave the project's config, scripts and env files unchanged. A framework that reads its allowed hosts from the environment gets its variable added to `scripts/dev-server.env`, once for all repositories: one `NAME=value` per line, with no space and no comment, the value taken as written. Pi refuses any other line when it starts, and the shells skip it. When only a change inside the project makes its server answer, ask the human first and name the difficulty that change avoids.
+
+## What the machine links by itself
+
+- **A Herdr terminal prints the link.** `scripts/terminal.zsh` watches each command typed in a Herdr terminal once it has run for a second. When that command prints an `http://localhost` URL for a port it, or a program it started, listens on, the terminal prints one line for that port under it: `➜  Tailnet: <url>`, or `➜  tailnet-link: <reason>` when the link could not be made. A URL that the terminal already showed does not count: one typed in the command, or one an earlier command printed. A human who types `pnpm dev` needs no other command.
+- **A port is tried once.** After a `➜  tailnet-link:` line, fix the reason it gives and run `tailnet-link <port>`.
+- **A URL that cannot be told from older text gets no line.** The terminal is read once as the command starts, and a URL counts when the terminal later shows it more often than in that reading. A server that prints its URL within milliseconds of its start is already in that reading. A command that clears the terminal's history, or prints more lines than the terminal keeps, before it prints a URL the terminal showed before, adds no copy to count. Link the port with `tailnet-link <port>`.
+- **A program that reads the keyboard key by key gets no line**, an agent or an editor for example: a line written there would land in what it draws. Link its port with `tailnet-link <port>`.
+- **The watch is bounded.** It looks for new servers until the prompt returns, or until `WATCH_SECONDS` of `scripts/announce.py` after a program takes the terminal, and for `LIMIT_SECONDS` at most. The links of the reading under way when that time runs out are still made. Link a server that starts later with `tailnet-link <port>`.
+- **The root page lists the servers.** The URL `tailnet-link setup` prints shows the linked servers that are running, each with its working directory when the machine can read it, above the published files. A published `index.html` never replaces that page. It is the bookmark for a phone, which has no terminal to read.
 
 ## Published files
 
@@ -65,6 +76,7 @@ A link answers only while its machine is on. The first request to a machine that
 - A Linux VM outside the tailnet joins with the key in `TS_AUTHKEY`. Setup reads it from its environment, hands it to Tailscale and keeps no copy. `workspace start <name> --profile pi --pi-tailnet` does the whole join from the Mac.
 - `tailnet-link join-key`, on a Mac with an `infisical login` session, prints the key for one VM. It works once, within ten minutes, and tags the VM `tag:agent`, which the tailnet policy grants nothing: the human's devices reach the VM and the VM reaches no other machine. Its output is a credential, so always pipe it into the command that runs setup on the VM.
 - In a Pi tool session the command is on `PATH` before setup ran, through `~/.pi/agent/bin`.
+- A machine where a human types commands sources `scripts/shell.zsh` from its `~/.zshenv`. Setup writes no shell file, so add that line with the machine's dotfiles.
 
 ## Other ways to open
 

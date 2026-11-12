@@ -36,6 +36,9 @@ h1 {
 	font-size: 1.75rem;
 	margin-top: 0;
 }
+main > h1:not(:first-child) {
+	margin-top: 2em;
+}
 h2 {
 	font-size: 1.3rem;
 	padding-bottom: 0.3em;

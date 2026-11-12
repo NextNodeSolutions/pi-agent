@@ -87,7 +87,7 @@ def owner_login():
     deadline = time.monotonic() + PEER_LIST_SECONDS
     logins = owner_logins()
     while not logins and time.monotonic() < deadline:
-        time.sleep(probe.POLL_SECONDS)
+        time.sleep(tailnet.POLL_SECONDS)
         logins = owner_logins()
     if len(logins) != 1:
         raise LinkError("Cannot tell whose devices may read published files (logins seen: " + (", ".join(sorted(logins)) or "none")
@@ -102,8 +102,8 @@ def install_launch_agent():
            "StandardErrorPath": str(LAUNCH_AGENT_LOG), "ProcessType": "Adaptive"}
     plist.write_bytes(plistlib.dumps(job, sort_keys=False))
     subprocess.run(["launchctl", "bootout", domain + "/" + LAUNCH_AGENT_LABEL], capture_output=True)
-    probe.wait_until(lambda: not previews.is_listening(deliverables.PORT), SERVER_READY_SECONDS,
-                     "Port " + str(deliverables.PORT) + " is still held by another process. Stop it, then run setup again.")
+    tailnet.wait_until(lambda: not previews.is_listening(deliverables.PORT), SERVER_READY_SECONDS,
+                       "Port " + str(deliverables.PORT) + " is still held by another process. Stop it, then run setup again.")
     run(["launchctl", "enable", domain + "/" + LAUNCH_AGENT_LABEL])
     run(["launchctl", "bootstrap", domain, str(plist)])
 
@@ -150,10 +150,10 @@ def setup():
     deliverables.OWNER_FILE.write_text(owner_login() + "\n")
     deliverables.ROOT.mkdir(parents=True, exist_ok=True)
     install_service()
-    probe.wait_until(is_serving, SERVER_READY_SECONDS, "The file server does not answer on " + deliverables.ORIGIN + ".")
+    tailnet.wait_until(is_serving, SERVER_READY_SECONDS, "The file server does not answer on " + deliverables.ORIGIN + ".")
     mount(name)
     root = deliverables.url(name, deliverables.ROOT.resolve())
-    probe.wait_until(lambda: probe.fetch(root.rstrip("/") + HEALTH_PATH)[0] in ROUTED_STATUSES, CERTIFICATE_SECONDS,
-                     root + " does not answer from this machine. Review: tailscale serve status")
+    tailnet.wait_until(lambda: probe.fetch(root.rstrip("/") + HEALTH_PATH)[0] in ROUTED_STATUSES, CERTIFICATE_SECONDS,
+                       root + " does not answer from this machine. Review: tailscale serve status")
     link_command()
     return root

@@ -1,9 +1,10 @@
 import json
+import re
 import socket
 from pathlib import Path
 
 import probe
-from tailnet import LinkError, handlers, serve_config, serve_lock, tailscale
+from tailnet import LinkError, handlers, serve_config, serve_lock, tailscale, wait_until
 
 PORT_OFFSET = 10000
 MAX_PORT = 65535
@@ -12,7 +13,8 @@ CONNECT_TIMEOUT_SECONDS = 1
 # Serve reaches a server bound to either loopback family only through the name, never through 127.0.0.1 or ::1.
 BACKEND_PREFIX = "http://localhost:"
 REFUSED_STATUS = 403
-DEV_SERVER_ENV = json.loads((Path(__file__).resolve().parent / "dev-server-env.json").read_text())
+ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=\S*$", re.M)
+DEV_SERVER_ENV = ASSIGNMENT.findall((Path(__file__).resolve().parent / "dev-server.env").read_text())
 
 
 def https_port(port):
@@ -32,7 +34,7 @@ def is_listening(port):
 def backend_port(site):
     target = site.get("Handlers", {}).get("/", {}).get("Proxy", "")
     port = target[len(BACKEND_PREFIX):]
-    return int(port) if target.startswith(BACKEND_PREFIX) and port.isdigit() else None
+    return int(port) if target.startswith(BACKEND_PREFIX) and port.isdecimal() else None
 
 
 def owned_ports(config, name):
@@ -49,17 +51,17 @@ def assert_host_accepted(port, authority):
     origin = BACKEND_PREFIX + str(port) + "/"
     if probe.fetch(origin, {"Host": authority})[0] != REFUSED_STATUS or probe.fetch(origin)[0] == REFUSED_STATUS:
         return
-    environment = " ".join(name + "=" + value for name, value in DEV_SERVER_ENV.items())
     raise LinkError("The server on localhost:" + str(port) + " refuses requests for the host " + authority.split(":")[0]
-                    + ". Restart it with " + environment + " in its environment (Vite, Astro), or allow that host"
-                    + " in its config (Next: allowedDevOrigins), then run this again.")
+                    + ". Restart it with " + " ".join(DEV_SERVER_ENV) + " in its environment (Vite, Astro), then run this again."
+                    + " Another server takes the host through its start command or its environment."
+                    + " A change to the project's files needs the human's approval first.")
 
 
 def ensure(port, name, wait_seconds):
     if not 0 < port <= MAX_PORT:
         raise LinkError("Not a TCP port: " + str(port))
-    probe.wait_until(lambda: is_listening(port), wait_seconds,
-                     "Nothing listens on localhost:" + str(port) + ". Start the server, then run this again.")
+    wait_until(lambda: is_listening(port), wait_seconds,
+               "Nothing listens on localhost:" + str(port) + ". Start the server, then run this again.")
     public = https_port(port)
     authority = name + ":" + str(public)
     expected = {"/": {"Proxy": BACKEND_PREFIX + str(port)}}
