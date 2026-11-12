@@ -32,7 +32,7 @@ Reuse the committed `.infisical.json` or `.infisical.yaml` after verifying its p
 
 ## Projects and grants
 
-Read [projects.md](projects.md) before creating projects or environments or changing memberships. An inaccessible project is not an empty vault. Only an authorized human can add `Agents` to a project it cannot access. Do not broaden access or switch identities to evade a refusal.
+Read [projects.md](projects.md) before creating projects or environments or changing memberships. An inaccessible project is not an empty vault. Project setup uses the automated provisioning command in that reference, including human admin access and exact environments. An existing inaccessible project still requires an authorized principal to grant access. Do not switch identities or create a replacement to evade a refusal.
 
 ## core-vault
 
