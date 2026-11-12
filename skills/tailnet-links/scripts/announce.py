@@ -34,8 +34,10 @@ def is_line_mode(tty):
         return False
 
 
+# A link is written back to the terminal, so a URL that holds a control or a text-direction character is left out.
 def shown_urls(screen):
-    return [url.rstrip(TRAILING_PUNCTUATION) for url in SHOWN_URL.findall(screen)]
+    urls = (url.rstrip(TRAILING_PUNCTUATION) for url in SHOWN_URL.findall(screen))
+    return [url for url in urls if url.isprintable()]
 
 
 # A shell keeps the hook it loaded while these scripts change, so a call this version cannot read ends without a word.
