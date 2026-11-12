@@ -39,7 +39,7 @@ def show_status(_arguments):
 
 
 def remove(arguments):
-    if len(arguments) != 1 or not arguments[0].isdigit():
+    if len(arguments) != 1 or not arguments[0].isdecimal():
         raise LinkError("remove takes the local port of one preview, as listed by: tailnet-link status")
     previews.remove(int(arguments[0]), tailnet.host())
 

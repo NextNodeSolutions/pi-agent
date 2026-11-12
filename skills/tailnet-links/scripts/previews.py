@@ -34,7 +34,7 @@ def is_listening(port):
 def backend_port(site):
     target = site.get("Handlers", {}).get("/", {}).get("Proxy", "")
     port = target[len(BACKEND_PREFIX):]
-    return int(port) if target.startswith(BACKEND_PREFIX) and port.isdigit() else None
+    return int(port) if target.startswith(BACKEND_PREFIX) and port.isdecimal() else None
 
 
 def owned_ports(config, name):
