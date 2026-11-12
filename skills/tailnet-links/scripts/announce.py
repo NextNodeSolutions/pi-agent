@@ -18,8 +18,8 @@ LOCAL_FLAGS = 3
 POLL_SECONDS = 1
 WATCH_SECONDS = 60
 LIMIT_SECONDS = 600
-# ps exits 1 for a process that ended.
-ENDED_EXITS = (1,)
+# pgrep exits 1 when no process matches.
+NO_MATCH_EXITS = (1,)
 URL_END = r"\s\x00-\x1f\x7f\"'`<>()\[\]{}|"
 SHOWN_URL = re.compile(r"http://(?:\[[0-9A-Fa-f:]+\])?[^" + URL_END + "]*")
 LINK_LINE = "  ➜  Tailnet: "
@@ -65,8 +65,8 @@ def is_started_by(command, job):
     # A shell that has a record runs its own watcher, and its record stays when it becomes a program through exec.
     if command.record.with_name(str(job)).exists():
         return False
-    parent = run(["ps", "-o", "ppid=", "-p", str(job)], empty_exits=ENDED_EXITS)
-    return not parent or int(parent) == command.shell
+    # The first program of a pipeline may have ended, so the job is the shell's when any program of its group is its child.
+    return bool(run(["pgrep", "-g", str(job), "-P", str(command.shell)], empty_exits=NO_MATCH_EXITS))
 
 
 # The terminal keeps the typed command and what earlier commands printed, so a URL is this command's once the
