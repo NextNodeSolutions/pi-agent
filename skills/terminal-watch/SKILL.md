@@ -30,7 +30,7 @@ Never type into, resize, restart or interrupt the watched terminal: it belongs t
 - `long-running command exited`: it exited after a long run without errors or Ctrl+C, the way a dev server vanishes silently.
 - `stopped`: the watched terminal ended or was removed, and the watcher exited with it.
 
-A repeated headline is throttled; every alert still lands in `alerts.log`.
+A repeated headline is throttled. Jev then reads each alert block before it is sent and keeps the ones it judges self-explained, such as Ctrl+C fallout or a failure the process recovered from, out of your prompt; without `TYPESAFE_API_KEY` or when Jev fails, the alert is sent. Every alert still lands in `alerts.log`, closed by a `---` line naming why it was sent, skipped or throttled.
 
 ## On an alert
 
@@ -41,7 +41,7 @@ An alert arrives in your prompt as `[terminal-watch] <kind> in <terminal> (<comm
 3. For a code fault, follow the first stack frame inside the project, outside `node_modules`, to the source and read it.
 4. Report the cause, its evidence as `file:line` or the quoted output line, and the smallest fix. The audit is done when one cause is named and backed by a line from the block or the source; a false alarm gets one sentence saying so.
 
-Edit project files only when the person asks. The watcher keeps running; there is nothing to re-arm. Report a false alarm that recurs as a watcher fault: its fix belongs in `scripts/classify.mjs`, made only when the person asks, followed by a stop and a start.
+Edit project files only when the person asks. The watcher keeps running; there is nothing to re-arm. Report a false alarm that recurs as a watcher fault: its fix belongs in `scripts/classify.mjs` (line rules) or `scripts/triage.mjs` (the Jev question), made only when the person asks, followed by a stop and a start.
 
 ## Stop and inspect
 

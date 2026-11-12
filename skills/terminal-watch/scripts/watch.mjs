@@ -4,11 +4,10 @@ import { basename } from 'node:path'
 import {
 	INTERRUPT,
 	alertKind,
+	describeAlert,
 	isAlarming,
-	isAlertLine,
 	isCommandRunning,
 	isInterrupt,
-	signalLines,
 	textLines,
 } from './classify.mjs'
 import {
@@ -18,6 +17,7 @@ import {
 	terminalFacts,
 	waitForOutput,
 } from './herdr.mjs'
+import { triageAlert } from './triage.mjs'
 
 const FIRST_ARGUMENT = 2
 const [terminal, agent, dir] = process.argv.slice(FIRST_ARGUMENT)
@@ -35,12 +35,10 @@ const IDLE_CHECK_SECONDS = '10'
 const QUIET_SECONDS = '2'
 const MAX_BURST_WAITS = 15
 const MAX_STRANGE_WAKES = 5
-const CONTEXT_LINES = 40
-const MAX_BLOCK_LINES = 200
 const ANCHOR_CHARS = 400
-const HEADLINE_CHARS = 180
 const LABEL_CHARS = 80
 const RESEND_AFTER_MS = 300_000
+const THROTTLED = { shouldWake: false, verdict: 'throttled' }
 
 const stamp = () => new Date().toISOString()
 
@@ -154,30 +152,28 @@ const noteInterrupt = (command, lines) => {
 	if (command && lines.some(isInterrupt)) interrupted.add(command.pid)
 }
 
-const report = (kind, burst, command) => {
-	const block = textLines(previous).slice(
-		-Math.min(burst.length + CONTEXT_LINES, MAX_BLOCK_LINES),
-	)
-	const hit = signalLines(burst).find(isAlertLine)
-	const headline = (hit ?? signalLines(block).at(-1) ?? '')
-		.trim()
-		.slice(0, HEADLINE_CHARS)
-	const signature = `${kind}:${headline.replace(/\d+/g, '#')}`
+const report = async (kind, burst, command) => {
+	const { block, headline, signature } = describeAlert(kind, burst, previous)
 	const label = command?.label ?? 'no command'
 	alertCount += 1
 	appendFileSync(
 		ALERT_LOG,
-		`=== alert ${alertCount} · ${stamp()} · ${kind} · ${label} ===\n${block.join('\n')}\n\n`,
+		`=== alert ${alertCount} · ${stamp()} · ${kind} · ${label} ===\n${block.join('\n')}\n`,
 	)
 	record('waiting')
-	if (Date.now() - (sentAt.get(signature) ?? 0) < RESEND_AFTER_MS) return
+	const decision =
+		Date.now() - (sentAt.get(signature) ?? 0) < RESEND_AFTER_MS
+			? THROTTLED
+			: await triageAlert({ kind, label, block })
+	appendFileSync(ALERT_LOG, `--- ${decision.verdict} ---\n\n`)
+	if (!decision.shouldWake) return
 	sentAt.set(signature, Date.now())
 	notify(
 		`[terminal-watch] ${kind} in ${terminal} (${label}): "${headline}". Block: alert ${alertCount} in ${ALERT_LOG}. Audit it; the watcher keeps running.`,
 	)
 }
 
-const inspect = () => {
+const inspect = async () => {
 	const lines = collectFresh()
 	const observation = observeTerminal()
 	if (!observation.isLive) {
@@ -199,7 +195,7 @@ const inspect = () => {
 	logLines(burst)
 	track(after)
 	const kind = alertKind(heard, before, after, Date.now())
-	if (kind) report(kind, heard, after.command ?? before)
+	if (kind) await report(kind, heard, after.command ?? before)
 	return true
 }
 
@@ -221,17 +217,27 @@ const checkLifecycle = waitOutcome => {
 	process.exit(0)
 }
 
-const watchForever = () => {
-	for (;;) {
-		deliverNotes()
-		checkLifecycle(waitForOutput(terminal, IDLE_CHECK_SECONDS))
-		// Output printed while an alert was being sent precedes the next wait, so inspect again before waiting.
-		let hasInspected = inspect()
-		while (hasInspected) hasInspected = inspect()
-	}
+// Output printed while an alert was being sent precedes the next wait, so inspect again before waiting.
+const inspectUntilQuiet = async () => {
+	if (await inspect()) await inspectUntilQuiet()
+}
+// setImmediate starts each round from a fresh frame, so finished rounds are released instead of awaiting the next.
+const watchForever = async () => {
+	deliverNotes()
+	checkLifecycle(waitForOutput(terminal, IDLE_CHECK_SECONDS))
+	await inspectUntilQuiet()
+	setImmediate(watchForever)
 }
 
-try {
+// Start and rounds run unawaited, so any failure reaches this handler and ends the watcher.
+process.on('unhandledRejection', error => {
+	record('failed')
+	process.stderr.write(
+		`${stamp()} watcher failed: ${error instanceof Error ? error.message : String(error)}\n`,
+	)
+	process.exitCode = 1
+})
+const start = async () => {
 	mkdirSync(dir, { recursive: true })
 	previous = readScreen()
 	track(observeTerminal())
@@ -239,11 +245,6 @@ try {
 	process.stdout.write(
 		`${stamp()} watching ${terminal} for ${agent}; output ${OUTPUT_LOG}, alerts ${ALERT_LOG}\n`,
 	)
-	watchForever()
-} catch (error) {
-	record('failed')
-	process.stderr.write(
-		`${stamp()} watcher failed: ${error instanceof Error ? error.message : String(error)}\n`,
-	)
-	process.exitCode = 1
+	await watchForever()
 }
+start()
