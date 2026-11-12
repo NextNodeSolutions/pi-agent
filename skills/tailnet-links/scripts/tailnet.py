@@ -3,6 +3,7 @@ import functools
 import json
 import shutil
 import subprocess
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -14,6 +15,8 @@ CLI_CANDIDATES = (
 )
 COMMAND_TIMEOUT_SECONDS = 30
 SUCCESS_EXITS = (0,)
+POLL_SECONDS = 0.25
+LOCK_SECONDS = 60
 CONNECTED_STATE = "Running"
 STATE = Path.home() / ".local/state/tailnet-link"
 SETUP_HINT = "Run: tailnet-link setup"
@@ -31,6 +34,14 @@ def run(arguments, timeout=COMMAND_TIMEOUT_SECONDS, accepted_exits=SUCCESS_EXITS
     if result.returncode not in accepted_exits:
         raise LinkError("Command failed: " + " ".join(arguments) + "\n" + result.stderr.strip())
     return result.stdout.strip()
+
+
+def wait_until(is_ready, seconds, failure):
+    deadline = time.monotonic() + seconds
+    while not is_ready():
+        if time.monotonic() >= deadline:
+            raise LinkError(failure)
+        time.sleep(POLL_SECONDS)
 
 
 def cli():
@@ -67,9 +78,18 @@ def handlers(config, authority):
     return config.get("Web", {}).get(authority, {}).get("Handlers") or {}
 
 
+def has_locked(handle):
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return False
+    return True
+
+
 @contextmanager
 def serve_lock():
     STATE.mkdir(parents=True, exist_ok=True)
     with open(STATE / "serve.lock", "w") as handle:
-        fcntl.flock(handle, fcntl.LOCK_EX)
+        wait_until(lambda: has_locked(handle), LOCK_SECONDS, "Another tailnet-link has held this machine's Serve configuration for "
+                   + str(LOCK_SECONDS) + " seconds. End that command, then run this again.")
         yield

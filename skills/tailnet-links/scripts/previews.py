@@ -3,7 +3,7 @@ import socket
 from pathlib import Path
 
 import probe
-from tailnet import LinkError, handlers, serve_config, serve_lock, tailscale
+from tailnet import LinkError, handlers, serve_config, serve_lock, tailscale, wait_until
 
 PORT_OFFSET = 10000
 MAX_PORT = 65535
@@ -58,8 +58,8 @@ def assert_host_accepted(port, authority):
 def ensure(port, name, wait_seconds):
     if not 0 < port <= MAX_PORT:
         raise LinkError("Not a TCP port: " + str(port))
-    probe.wait_until(lambda: is_listening(port), wait_seconds,
-                     "Nothing listens on localhost:" + str(port) + ". Start the server, then run this again.")
+    wait_until(lambda: is_listening(port), wait_seconds,
+               "Nothing listens on localhost:" + str(port) + ". Start the server, then run this again.")
     public = https_port(port)
     authority = name + ":" + str(public)
     expected = {"/": {"Proxy": BACKEND_PREFIX + str(port)}}
