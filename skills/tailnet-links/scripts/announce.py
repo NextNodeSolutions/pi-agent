@@ -18,8 +18,8 @@ LOCAL_FLAGS = 3
 POLL_SECONDS = 1
 WATCH_SECONDS = 60
 HISTORY_LINES = "200"
-# ps exits 1 for a process that ended, which is an answer here and not a failure.
-PARENT_EXITS = (0, 1)
+# ps exits 1 for a process that ended.
+ENDED_EXITS = (1,)
 URL_END = r"\s\x00-\x1f\x7f\"'`<>()\[\]{}|"
 SHOWN_URL = re.compile(r"http://(?:\[[0-9A-Fa-f:]+\])?[^" + URL_END + "]*")
 LINK_LINE = "  ➜  Tailnet: "
@@ -60,7 +60,7 @@ def is_started_by(shell, job):
     # A program the shell became through exec keeps the shell's process number.
     if job == shell:
         return True
-    parent = run(["ps", "-o", "ppid=", "-p", str(job)], accepted_exits=PARENT_EXITS)
+    parent = run(["ps", "-o", "ppid=", "-p", str(job)], empty_exits=ENDED_EXITS)
     return not parent or int(parent) == shell
 
 

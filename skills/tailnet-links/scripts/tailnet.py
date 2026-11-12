@@ -14,7 +14,6 @@ CLI_CANDIDATES = (
     "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
 )
 COMMAND_TIMEOUT_SECONDS = 30
-SUCCESS_EXITS = (0,)
 POLL_SECONDS = 0.25
 LOCK_SECONDS = 60
 CONNECTED_STATE = "Running"
@@ -26,12 +25,14 @@ class LinkError(Exception):
     pass
 
 
-def run(arguments, timeout=COMMAND_TIMEOUT_SECONDS, accepted_exits=SUCCESS_EXITS):
+def run(arguments, timeout=COMMAND_TIMEOUT_SECONDS, empty_exits=()):
     try:
         result = subprocess.run(arguments, capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.TimeoutExpired) as error:
         raise LinkError("Command did not complete: " + " ".join(arguments) + ". " + str(error)) from error
-    if result.returncode not in accepted_exits:
+    # A command that finds nothing exits like one that failed, and only the one that failed says why.
+    is_empty = result.returncode in empty_exits and not result.stderr.strip()
+    if result.returncode and not is_empty:
         raise LinkError("Command failed: " + " ".join(arguments) + "\n" + result.stderr.strip())
     return result.stdout.strip()
 
