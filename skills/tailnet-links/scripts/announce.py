@@ -4,7 +4,7 @@ import signal
 import sys
 import termios
 import time
-from collections import namedtuple
+from collections import Counter, namedtuple
 from pathlib import Path
 
 import links
@@ -17,14 +17,13 @@ TTY = "/dev/tty"
 LOCAL_FLAGS = 3
 POLL_SECONDS = 1
 WATCH_SECONDS = 60
-HISTORY_LINES = "200"
 # ps exits 1 for a process that ended.
 ENDED_EXITS = (1,)
 URL_END = r"\s\x00-\x1f\x7f\"'`<>()\[\]{}|"
 SHOWN_URL = re.compile(r"http://(?:\[[0-9A-Fa-f:]+\])?[^" + URL_END + "]*")
 LINK_LINE = "  ➜  Tailnet: "
 FAILURE_LINE = "  ➜  tailnet-link: "
-Command = namedtuple("Command", "terminal shell record serial typed_row")
+Command = namedtuple("Command", "terminal shell record serial history_lines shown")
 
 
 def is_line_mode(tty):
@@ -34,17 +33,17 @@ def is_line_mode(tty):
         return False
 
 
-def last_row(screen):
-    return next((row.rstrip() for row in reversed(screen.splitlines()) if row.strip()), "")
+def shown_urls(screen):
+    return [url.rstrip(TRAILING_PUNCTUATION) for url in SHOWN_URL.findall(screen)]
 
 
 # A shell keeps the hook it loaded while these scripts change, so a call this version cannot read ends without a word.
 def typed_command(arguments):
     terminal = os.environ.get(TERMINAL_VARIABLE)
-    if not terminal or len(arguments) != 3 or not arguments[0].isdigit():
+    if not terminal or len(arguments) != 4 or not (arguments[0].isdecimal() and arguments[3].isdecimal()):
         return None
-    shell, record, serial = arguments
-    return Command(terminal, int(shell), Path(record), serial, last_row(sys.stdin.read()))
+    shell, record, serial, history_lines = arguments
+    return Command(terminal, int(shell), Path(record), serial, history_lines, Counter(shown_urls(sys.stdin.read())))
 
 
 # The shell rewrites its record at each prompt and each command, and a shell that ended is no longer the parent.
@@ -64,18 +63,20 @@ def is_started_by(shell, job):
     return not parent or int(parent) == shell
 
 
-# The screen keeps what earlier commands printed, so a URL counts from the row of this command down.
-def printed(screen, typed_row):
-    rows = [row.rstrip() for row in screen.splitlines()]
-    starts = [index for index, row in enumerate(rows) if row == typed_row]
-    return "\n".join(rows[starts[-1]:] if typed_row and starts else rows)
+# The terminal keeps the typed command and what earlier commands printed, so a URL is this command's once the
+# terminal shows it more often than when the command started.
+def added_urls(command, screen):
+    seen = Counter()
+    for url in shown_urls(screen):
+        seen[url] += 1
+        if seen[url] > command.shown[url]:
+            yield url
 
 
 # The first URL a program shows for a port is its entry page, so that one is linked.
 def shown_servers(command):
-    screen = run(["hc", "read", command.terminal, "--lines", HISTORY_LINES])
-    urls = SHOWN_URL.findall(printed(screen, command.typed_row))
-    servers = [links.local_server(url.rstrip(TRAILING_PUNCTUATION)) for url in urls]
+    screen = run(["hc", "read", command.terminal, "--lines", command.history_lines])
+    servers = [links.local_server(url) for url in added_urls(command, screen)]
     return {server.port: server for server in reversed(servers) if server}
 
 

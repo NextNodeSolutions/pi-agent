@@ -40,7 +40,7 @@ A dev server that checks the `Host` header refuses the tailnet name. `scripts/de
 
 ## What the machine links by itself
 
-- **A Herdr terminal prints the link.** `scripts/terminal.zsh` watches each command typed in a Herdr terminal once it has run for a second. When that command prints an `http://localhost` URL for a port it listens on, the terminal prints one line for that port under it: `➜  Tailnet: <url>`, or `➜  tailnet-link: <reason>` when the link could not be made. A human who types `pnpm dev` needs no other command.
+- **A Herdr terminal prints the link.** `scripts/terminal.zsh` watches each command typed in a Herdr terminal once it has run for a second. When that command prints an `http://localhost` URL for a port it listens on, the terminal prints one line for that port under it: `➜  Tailnet: <url>`, or `➜  tailnet-link: <reason>` when the link could not be made. A URL that the terminal already showed does not count: one typed in the command, or one an earlier command printed. A human who types `pnpm dev` needs no other command.
 - **A port is tried once.** After a `➜  tailnet-link:` line, fix the reason it gives and run `tailnet-link <port>`.
 - **A program that reads the keyboard key by key gets no line**, an agent or an editor for example: a line written there would land in what it draws. Link its port with `tailnet-link <port>`.
 - **The watch is bounded.** It looks for new servers until the prompt returns, or until `WATCH_SECONDS` of `scripts/announce.py` after a program takes the terminal. Link a server that starts later with `tailnet-link <port>`.

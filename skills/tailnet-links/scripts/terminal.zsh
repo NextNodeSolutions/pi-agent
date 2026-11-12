@@ -1,6 +1,8 @@
 # shell.zsh sources this file in a Herdr terminal where a human types commands.
 { zmodload zsh/zselect zsh/datetime && zmodload -F zsh/files b:zf_mkdir b:zf_rm } 2>/dev/null || return 0
 typeset -g _tailnet_link_command=${${(%):-%x}:A:h}/tailnet-link _tailnet_link_start_centiseconds=100
+# The watcher counts each URL over the same span at every reading, wider than the history a Herdr terminal keeps.
+typeset -g _tailnet_link_history_lines=10000
 typeset -g _tailnet_link_record=$HOME/.local/state/tailnet-link/commands/$$
 zf_mkdir -p ${_tailnet_link_record:h} 2>/dev/null || return 0
 # A shell that ended through exec or a kill ran no exit hook, so the next terminal removes the record it left.
@@ -19,13 +21,16 @@ _tailnet_link_announce() {
 	: <(
 		# Without job control the watcher shares the shell's process group, where the interrupt and suspend keys reach it.
 		trap '' INT QUIT TSTP
-		local screen
+		local shown
 		{
-			screen="$(hc read $HC_TERMINAL_ID)"
-			# The wait happens here, so a command that ends at once starts no watcher.
-			zselect -t $_tailnet_link_start_centiseconds
-			[[ $(<$_tailnet_link_record) == $serial ]]
-		} 2>/dev/null && exec $_tailnet_link_command announce $$ $_tailnet_link_record $serial >/dev/null <<< $screen
+			# Without this reading every URL of the terminal would look new, so a read that fails starts no watcher.
+			shown="$(hc read $HC_TERMINAL_ID --lines $_tailnet_link_history_lines)" && {
+				# The wait happens here, so a command that ends at once starts no watcher.
+				zselect -t $_tailnet_link_start_centiseconds
+				[[ $(<$_tailnet_link_record) == $serial ]]
+			}
+		} 2>/dev/null && exec $_tailnet_link_command announce $$ $_tailnet_link_record $serial $_tailnet_link_history_lines \
+			>/dev/null <<< $shown
 	)
 }
 
