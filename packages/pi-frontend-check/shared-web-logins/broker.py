@@ -9,23 +9,17 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
-import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from infisical_cli import VaultUnavailable, run_authenticated_cli
+
 CONFIG_FILE = Path(__file__).with_name("config.json")
-CLI = "/opt/homebrew/bin/infisical"
 KEY_PREFIX = "WEB_LOGIN_"
 HANDLE_PREFIX = "iw:"
 KEY_PATTERN = re.compile(r"WEB_LOGIN_[A-F0-9]{32}\Z")
-TIMEOUT_SECONDS = 25
-
-
-class VaultUnavailable(Exception):
-    """Safe-to-display store failure; never contains login or subprocess output."""
 
 
 def _settings() -> dict:
@@ -37,20 +31,9 @@ def _settings() -> dict:
 
 def _run_cli(arguments: list[str], *, payload: bytes | None = None) -> bytes:
     settings = _settings()
-    environment = {key: os.environ[key] for key in
-                   ("HOME", "PATH", "USER", "LOGNAME", "TMPDIR", "XDG_CONFIG_HOME", "INFISICAL_PROFILE")
-                   if key in os.environ}
-    argv = [CLI, *arguments, "--projectId=" + settings["projectId"],
-            "--env=" + settings["environment"], "--path=" + settings["path"],
-            "--telemetry=false", "--silent"]
-    try:
-        completed = subprocess.run(argv, input=payload, capture_output=True,
-                                   env=environment, timeout=TIMEOUT_SECONDS, check=False)
-    except (OSError, subprocess.TimeoutExpired) as error:
-        raise VaultUnavailable("Infisical is unavailable") from None
-    if completed.returncode:
-        raise VaultUnavailable("Infisical rejected the web-login operation")
-    return completed.stdout
+    return run_authenticated_cli(
+        [*arguments, "--projectId=" + settings["projectId"],
+         "--env=" + settings["environment"], "--path=" + settings["path"]], payload=payload)
 
 
 def normalize_origin(origin: str) -> str:
@@ -159,7 +142,7 @@ def main() -> int:
             raise VaultUnavailable("Expected list, read HANDLE or save")
     except (VaultUnavailable, json.JSONDecodeError) as error:
         print(str(error), file=sys.stderr)
-        return 1
+        return error.exit_code if isinstance(error, VaultUnavailable) else 1
     return 0
 
 
