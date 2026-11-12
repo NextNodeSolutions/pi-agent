@@ -1,3 +1,4 @@
+# Only Pi sessions started before models.json read keys from the environment still run this command; delete the file once none is left.
 import json
 import os
 import re

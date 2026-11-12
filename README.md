@@ -40,7 +40,7 @@ node ~/.pi/agent/bin/setup.ts
 
 ## Machine-specific dependencies
 
-- Model calls go through a Magpie gateway on the NextNode tailnet (`models.json`, provider `magpie`); provider keys resolve through `bin/provider-key.py` from the session's shell export, or from an Infisical binding in `~/.config/agent-secrets` when the session has none.
+- Model calls go through a Magpie gateway on the NextNode tailnet (`models.json`, provider `magpie`); `models.json` reads each provider key from the session's shell export (`$NAME`), which `infisical-refresh` writes from the Infisical binding in `~/.config/agent-secrets`.
 - `bin/pi-token-pull` keeps the shared Codex token current; see `bin/README.md`.
 
 ## Licenses

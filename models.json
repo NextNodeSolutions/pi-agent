@@ -70,7 +70,7 @@
           }
         }
       ],
-      "apiKey": "!python3 ~/.pi/agent/bin/provider-key.py INCO_API_KEY"
+      "apiKey": "$INCO_API_KEY"
     },
     "openai": {
       "models": [
@@ -283,7 +283,7 @@
       }
     },
     "deepseek": {
-      "apiKey": "!python3 ~/.pi/agent/bin/provider-key.py DEEPSEEK_API_KEY",
+      "apiKey": "$DEEPSEEK_API_KEY",
       "models": [
         {
           "id": "deepseek-v4-flash",
@@ -350,10 +350,10 @@
       ]
     },
     "zai": {
-      "apiKey": "!python3 ~/.pi/agent/bin/provider-key.py ZAI_API_KEY"
+      "apiKey": "$ZAI_API_KEY"
     },
     "openrouter": {
-      "apiKey": "!python3 ~/.pi/agent/bin/provider-key.py OPENROUTER_API_KEY",
+      "apiKey": "$OPENROUTER_API_KEY",
       "models": [
         {
           "id": "stealth/union-alpha",
@@ -407,7 +407,7 @@
       "name": "Magpie",
       "baseUrl": "http://mac-studio.tail4df91e.ts.net:3425/v1",
       "api": "openai-completions",
-      "apiKey": "!python3 ~/.pi/agent/bin/provider-key.py MAGPIE_API_KEY",
+      "apiKey": "$MAGPIE_API_KEY",
       "compat": {
         "sendSessionAffinityHeaders": true
       },
