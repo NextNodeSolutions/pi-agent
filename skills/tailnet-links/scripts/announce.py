@@ -89,11 +89,17 @@ def pending(command, job, attempted):
     return {port: server for port, server in shown_servers(command).items() if port in ports} if ports else {}
 
 
+# An error carries what a failed command wrote, which may hold line breaks and terminal controls.
+def failure_line(error):
+    printable = "".join(character if character.isprintable() else " " for character in str(error))
+    return FAILURE_LINE + " ".join(printable.split())
+
+
 def line(server):
     try:
         return LINK_LINE + links.preview(server, 0)
     except LinkError as error:
-        return FAILURE_LINE + str(error)
+        return failure_line(error)
 
 
 # A link takes seconds to make. The command may end, leave the terminal or take its screen meanwhile, so it is
@@ -102,25 +108,23 @@ def is_showing(command, tty, job):
     return is_running(command) and os.tcgetpgrp(tty) == job and is_line_mode(tty)
 
 
+def say(command, tty, job, text):
+    if is_showing(command, tty, job):
+        os.write(tty, (text + "\n").encode())
+
+
 def announce(command, tty, job, servers):
     attempted = set()
     for port, server in servers.items():
         if not is_showing(command, tty, job):
             break
-        text = line(server) + "\n"
-        if is_showing(command, tty, job):
-            os.write(tty, text.encode())
+        say(command, tty, job, line(server))
         attempted.add(port)
     return attempted
 
 
 # A program that opens a port raises no event, so the foreground job is read on a timer while it may still start one.
-def watch(arguments):
-    command = typed_command(arguments)
-    if not command:
-        return
-    signal.signal(signal.SIGTTOU, signal.SIG_IGN)
-    tty = os.open(TTY, os.O_RDWR | os.O_NOCTTY)
+def follow(command, tty):
     # Each program that takes the terminal renews the watch, so a command that runs programs without end needs its own limit.
     limit = time.monotonic() + LIMIT_SECONDS
     job, is_own, attempted, deadline = None, False, set(), time.monotonic() + WATCH_SECONDS
@@ -132,3 +136,16 @@ def watch(arguments):
         if is_own and is_line_mode(tty):
             attempted |= announce(command, tty, job, pending(command, job, attempted))
         time.sleep(POLL_SECONDS)
+
+
+def watch(arguments):
+    command = typed_command(arguments)
+    if not command:
+        return
+    signal.signal(signal.SIGTTOU, signal.SIG_IGN)
+    tty = os.open(TTY, os.O_RDWR | os.O_NOCTTY)
+    try:
+        follow(command, tty)
+    except LinkError as error:
+        # A probe that failed fails again a second later, so the watcher says why once, under the same guard, and ends.
+        say(command, tty, os.tcgetpgrp(tty), failure_line(error))
