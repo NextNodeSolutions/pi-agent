@@ -89,7 +89,7 @@ def shown_servers(command):
 
 
 def pending(command, job, attempted):
-    ports = listeners.group_ports(job) - attempted
+    ports = listeners.job_ports(job) - attempted
     return {port: server for port, server in shown_servers(command).items() if port in ports} if ports else {}
 
 
