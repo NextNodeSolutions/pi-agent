@@ -1,17 +1,18 @@
 import { execFile } from 'node:child_process'
 import { homedir, tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
+import identity from '../../../security/machine-identity.json' with { type: 'json' }
+
 import type { Static } from 'typebox'
 
 const run = promisify(execFile)
-const broker = join(
-	homedir(),
-	'.pi/agent/packages/pi-frontend-check/shared-web-logins/broker.py',
+const broker = fileURLToPath(
+	new URL('../shared-web-logins/broker.py', import.meta.url),
 )
 const HANDLE_PATTERN = '^iw:[a-f0-9]{32}$'
 const handlePattern = new RegExp(HANDLE_PATTERN)
@@ -34,6 +35,19 @@ export type SharedLoginMetadata = Static<typeof metadataSchema>
 export const sharedLoginHandleSchema = metadataSchema.properties.handle
 type SharedLogin = Static<typeof loginSchema>
 
+function brokerFailure(error: unknown): Error {
+	// Only the exit code is safe: child output and error causes can carry a password.
+	const isIdentityUnavailable =
+		error instanceof Error &&
+		'code' in error &&
+		error.code === identity.identityUnavailableExitCode
+	return new Error(
+		isIdentityUnavailable
+			? 'Shared web-login vault unavailable: machine credentials are missing or refused, or the configured vault location is missing or inaccessible. Check the machine environment and vault configuration. Do not re-enter the website password.'
+			: 'Shared web-login vault unavailable. Do not re-enter the password yet.',
+	)
+}
+
 async function callBroker(
 	action: 'list' | 'read',
 	handle?: string,
@@ -53,15 +67,16 @@ async function callBroker(
 					TMPDIR: process.env.TMPDIR ?? tmpdir(),
 					USER: process.env.USER ?? '',
 					LOGNAME: process.env.LOGNAME ?? '',
+					[identity.clientIdVariable]:
+						process.env[identity.clientIdVariable],
+					[identity.clientSecretVariable]:
+						process.env[identity.clientSecretVariable],
 				},
 			},
 		)
 		return JSON.parse(stdout)
-	} catch {
-		// Never include child stderr, stdout or the error cause: `read` carries a password.
-		throw new Error(
-			'Shared web-login vault unavailable. Do not re-enter the password yet.',
-		)
+	} catch (error: unknown) {
+		throw brokerFailure(error)
 	}
 }
 

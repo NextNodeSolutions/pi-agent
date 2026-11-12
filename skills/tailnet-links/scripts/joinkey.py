@@ -8,6 +8,7 @@ from pathlib import Path
 from tailnet import LinkError
 
 BINDING = Path.home() / ".config/agent-secrets/core-vault.json"
+MACHINE_CLI = Path(__file__).resolve().parents[3] / "bin" / "infisical"
 CLIENT_SECRET_NAME = "TAILSCALE_OAUTH_CLIENT_SECRET"
 CLIENT_SECRET_PREFIX = "tskey-client-"
 API = "https://api.tailscale.com/api/v2"
@@ -20,8 +21,9 @@ KEY_DESCRIPTION = "tailnet-link agent VM"
 VAULT_SECONDS = 30
 API_SECONDS = 20
 NO_BINDING = str(BINDING) + " names no vault path for Tailscale. Record it as tools.tailscale.path."
-NO_CLIENT_SECRET = ("The vault did not return " + CLIENT_SECRET_NAME + ". Run `infisical login` on this machine, and check the path that "
-                    + str(BINDING) + " names as tools.tailscale.path.")
+NO_CLIENT_SECRET = ("The vault did not return " + CLIENT_SECRET_NAME + " to the machine identity. Check that this shell exports "
+                    "INFISICAL_UNIVERSAL_AUTH_CLIENT_ID and its secret, and the path that " + str(BINDING)
+                    + " names as tools.tailscale.path.")
 NO_ANSWER = "Tailscale did not answer the join key request. Run it again."
 CLIENT_REFUSED = ("Tailscale refused the OAuth client (HTTP {status}). Check that " + CLIENT_SECRET_NAME
                   + " is the secret of a client that still exists.")
@@ -32,11 +34,11 @@ KEY_REFUSED = ("Tailscale refused the join key request (HTTP {status}). Check th
 def vault_command():
     try:
         binding = json.loads(BINDING.read_text())
-        location = ["--domain", binding["domain"], "--projectId", binding["projectId"], "--env", binding["environment"],
+        location = ["--projectId", binding["projectId"], "--env", binding["environment"],
                     "--path", binding["tools"]["tailscale"]["path"]]
     except (OSError, ValueError, KeyError, TypeError):
         raise LinkError(NO_BINDING) from None
-    return ["infisical", "secrets", "get", CLIENT_SECRET_NAME, *location, "--plain", "--silent"]
+    return [str(MACHINE_CLI), "secrets", "get", CLIENT_SECRET_NAME, *location, "--plain", "--silent"]
 
 
 # Whatever the vault command prints may hold the secret, so a failure reports a fixed message only.

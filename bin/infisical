@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+import { runInfisical } from "../security/infisical-shim.ts";
+
+await runInfisical(process.argv[1], process.argv.slice(2));

@@ -1,26 +1,12 @@
-/** Infisical REST access as the user's CLI session; shared by the security scripts. The token lives in the calling process only. */
-import { spawnSync } from 'node:child_process'
+import { vaultApi } from './machine-identity.ts'
 
 import type { SecretLocation } from './infisical-target.ts'
 
-export const API = 'https://app.infisical.com/api/v3/secrets/raw'
 export const TIMEOUT_MS = 30_000
 export const HTTP_OK = 200
 
-export function sessionToken(): string {
-	const tokenCommand = spawnSync(
-		'infisical',
-		['user', 'get', 'token', '--plain'],
-		{
-			encoding: 'utf8',
-			stdio: ['ignore', 'pipe', 'ignore'],
-			timeout: TIMEOUT_MS,
-		},
-	)
-	const token = tokenCommand.stdout?.trim()
-	if (tokenCommand.status !== 0 || !token || /\s/u.test(token))
-		throw new Error('No Infisical session, run: infisical login')
-	return token
+export function secretsApi(): string {
+	return `${vaultApi()}/v3/secrets/raw`
 }
 
 export interface ApiResponse {
@@ -73,7 +59,7 @@ export async function names(
 	const { status, json } = await call(
 		token,
 		'GET',
-		`${API}?${query(where, path)}`,
+		`${secretsApi()}?${query(where, path)}`,
 	)
 	if (status !== HTTP_OK)
 		throw new Error(`Cannot list ${where.environment}: HTTP ${status}`)

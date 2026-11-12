@@ -1,7 +1,8 @@
 import { parseArgs } from 'node:util'
 
-import { API, call, HTTP_OK, names, sessionToken } from './infisical-rest.ts'
+import { call, HTTP_OK, names, secretsApi } from './infisical-rest.ts'
 import { describeTarget, parseSecretTarget } from './infisical-target.ts'
+import { machineToken } from './machine-identity.ts'
 
 const USAGE =
 	'node ~/.pi/agent/security/secret-set.mjs --projectId ID --env ENV --name NAME [--path /] [--replace]  (value: masked prompt in a terminal, otherwise stdin)'
@@ -87,8 +88,8 @@ async function setSecret(options) {
 		workspaceId: target.workspaceId,
 		environment: target.environment,
 	}
+	const token = await machineToken()
 	const secretValue = await readValue(target)
-	const token = sessionToken()
 	const exists = (await names(token, where, target.path)).includes(
 		target.name,
 	)
@@ -99,7 +100,7 @@ async function setSecret(options) {
 	const write = await call(
 		token,
 		exists ? 'PATCH' : 'POST',
-		`${API}/${target.name}`,
+		`${secretsApi()}/${target.name}`,
 		{ ...where, secretPath: target.path, secretValue },
 	)
 	if (write.status !== HTTP_OK)

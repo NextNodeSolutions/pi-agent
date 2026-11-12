@@ -1,50 +1,43 @@
 ---
 name: infisical
 description: >-
-  Infisical vault operations from this machine: which identity acts (the pi MCP's
-  machine identity versus the user's CLI session), creating projects and
-  environments through the REST API so the user owns them, and writing secret
-  values without exposing them. Load whenever a task touches Infisical in any
-  repository: a project, an environment, an identity, a secret, a local env
-  file, the `infisical` CLI or the `@infisical/mcp` server.
+  Infisical machine authentication, project links, environment injection and
+  value-safe secret operations. Load whenever a task touches Infisical in any
+  repository, a local env file, the CLI, or the Infisical MCP.
 ---
 
 # Infisical
 
-**A value never reaches the context.** Names: `node ~/.pi/agent/security/secret-names.mjs --projectId ID --env ENV --path /`. Write one value: `node ~/.pi/agent/security/secret-set.mjs --projectId ID --env ENV --name NAME [--path /] [--replace]` (masked prompt on a TTY, stdin otherwise; an existing name is refused without `--replace`); from Pi, `ask_user_secret` with `destination: infisical` runs it for a value the human types. Move or copy a secret between projects or environments: `node ~/.pi/agent/security/secret-move.mjs --name NAME --from ID/ENV --to ID/ENV` (`--keep` copies, `--replace` overwrites). A value a command consumes goes through `infisical run` or a shell variable that command alone reads. Every other read, including a filter after a raw read, is a leak.
+## Machine authentication
 
-## Two identities, nothing shared
+Agents and unattended local jobs use Universal Auth, never the human's CLI session. `security/machine-identity.ts` owns login and domain lookup from `~/.config/agent-secrets/core-vault.json`. The shell must export `INFISICAL_UNIVERSAL_AUTH_CLIENT_ID` and `INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET`. Do not read their source files. Missing or refused credentials require the human to repair the session environment or project grant, not a browser login.
 
-- **pi MCP** (`@infisical/mcp`, launched by pi): authenticates with the Universal Auth machine identity whose `INFISICAL_UNIVERSAL_AUTH_CLIENT_ID` and secret live in the shell environment (`~/.config/zsh/env/infisical.zsh`). It never acts as the user. Anything it creates belongs to that identity alone: the user is not a member and every later action needs an invitation.
-- **CLI** (`infisical login`): the user's own session. It reads and writes secrets, injects them with `infisical run`, and has no project or environment commands. `infisical user get token` returns its bearer token for the REST API.
+Use `~/.pi/agent/bin/infisical` for CLI calls. Pi prepends that directory to tool PATH. Claude Code's pre-call hook requires the explicit path. The shim supplies a fresh token in the child's environment and refuses interactive commands and token/domain overrides. The human's own CLI session remains untouched. This is command routing, not isolation from an agent with unrestricted shell access.
+
+The Infisical MCP authenticates from the same exported Universal Auth credentials. Keep `INFISICAL_MASK_SECRET_VALUES=true`. The MCP has its own login implementation. External workspace tooling and shell refresh functions are outside this repository and must also use machine credentials.
+
+## Value-safe operations
+
+A value never reaches the context. List names with `node ~/.pi/agent/security/secret-names.mjs --projectId ID --env ENV --path /`. Write with `node ~/.pi/agent/security/secret-set.mjs --projectId ID --env ENV --name NAME [--path /] [--replace]`, using the masked terminal prompt or stdin. For a value the human holds, use `ask_user_secret` with `destination: infisical`.
+
+Move or copy with `node ~/.pi/agent/security/secret-move.mjs --name NAME --from ID/ENV --to ID/ENV [--path /]`. `--keep` copies and `--replace` permits overwrite. Verify by name only. Values consumed by another command stay in its environment, stdin or a captured shell variable, never argv, logs, temporary files or tool output. Capture errors privately and release only fixed messages or HTTP status codes.
 
 ## Local env
 
-A checkout reads its project variables from Infisical at run time, so a new worktree needs no file copied: the project link is the committed config `infisical init` writes (`.infisical.json` or `.infisical.yaml`).
+Reuse the committed `.infisical.json` or `.infisical.yaml` after verifying its project ID against the repository's project. A mismatch blocks execution. For a missing link, obtain the authorized project's ID and write `.infisical.json` with `workspaceId` and `defaultEnvironment`, then commit it. The shim resolves the project from the nearest link or `INFISICAL_PROJECT_ID`. Explicit `--projectId` takes precedence. Always specify `--env`.
 
-- **Link**: reuse a committed link after verifying its project id; a mismatch is a blocker. Without one, `infisical login`, then `infisical init` at the repository root, and commit the file. A repository with no Infisical project yet gets one per [projects.md](projects.md).
-- **Run**: `infisical run --env=dev [--path /<app>] -- <command>`; Cloudflare Workers add the steps of "Local development" in `~/.pi/agent/skills/nextnode-deploy/github-org.md`.
-- **Migrate a leftover env file** (`.env`, `.env.local`, `.env.<mode>`, `.dev.vars`, per-app copies): `infisical secrets set --env <environment it serves> [--path /<app>] --file <file>`, never reading the file. Confirm every name the import reported with `secret-names.mjs`, delete the file, and point each script or doc that named it at `infisical run`. Tracked templates such as `.env.example` stay.
+- Run `~/.pi/agent/bin/infisical run --env=dev [--path /<app>] -- <command>`. Workers also need the local-development steps in `~/.pi/agent/skills/nextnode-deploy/github-org.md`.
+- Import a leftover env file without reading it with `~/.pi/agent/bin/infisical secrets set --env <slug> [--path /<app>] --file <file>`. Confirm every reported name with the names script, then delete the local file and update its consumers to use injection. Tracked templates stay.
+- Deleting a shared secret requires `secrets delete NAME --type shared` because the CLI defaults to personal secrets.
 
-## Rules
+## Projects and grants
 
-- **Keep credential errors private.** Capture credential commands' stdout and stderr in memory. For `infisical user get token`, accept exactly one line starting with `Token:` and a nonempty, whitespace-free token value. Discard all other output before constructing headers. Catch failures across credential capture, header construction and HTTP handling. Log only fixed messages or allowlisted status codes, never raw output, request headers, exception objects or causes.
-- **Never create a project or an environment through the MCP.** Use the REST API with the user's CLI session, per [projects.md](projects.md), with exactly the environments the project needs: a default creation adds `dev`, `staging`, `prod` whether wanted or not.
-- Use all MCP tools with `INFISICAL_MASK_SECRET_VALUES=true`, configured in `~/.pi/agent/mcp.json`. Names and metadata remain visible, while returned secret values are masked. CLI injection, writes, shell-variable capture and file exports remain available. The shared Claude/Pi gate in `~/.pi/agent/security/secret-policy.ts` blocks commands that print values, not Infisical itself.
-- A `403 ProjectMembershipNotFound` on a project the user should own means the machine identity created it: invite the user as admin through the MCP (`invite-members-to-project`), then report why it happened.
-- Secret values enter the vault through the dashboard, `secret-set.mjs` (masked prompt or stdin) or `ask_user_secret`, never through chat, command arguments, tool arguments, logs or temporary files. Verify a write by key name only, never any part of its value.
-- Keep API tokens in shell variables for the duration of a command, never in files.
+Read [projects.md](projects.md) before creating projects or environments or changing memberships. An inaccessible project is not an empty vault. Project setup uses the automated provisioning command in that reference, including human admin access and exact environments. An existing inaccessible project still requires an authorized principal to grant access. Do not switch identities or create a replacement to evade a refusal.
 
 ## core-vault
 
-Reserve this project for Pi, Claude, Pots and other AI clients. Keep the root empty. Put shared model-provider credentials directly under `/providers`, shared MCP credentials under `/mcp/<server>`, credentials of a tool shared across clients under `/tools/<tool>`, and client-specific authentication under `/clients/<client>`. The user's machines and the Pots desktops reach the vault through the `Agents` machine identity, recorded as `identityId` in the binding; cloud VMs use `boats`, a `viewer` identity recorded as `clients.boats.identityId`. Each machine gets its own client secret, described with its name, so revoking a machine is one deletion; a secret that must stay private to the user goes in another project. Application and infrastructure secrets belong in their own projects.
+Reserve this project for AI clients. Keep root empty. Shared provider credentials belong under `/providers`, shared MCP credentials under `/mcp/<server>`, tool credentials under `/tools/<tool>`, and client authentication under `/clients/<client>`. Application secrets belong in their own projects.
 
-Read `~/.config/agent-secrets/core-vault.json` before changing bindings. It owns the project, environment, API domain, shell exports, client secret paths, and shared tool paths. Pi's `bin/provider-key.py` signs in with the machine identity from the environment (`INFISICAL_UNIVERSAL_AUTH_*`) and that domain, never with the user's CLI session, so it resolves keys the same way on this machine and on a `workspace` VM. When the vault does not answer in time it returns the same-named shell export instead, which is why a rotation ends with the refresh and restart below. Infisical's bootstrap credentials stay outside the vault they unlock.
+The binding owns the project, environment, domain, identity IDs, exports and tool paths. `bin/provider-key.py` uses the shim and retains its existing shell-export fallback when the vault is unavailable. That fallback does not access Infisical. Bootstrap credentials stay outside the vault they unlock.
 
-After adding rotated values at the configured paths, run `infisical-refresh`, then open a new shell and restart the clients. Never populate missing keys with placeholder values. The Codex OAuth access token reaches `/clients/pi` through the hourly `pi-token-sync` job of the machine that signed in, and every other machine (the Pots desktops, the workspace VMs) reads it with `~/.pi/agent/bin/pi-token-pull` under its own client secret.
-
-## Reference
-
-| Read when | File |
-|---|---|
-| Creating, renaming or deleting a project or an environment, or adding the user to a project | [projects.md](projects.md) |
+After an authorized rotation, run `infisical-refresh`, open a new shell and restart clients. Never fill missing keys with placeholders. `bin/pi-token-pull` reads the published Codex access token using the shared machine login. Workspace VMs need this checkout, Node 24, the CLI, their binding and their own authorized machine credentials. The external workspace profile provisioning code is not changed by this repository.

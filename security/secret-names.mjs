@@ -1,6 +1,14 @@
 import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 
+import protocol from './machine-identity.json' with { type: 'json' }
+import { MachineIdentityUnavailable } from './machine-identity.ts'
+
+const MACHINE_CLI = fileURLToPath(new URL('../bin/infisical', import.meta.url))
+const IDENTITY_FAILURE =
+	'The Infisical machine identity is missing from the environment or refused'
+const LOOKUP_FAILURE = 'Names-only lookup failed'
 const USAGE =
 	'node ~/.pi/agent/security/secret-names.mjs --projectId ID --env ENV [--path /]'
 const TIMEOUT_MS = 30_000
@@ -27,8 +35,9 @@ function readOptions() {
 
 function listNames(options) {
 	const commandOutput = spawnSync(
-		'infisical',
+		process.execPath,
 		[
+			MACHINE_CLI,
 			'secrets',
 			'generate-example-env',
 			'--projectId',
@@ -46,8 +55,10 @@ function listNames(options) {
 			maxBuffer: MAX_OUTPUT_BYTES,
 		},
 	)
+	if (commandOutput.status === protocol.identityUnavailableExitCode)
+		throw new MachineIdentityUnavailable(IDENTITY_FAILURE)
 	if (commandOutput.error || commandOutput.status !== 0)
-		throw new Error('Names lookup failed')
+		throw new Error(LOOKUP_FAILURE)
 	const lines = commandOutput.stdout
 		.split(/\r?\n/)
 		.filter(line => line.trim() && !line.trimStart().startsWith('#'))
@@ -56,7 +67,9 @@ function listNames(options) {
 		if (!match) throw new Error('Unexpected names format')
 		return match[1]
 	})
-	return [...new Set(names)].toSorted()
+	return [...new Set(names)].toSorted((left, right) =>
+		left.localeCompare(right),
+	)
 }
 
 try {
@@ -67,9 +80,13 @@ try {
 		const names = listNames(options)
 		process.stdout.write(`${JSON.stringify({ names })}\n`)
 	}
-} catch {
+} catch (error) {
+	const reason =
+		error instanceof MachineIdentityUnavailable
+			? error.message
+			: LOOKUP_FAILURE
 	process.stderr.write(
-		`Names-only lookup failed. No raw output was released. Usage: ${USAGE}\n`,
+		`${reason}. No raw output was released. Usage: ${USAGE}\n`,
 	)
 	process.exitCode = 1
 }
