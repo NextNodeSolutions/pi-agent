@@ -37,7 +37,7 @@ function isIdentityRefusal(status: number): boolean {
 	)
 }
 
-export function vaultApi(): string {
+function bindingField(name: string): unknown {
 	let binding: unknown
 	try {
 		binding = JSON.parse(readFileSync(BINDING_FILE, 'utf8'))
@@ -46,7 +46,20 @@ export function vaultApi(): string {
 			`Cannot read the vault binding ${BINDING_FILE}`,
 		)
 	}
-	const domain = field(binding, 'domain')
+	return field(binding, name)
+}
+
+export function machineIdentityId(): string {
+	const identityId = bindingField('identityId')
+	if (typeof identityId !== 'string' || !identityId)
+		throw new VaultUnreachable(
+			`${BINDING_FILE} names no machine identity ID`,
+		)
+	return identityId
+}
+
+export function vaultApi(): string {
+	const domain = bindingField('domain')
 	if (typeof domain !== 'string' || !domain.startsWith('https://'))
 		throw new VaultUnreachable(
 			`${BINDING_FILE} names no https vault domain`,
