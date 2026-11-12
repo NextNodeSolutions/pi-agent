@@ -7,7 +7,7 @@ from pathlib import Path
 
 VAULT_CONFIG = Path.home() / ".config/agent-secrets/core-vault.json"
 MACHINE_CLI = Path(__file__).resolve().with_name("infisical")
-# Pi abandons a key command after 10 seconds, so the vault gets half and the shell export answers in the rest.
+# Pi abandons a key command after 10 seconds; the vault lookup, made only for a session without the shell export, stops at half of that so it fails with this script's message instead.
 VAULT_DEADLINE_SECONDS = 5
 KEY_WRITER = "import os,sys; sys.stdout.write(os.environ[sys.argv[1]])"
 
@@ -37,13 +37,6 @@ def vault_key(name, config, path):
     return single_word(result.stdout)
 
 
-def shell_export(name):
-    exported = os.environ.get(name)
-    if not exported:
-        raise RuntimeError("Vault unavailable and no shell export of the key")
-    return single_word(exported.encode())
-
-
 def resolve_key(name):
     if not re.fullmatch(r"[A-Z][A-Z0-9_]*_API_KEY", name):
         raise ValueError("Invalid provider key name")
@@ -51,10 +44,10 @@ def resolve_key(name):
     paths = [path for path, names in config["exports"].items() if name in names]
     if len(paths) != 1:
         raise ValueError("Provider key must have exactly one vault binding")
-    try:
-        return vault_key(name, config, paths[0])
-    except VaultUnavailable:
-        return shell_export(name)
+    exported = os.environ.get(name)
+    if exported:
+        return single_word(exported.encode())
+    return vault_key(name, config, paths[0])
 
 
 try:
