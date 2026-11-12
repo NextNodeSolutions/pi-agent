@@ -1,4 +1,8 @@
-import { positionals, sessionVerdict } from './infisical-commands.ts'
+import {
+	isInfisicalCommand,
+	positionals,
+	sessionVerdict,
+} from './infisical-commands.ts'
 
 const SECRET_REFUSAL =
 	'Cleartext secret output blocked. Infisical run, masked MCP operations, writes, and shell-variable capture remain allowed. Use masked MCP reads or node ~/.pi/agent/security/secret-names.mjs for names.'
@@ -100,8 +104,15 @@ function hasPrivateSink(prefix: string, argumentsText: string): boolean {
 	)
 }
 
+function infisicalCalls(commandText: string): RegExpExecArray[] {
+	return [...commandText.matchAll(INFISICAL_CALL)].filter(
+		([, , argumentsText = '']) =>
+			isInfisicalCommand(argumentTokens(argumentsText)),
+	)
+}
+
 function exposesInfisicalOutput(commandText: string): boolean {
-	const calls = [...commandText.matchAll(INFISICAL_CALL)]
+	const calls = infisicalCalls(commandText)
 	if (!calls.length) return false
 	if (/\bset\s+-[^\s]*x/.test(commandText)) return true
 	return calls.some(call => {
@@ -116,9 +127,7 @@ function exposesInfisicalOutput(commandText: string): boolean {
 }
 
 export function infisicalExecutables(commandText: string): string[] {
-	return [...commandText.matchAll(INFISICAL_CALL)].map(
-		([, executable = '']) => executable,
-	)
+	return infisicalCalls(commandText).map(([, executable = '']) => executable)
 }
 
 function dumpsEnvironment(commandText: string): boolean {
@@ -151,7 +160,7 @@ export function secretAccessRefusal(
 	if (dumpsEnvironment(text)) return ENVIRONMENT_REFUSAL
 	if (exposesInfisicalOutput(text)) return SECRET_REFUSAL
 	if (
-		[...text.matchAll(INFISICAL_CALL)].some(
+		infisicalCalls(text).some(
 			([, , argumentsText = '']) =>
 				sessionVerdict(argumentTokens(argumentsText)) ===
 				'human-session',
