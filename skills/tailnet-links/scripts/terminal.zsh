@@ -6,7 +6,8 @@ typeset -g _tailnet_link_history_lines=10000
 typeset -g _tailnet_link_record=$HOME/.local/state/tailnet-link/commands/$$
 zf_mkdir -p ${_tailnet_link_record:h} 2>/dev/null || return 0
 # A shell that ended through exec or a kill ran no exit hook, so the next terminal removes the record it left.
-for _tailnet_link_left in ${_tailnet_link_record:h}/*(N); do
+# kill takes a name such as %1 for a job and wakes that job, so only a name that is a process number is probed.
+for _tailnet_link_left in ${_tailnet_link_record:h}/<->(N); do
 	kill -0 ${_tailnet_link_left:t} 2>/dev/null || zf_rm -f $_tailnet_link_left 2>/dev/null
 done
 unset _tailnet_link_left
