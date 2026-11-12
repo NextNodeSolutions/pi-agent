@@ -90,9 +90,9 @@ Never use `~/.pi/agent` as a scratch or deliverable directory (including `tmp/`)
 
 ## Git
 
-Every task in a Git repository follows this flow. A project `AGENTS.md` or a skill with its own Git flow overrides the matching step (Accor requires approval for each push).
+Every task that changes a Git repository follows this flow. A project `AGENTS.md` or a skill with its own Git flow overrides the matching step (Accor requires approval for each push).
 
-1. **Worktree**: start each task on its own branch in its own worktree, through the "Own task" path of `~/.pi/agent/skills/worktree/SKILL.md`; a session already in that task's worktree stays there. Never switch a checkout's branch unless the user asks for it.
+1. **Worktree tab**: hand each task to its own branch, worktree and Pi tab through the "Hand-off" path of `~/.pi/agent/skills/worktree/SKILL.md`; the session that hands it off stays the coordinator of those worktrees and leaves the work to the tab. A session already in that task's worktree works there. Never switch a checkout's branch unless the user asks for it.
 2. **Draft pull request**: as soon as the worktree exists, open its draft pull request in the background ("Open the draft pull request" in that skill) and start the work without waiting for it.
 3. **Env, in every repository**: run each command that needs project variables through Infisical, never from a local env file; a leftover local env file moves into the vault and is deleted. Mechanics: "Local env" in `~/.pi/agent/skills/infisical/SKILL.md`.
 4. **Commit and push**: commit each change atomically (below), then push the task branch. Push the default branch only when asked.
