@@ -5,6 +5,8 @@
  * point, commands.ts the human one; manage.ts checks explicit re-evaluation authority.
  * lib/goal/state.ts owns branch entries; status.ts owns the existing display.
  */
+import { isSubagentChild } from '#lib/subagent-child.ts'
+
 import { registerGoalCommands } from './commands.ts'
 import { registerGoalRouting } from './route-events.ts'
 import { registerGoalStatus } from './status.ts'
@@ -13,7 +15,7 @@ import { registerGoalTool } from './tool.ts'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 export default function goal(pi: ExtensionAPI): void {
-	if (process.env.PI_SUBAGENT_CHILD === '1') return
+	if (isSubagentChild()) return
 	registerGoalStatus(pi)
 	registerGoalRouting(pi)
 	registerGoalTool(pi)
