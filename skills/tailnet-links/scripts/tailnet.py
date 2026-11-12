@@ -34,7 +34,7 @@ def run(arguments, timeout=COMMAND_TIMEOUT_SECONDS, empty_exits=()):
     is_empty = result.returncode in empty_exits and not result.stderr.strip()
     if result.returncode and not is_empty:
         raise LinkError("Command failed: " + " ".join(arguments) + "\n" + result.stderr.strip())
-    return result.stdout.strip()
+    return result.stdout
 
 
 def wait_until(is_ready, seconds, failure):
