@@ -26,6 +26,16 @@ shadow a system binary or is pi-owned:
   managed target deleted live; a no-op elsewhere. Run at session start and stop
   by `extensions/commands/chezmoi-reconcile/` and by the Claude Code hooks in
   `~/.claude/settings.json`.
+- `magpie-claude-token-sync` — on the machine hosting the Magpie gateway,
+  reads `CLAUDE_CODE_OAUTH_TOKEN` from the vault location the binding names,
+  registers it in Magpie through a temporary local `magpie web`, proves the
+  account answers a request held to that account alone (a 5-minute gateway
+  key, removed afterwards), then forgets every other `Claude setup-token`
+  account. A failed proof leaves the older accounts in place, and Claude
+  Code's own sign-in is never touched. Prints the account, the HTTP status and
+  the removed names. The token stays in the child's environment and a loopback
+  request body. Needs the machine identity in its environment, like
+  `pi-token-pull`.
 - `magpie-gateway-priority` — on the machine hosting the Magpie gateway,
   `check` fails when its launchd job is not `Interactive` and `fix` sets the
   type and reloads the job, restoring the file when the gateway does not
