@@ -1,33 +1,19 @@
-# Projects and environments through the REST API
+# Automated project provisioning
 
-Extends "Rules" in `SKILL.md`; the core rules are not restated here.
+Extends "Projects and grants" in `SKILL.md`.
 
-Base URL `https://app.infisical.com/api` (US cloud; the CLI's `--domain` tells otherwise). Field names verified against the OpenAPI document at `/api/docs/json` on 2026-10-24.
-
-```sh
-TOKEN=$(infisical user get token | sed -n 's/^[Tt]oken:[[:space:]]*//p')
-H="Authorization: Bearer $TOKEN"; J='Content-Type: application/json'; API=https://app.infisical.com/api
-
-# 1. Create the project without default environments. The response holds the project id.
-curl -sS -X POST -H "$H" -H "$J" "$API/v2/workspace" \
-  -d '{"projectName":"<name>","type":"secret-manager","shouldCreateDefaultEnvs":false}'
-
-# 2. Add each environment wanted, in order.
-curl -sS -X POST -H "$H" -H "$J" "$API/v1/workspace/<projectId>/environments" -d '{"name":"main","slug":"main"}'
-
-# 3. Inspect: environments with their ids.
-curl -sS -H "$H" "$API/v1/workspace/<projectId>" | python3 -c 'import json,sys; [print(e["id"],e["slug"],e["name"]) for e in json.load(sys.stdin)["workspace"]["environments"]]'
-
-# Rename or delete an environment (reread it in step 3 first).
-curl -sS -X PATCH  -H "$H" -H "$J" "$API/v1/workspace/<projectId>/environments/<envId>" -d '{"name":"main","slug":"main"}'
-curl -sS -X DELETE -H "$H" "$API/v1/workspace/<projectId>/environments/<envId>"
-```
-
-Then let the machine identity in if the MCP must read or write that project's secrets: add it from the dashboard (Project → Access Control → Machine Identities) with the lowest role that fits. The MCP cannot add itself.
-
-Secret writes go through the house script, which prompts for the value with no echo and prints the key name only:
+During authorized project setup, run the repository-owned provisioning command as the machine identity.
 
 ```sh
-node ~/.pi/agent/security/secret-set.mjs --projectId <projectId> --env <slug> --name <KEY> --path /
-node ~/.pi/agent/security/secret-names.mjs --projectId <projectId> --env <slug> --path /
+node ~/.pi/agent/security/project-provision.mjs --name REPOSITORY --owner HUMAN_EMAIL --env dev --env prod
 ```
+
+Resolve the exact repository name from its remote and the human's verified organization-member email from existing project or organization membership metadata. Do not infer an Infisical account from a Git author email. Choose environments from the application's requirements. The command requires explicit environments and never creates the default trio.
+
+The command reuses a uniquely matching visible secret-manager project or creates one with `shouldCreateDefaultEnvs: false`. It refuses to create a project whose name matches one the machine identity cannot read. It invites the human with permanent admin access, verifies that membership, creates missing environments and reads back the exact environment set. Success prints only project metadata. A failed later step retains the new project's ID and can be resumed by rerunning the same command. No existing project, environment or membership is deleted.
+
+Use `--check` for a read-only verification of project, human admin and environments. An existing non-admin human membership, unexpected environments, duplicate names or an API refusal fails explicitly rather than silently changing permissions or deleting configuration. Handle an authorized role change through the documented membership API, preserving other roles.
+
+A project the access check lists under `missing` is an access failure, not authorization to create a replacement. Preserve its committed ID and follow "Missing project access" in `SKILL.md`. Creating a new project does not unlock another existing project.
+
+After provisioning, write the committed link as "Local env" describes, populate authorized secrets through the value-safe scripts, and verify the real consumer with machine-authenticated injection. No interactive CLI session or browser login participates in provisioning.

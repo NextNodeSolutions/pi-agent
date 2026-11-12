@@ -87,7 +87,7 @@ Run "Project secret workflow" in `~/.pi/agent/skills/nextnode-deploy/github-org.
 
 For projects with no secret consumer, record that result and skip vault creation. Assets-only Workers and publishable packages do not receive application runtime secrets. Package publishing credentials follow `~/.pi/agent/skills/nextnode-deploy/kickstart-package.md`.
 
-For local execution and `.infisical.json`, follow "Local development" in `~/.pi/agent/skills/nextnode-deploy/github-org.md`. For Worker secret declarations, read "Generated Worker types" in `~/.pi/agent/skills/nextnode-deploy/cloudflare-workers.md`. For public build settings or build-only tokens, read "Build-time values" in `~/.pi/agent/skills/nextnode-deploy/deploy-env.md` before choosing storage. Unsupported build inputs remain blockers, not completed secret setup.
+For machine-authenticated local execution and the committed project link, follow "Local development" in `~/.pi/agent/skills/nextnode-deploy/github-org.md`. For Worker secret declarations, read "Generated Worker types" in `~/.pi/agent/skills/nextnode-deploy/cloudflare-workers.md`. For public build settings or build-only tokens, read "Build-time values" in `~/.pi/agent/skills/nextnode-deploy/deploy-env.md` before choosing storage. Unsupported build inputs remain blockers, not completed secret setup.
 
 ## Pull-request checks
 

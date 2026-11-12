@@ -74,7 +74,7 @@ A link answers only while its machine is on. The first request to a machine that
 
 - A Mac must be signed in to Tailscale first.
 - A Linux VM outside the tailnet joins with the key in `TS_AUTHKEY`. Setup reads it from its environment, hands it to Tailscale and keeps no copy. `workspace start <name> --profile pi --pi-tailnet` does the whole join from the Mac.
-- `tailnet-link join-key`, on a Mac with an `infisical login` session, prints the key for one VM. It works once, within ten minutes, and tags the VM `tag:agent`, which the tailnet policy grants nothing: the human's devices reach the VM and the VM reaches no other machine. Its output is a credential, so always pipe it into the command that runs setup on the VM.
+- `tailnet-link join-key`, on a machine exporting the Universal Auth credentials described in `~/.pi/agent/skills/infisical/SKILL.md`, prints the key for one VM. It works once, within ten minutes, and tags the VM `tag:agent`, which the tailnet policy grants nothing: the human's devices reach the VM and the VM reaches no other machine. Its output is a credential, so always pipe it into the command that runs setup on the VM.
 - In a Pi tool session the command is on `PATH` before setup ran, through `~/.pi/agent/bin`.
 - A machine where a human types commands sources `scripts/shell.zsh` from its `~/.zshenv`. Setup writes no shell file, so add that line with the machine's dotfiles.
 
