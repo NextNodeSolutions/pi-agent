@@ -29,6 +29,28 @@ const MACHINE_COMMANDS = new Set([
 	'sm',
 ])
 const SESSIONLESS_COMMANDS = new Set(['scan', 'help', 'completion'])
+const HUMAN_SESSION_COMMANDS = new Set([
+	'agent',
+	'agent-vault',
+	'bootstrap',
+	'cert-manager',
+	'gateway',
+	'init',
+	'kmip',
+	'login',
+	'logout',
+	'org',
+	'pam',
+	'profile',
+	'proxy',
+	'relay',
+	'reset',
+	'service-token',
+	'ssh',
+	'token',
+	'user',
+	'vault',
+])
 const HELP_FLAGS = new Set(['--help', '-h'])
 const ARGUMENT_SEPARATOR = '--'
 
@@ -56,6 +78,16 @@ export function ownArguments(cliArguments: readonly string[]): string[] {
 	const separator = cliArguments.indexOf(ARGUMENT_SEPARATOR)
 	if (separator === -1) return [...cliArguments]
 	return cliArguments.slice(0, separator)
+}
+
+export function isInfisicalCommand(cliArguments: readonly string[]): boolean {
+	const [command] = positionals(ownArguments(cliArguments))
+	if (!command) return false
+	return (
+		MACHINE_COMMANDS.has(command) ||
+		SESSIONLESS_COMMANDS.has(command) ||
+		HUMAN_SESSION_COMMANDS.has(command)
+	)
 }
 
 // Unknown commands fail closed because the CLI may open an interactive login.
