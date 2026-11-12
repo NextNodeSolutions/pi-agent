@@ -86,7 +86,7 @@ def bound_run():
         str(ROOT / "bin/infisical"), "run", "--projectId", binding["projectId"],
         "--env", binding["environment"], "--path", path, "--silent", "--",
         sys.executable, str(Path(__file__).resolve()), WORKER_ARGUMENT,
-    ], timeout=SYNC_SECONDS, stderr=None, env=without_token())
+    ], timeout=SYNC_SECONDS, env=without_token())
     report = json.loads(output)
     if report.get("verified_http") != HTTP_OK:
         raise SyncFailure("The vault run reported no verified account.")
