@@ -4,11 +4,10 @@ import { basename } from 'node:path'
 import {
 	INTERRUPT,
 	alertKind,
+	describeAlert,
 	isAlarming,
-	isAlertLine,
 	isCommandRunning,
 	isInterrupt,
-	signalLines,
 	textLines,
 } from './classify.mjs'
 import {
@@ -35,10 +34,7 @@ const IDLE_CHECK_SECONDS = '10'
 const QUIET_SECONDS = '2'
 const MAX_BURST_WAITS = 15
 const MAX_STRANGE_WAKES = 5
-const CONTEXT_LINES = 40
-const MAX_BLOCK_LINES = 200
 const ANCHOR_CHARS = 400
-const HEADLINE_CHARS = 180
 const LABEL_CHARS = 80
 const RESEND_AFTER_MS = 300_000
 
@@ -155,14 +151,7 @@ const noteInterrupt = (command, lines) => {
 }
 
 const report = (kind, burst, command) => {
-	const block = textLines(previous).slice(
-		-Math.min(burst.length + CONTEXT_LINES, MAX_BLOCK_LINES),
-	)
-	const hit = signalLines(burst).find(isAlertLine)
-	const headline = (hit ?? signalLines(block).at(-1) ?? '')
-		.trim()
-		.slice(0, HEADLINE_CHARS)
-	const signature = `${kind}:${headline.replace(/\d+/g, '#')}`
+	const { block, headline, signature } = describeAlert(kind, burst, previous)
 	const label = command?.label ?? 'no command'
 	alertCount += 1
 	appendFileSync(
