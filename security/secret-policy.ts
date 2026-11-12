@@ -9,7 +9,7 @@ const EXECUTION_TOOLS =
 	/^(?:bash|host|shell|terminal|execute|codemode|mcpScript)$/i
 const READ_TOOLS = /^(?:read|grep)$/i
 const INFISICAL_CALL =
-	/(?:^|[\s"'`($])((?:[\w.~/-]+\/)?infisical)\b([^\n|;&)]*)/g
+	/(?:^|[\s;|&"'`$]|(?<!\w)\()((?:[\w.~/-]+\/)?infisical)(?=$|[\s;|&)<>"'`\\])([^\n|;&)]*)/g
 const SAFE_SECRET_COMMANDS = new Set([
 	'set',
 	'delete',
@@ -113,6 +113,12 @@ function exposesInfisicalOutput(commandText: string): boolean {
 			!hasPrivateSink(prefix, argumentsText)
 		)
 	})
+}
+
+export function infisicalExecutables(commandText: string): string[] {
+	return [...commandText.matchAll(INFISICAL_CALL)].map(
+		([, executable = '']) => executable,
+	)
 }
 
 function dumpsEnvironment(commandText: string): boolean {

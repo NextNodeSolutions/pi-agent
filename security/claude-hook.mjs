@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 
-import { secretAccessRefusal } from './secret-policy.ts'
+import { infisicalExecutables, secretAccessRefusal } from './secret-policy.ts'
 
 try {
 	const request = JSON.parse(readFileSync(0, 'utf8'))
@@ -10,13 +10,8 @@ try {
 	const isUnscopedInfisical =
 		request.tool_name === 'Bash' &&
 		typeof command === 'string' &&
-		[
-			...command.matchAll(
-				/(?:^|[\s;|&(])((?:[\w.~/-]+\/)?infisical)\b/gu,
-			),
-		].some(
-			([, executable = '']) =>
-				!executable.endsWith('/.pi/agent/bin/infisical'),
+		infisicalExecutables(command).some(
+			executable => !executable.endsWith('/.pi/agent/bin/infisical'),
 		)
 	const reason = isUnscopedInfisical
 		? 'Use ~/.pi/agent/bin/infisical so this command authenticates only as the machine identity.'
