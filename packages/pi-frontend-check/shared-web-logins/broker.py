@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from infisical_cli import VaultUnavailable, run_authenticated_cli
+from infisical_cli import VaultUnavailable, run_machine_cli
 
 CONFIG_FILE = Path(__file__).with_name("config.json")
 KEY_PREFIX = "WEB_LOGIN_"
@@ -31,7 +31,7 @@ def _settings() -> dict:
 
 def _run_cli(arguments: list[str], *, payload: bytes | None = None) -> bytes:
     settings = _settings()
-    return run_authenticated_cli(
+    return run_machine_cli(
         [*arguments, "--projectId=" + settings["projectId"],
          "--env=" + settings["environment"], "--path=" + settings["path"]], payload=payload)
 

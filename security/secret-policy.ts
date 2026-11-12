@@ -1,3 +1,5 @@
+import { positionals, sessionVerdict } from './infisical-commands.ts'
+
 const SECRET_REFUSAL =
 	'Cleartext secret output blocked. Infisical run, masked MCP operations, writes, and shell-variable capture remain allowed. Use masked MCP reads or node ~/.pi/agent/security/secret-names.mjs for names.'
 const ENVIRONMENT_REFUSAL =
@@ -8,27 +10,6 @@ const EXECUTION_TOOLS =
 const READ_TOOLS = /^(?:read|grep)$/i
 const INFISICAL_CALL =
 	/(?:^|[\s"'`($])((?:[\w.~/-]+\/)?infisical)\b([^\n|;&)]*)/g
-const VALUE_FLAGS = new Set([
-	'--domain',
-	'--env',
-	'-e',
-	'--projectId',
-	'--path',
-	'--profile',
-	'--org',
-	'--token',
-	'--log-level',
-	'-l',
-	'--log-format',
-	'--log-destination',
-	'--tags',
-	'-t',
-	'--output',
-	'-o',
-	'--format',
-	'-f',
-	'--output-file',
-])
 const SAFE_SECRET_COMMANDS = new Set([
 	'set',
 	'delete',
@@ -70,22 +51,10 @@ function field(input: unknown, name: string): unknown {
 	return Reflect.get(input, name)
 }
 
-function positionalWords(argumentsText: string): string[] {
-	const tokens = argumentsText.match(/"[^"]*"|'[^']*'|[^\s]+/g) ?? []
-	const words: string[] = []
-	let shouldSkip = false
-	for (const token of tokens) {
-		if (shouldSkip) {
-			shouldSkip = false
-			continue
-		}
-		if (token.startsWith('-')) {
-			shouldSkip = VALUE_FLAGS.has(token)
-			continue
-		}
-		words.push(token.replace(/^["']|["']$/g, ''))
-	}
-	return words
+function argumentTokens(argumentsText: string): string[] {
+	return (argumentsText.match(/"[^"]*"|'[^']*'|[^\s]+/g) ?? []).map(token =>
+		token.replace(/^["']|["']$/g, ''),
+	)
 }
 
 function producesSecretOutput(argumentsText: string): boolean {
@@ -93,7 +62,10 @@ function producesSecretOutput(argumentsText: string): boolean {
 		return false
 	if (/(?:^|\s)--show-values(?:=true)?(?:\s|$)/.test(argumentsText))
 		return true
-	const [command, action, subject] = positionalWords(argumentsText)
+	const words = positionals(argumentTokens(argumentsText))
+	const [first, ...rest] = words
+	const [command, action, subject] =
+		first === 'sm' || first === 'secrets-manager' ? rest : words
 	if (
 		command === 'secrets' &&
 		action === 'set' &&
@@ -172,5 +144,13 @@ export function secretAccessRefusal(
 	const text = typeof command === 'string' ? command : JSON.stringify(command)
 	if (dumpsEnvironment(text)) return ENVIRONMENT_REFUSAL
 	if (exposesInfisicalOutput(text)) return SECRET_REFUSAL
+	if (
+		[...text.matchAll(INFISICAL_CALL)].some(
+			([, , argumentsText = '']) =>
+				sessionVerdict(argumentTokens(argumentsText)) ===
+				'human-session',
+		)
+	)
+		return 'Agent Infisical calls use the machine identity. Use ~/.pi/agent/bin/infisical for supported commands. Interactive commands are human-only.'
 	return undefined
 }

@@ -1,18 +1,12 @@
 import { parseArgs } from 'node:util'
 
-import {
-	API,
-	call,
-	HTTP_OK,
-	names,
-	query,
-	sessionToken,
-} from './infisical-rest.ts'
+import { call, HTTP_OK, names, query, secretsApi } from './infisical-rest.ts'
 import {
 	parseLocation,
 	SECRET_NAME_PATTERN,
 	SECRET_PATH_PATTERN,
 } from './infisical-target.ts'
+import { machineToken } from './machine-identity.ts'
 
 const USAGE =
 	'node ~/.pi/agent/security/secret-move.mjs --name NAME --from PROJECT_ID/ENV --to PROJECT_ID/ENV [--path /] [--keep] [--replace]'
@@ -42,9 +36,10 @@ function readOptions() {
 }
 
 async function move(options) {
-	const token = sessionToken()
+	const token = await machineToken()
+	const api = secretsApi()
 	const { name, from, to, path } = options
-	const read = await call(token, 'GET', `${API}/${name}?${query(from, path)}`)
+	const read = await call(token, 'GET', `${api}/${name}?${query(from, path)}`)
 	const secretValue = read.json.secret?.secretValue
 	if (read.status !== HTTP_OK || typeof secretValue !== 'string')
 		throw new Error(`${name} is not in the source (HTTP ${read.status})`)
@@ -57,7 +52,7 @@ async function move(options) {
 	const write = await call(
 		token,
 		existing.includes(name) ? 'PATCH' : 'POST',
-		`${API}/${name}`,
+		`${api}/${name}`,
 		body,
 	)
 	if (write.status !== HTTP_OK)
@@ -68,7 +63,7 @@ async function move(options) {
 		`${name}: written to ${to.workspaceId}/${to.environment}${path}\n`,
 	)
 	if (options.keep) return
-	const remove = await call(token, 'DELETE', `${API}/${name}`, {
+	const remove = await call(token, 'DELETE', `${api}/${name}`, {
 		...from,
 		secretPath: path,
 	})

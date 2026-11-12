@@ -43,7 +43,7 @@ Run "Project secret workflow" in `~/.pi/agent/skills/nextnode-deploy/github-org.
 
 - [ ] Required names are derived from actual consumers and compared with Infisical metadata for each applicable environment. Report every missing name and unreadable check without exposing values.
 - [ ] Runtime secrets, public build settings and build-only tokens follow their supported input paths. Vault presence alone does not prove a build input works.
-- [ ] For apps with secrets, `.infisical.json` is committed and links the checkout to the repository's Infisical project.
+- [ ] For apps with secrets, the committed Infisical link matches the repository's project, and the machine identity can access it as described in `~/.pi/agent/skills/infisical/SKILL.md`.
 - [ ] For apps with secrets, the documented dev command runs through `infisical run --env=dev`.
 - [ ] No secret value sits in a tracked file, and no local env file (`.env*` other than tracked templates, `.dev.vars`) remains in the checkout: its values live in Infisical.
 - [ ] The app types its secrets by augmenting `Cloudflare.Env`. No comment or doc still points to `[deploy].secrets` or GitHub secrets.

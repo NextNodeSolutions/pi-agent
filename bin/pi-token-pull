@@ -3,11 +3,12 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+import { machineToken, vaultApi } from "../security/machine-identity.ts";
+
 const PROVIDER = "openai-codex";
 const AGENT_DIR = join(homedir(), ".pi", "agent");
 const AUTH_FILE = join(AGENT_DIR, "auth.json");
 const BINDING = JSON.parse(readFileSync(join(homedir(), ".config", "agent-secrets", "core-vault.json"), "utf8"));
-const INFISICAL_API = "https://app.infisical.com/api";
 
 const log = (message) => console.log(`${new Date().toISOString()} ${message}`);
 
@@ -20,17 +21,10 @@ function writePrivately(path, text) {
 const readJson = (path) => (existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {});
 
 async function fromVault() {
-  const clientId = process.env.INFISICAL_UNIVERSAL_AUTH_CLIENT_ID;
-  const clientSecret = process.env.INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET;
-  if (!clientId || !clientSecret) throw new Error("INFISICAL_UNIVERSAL_AUTH_CLIENT_ID and _SECRET must be in the environment");
-  const login = await fetch(`${INFISICAL_API}/v1/auth/universal-auth/login`, {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ clientId, clientSecret }),
-  });
-  if (!login.ok) throw new Error(`Infisical login failed: HTTP ${login.status}`);
-  const { accessToken } = await login.json();
+  const accessToken = await machineToken();
   const { path, oauth } = BINDING.clients.pi;
   const query = new URLSearchParams({ workspaceId: BINDING.projectId, environment: BINDING.environment, secretPath: path });
-  const response = await fetch(`${INFISICAL_API}/v3/secrets/raw/${oauth.codex}?${query}`, { headers: { authorization: `Bearer ${accessToken}` } });
+  const response = await fetch(`${vaultApi()}/v3/secrets/raw/${oauth.codex}?${query}`, { headers: { authorization: `Bearer ${accessToken}` } });
   if (response.status === 404) throw new Error("no Codex token is published: run pi-token-sync --publish on the machine that signed in");
   if (!response.ok) throw new Error(`Infisical refused the Codex token: HTTP ${response.status}`);
   const entry = JSON.parse((await response.json()).secret.secretValue);

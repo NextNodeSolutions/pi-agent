@@ -1,31 +1,28 @@
-# Shared web logins — Pi
+# Shared web logins
 
-Infisical holds the login records; browsers stay per session. Personal Brave remains separate.
+Infisical holds login records. Browser sessions and personal Brave remain separate.
+
+## Authentication
+
+The broker uses the machine identity through the repository's `bin/infisical` shim. Authentication, environment requirements and project grants are documented in `skills/infisical/SKILL.md` at the repository root. Enrollment uses that same identity. No user-session preflight, keychain access or browser login is required.
+
+`config.json` owns the web-login project, environment and path. `security/machine-identity.json` owns the credential variable names and exit protocol. Missing credentials, rejected authentication and project access refusals return its identity-unavailable exit code. Outages and other failures return 1. Neither means the website account is absent.
 
 ## Components
 
-- `config.json`: dedicated Infisical project, `prod` environment, root folder. At setup it had one human project member and no machine identities; secret-link sharing is disabled and project deletion is protected. Audit membership before adding other users/identities. Organization administrators may still govern access.
-- `broker.py`: validates HTTPS (or loopback HTTP) origins, hashes origin + identifier into opaque secret keys, reads/writes Infisical through the logged-in user's CLI session, verifies every write. Login payloads go to the CLI over stdin, never an argument. `list` returns metadata only; **`read` emits a password to its process pipe and must only be called by the browser adapter, never in an agent-visible shell**.
-- `infisical_cli.py`: checks `infisical login status --json` for a server-verified user session before each operation. Status and operation share one deadline. The macOS sandbox denies listening sockets and `/usr/bin/open`, so session expiry after the check cannot open a browser or receive a login callback. Timeout and cancellation kill the entire CLI process group. Child output stays in memory and failures use fixed messages.
-- `enroll.py`: terminal enrollment through masked prompts, then `save_login` with a verified readback. It is the only place a password is typed.
-- Local Pi package `~/.pi/agent/packages/pi-frontend-check/`: `frontend_vault_list` and `frontend_vault_fill` read the same project. Password fill rechecks `location.origin` inside the same page execution and refuses ambiguous fields. Frontend tool text is redacted and screenshots remain blocked after a fill until the client connection is released.
-- Pi package skill `shared-web-logins`: login workflow, failure handling, MFA and verification.
+- `broker.py` validates exact HTTPS or loopback HTTP origins and binds opaque keys to origin and identifier. `list` returns metadata only. `read` emits a password to its process pipe and must only be called by the browser adapter, never an agent-visible shell.
+- `infisical_cli.py` calls the shim with a restricted child environment, passes writes through stdin, and keeps output in memory. Timeout and cancellation kill the CLI process group. Authentication and operation share one deadline. Raw child errors never reach tool output.
+- `extensions/shared-vault.ts` resolves the broker beside its loaded package and forwards only the environment needed by the machine login and runtime. It validates broker responses and maps the exit protocol to fixed messages.
+- `enroll.py` collects passwords in a masked terminal prompt and verifies writes through an internal readback.
 
-## Enrollment
+## Enrollment and verification
 
-1. In a terminal: `python3 ~/.pi/agent/packages/pi-frontend-check/shared-web-logins/enroll.py`. Enter the origin of the actual password form (`https://host`), the identifier, the password and, if any, the OTP secret in the masked prompts; never type them into chat or an agent shell.
-2. In Pi, call `frontend_vault_list`, open the exact-origin login page, type only the listed identifier, then call `frontend_vault_fill` with its `iw:` handle. Submit only with authorization and verify the authenticated page.
-3. When Pi meets a site with no entry, it asks the user to run `enroll.py`; Pi must not solicit a password in chat.
+Run `python3 ~/.pi/agent/packages/pi-frontend-check/shared-web-logins/enroll.py` in a terminal exporting the machine credentials. Enter the actual password form's origin and account details there, never in chat.
 
-## Operational checks
+Use `frontend_vault_list`, choose an exact-origin handle, type its identifier and call `frontend_vault_fill`. Submit only with authorization, then verify the protected page. Password fills recheck the origin and refuse ambiguous fields. Tool output is redacted and captures remain blocked after a fill until the connection is released.
 
-- `python3 broker.py list` reports only metadata. Never run `broker.py read` in a terminal tool: its stdout is sensitive.
-- Requires macOS `/usr/bin/sandbox-exec` and an Infisical CLI supporting `login status --json`. The guard is required for every CLI call, including enrollment. If the guard or status command is unavailable, the operation fails without running an unguarded vault command.
-- The Infisical CLI must be logged in for the user running Pi. An expired, rejected or missing session returns the authentication-required exit code from `protocol.json`, which the adapter maps to a request to run `infisical login` in a local terminal. Complete that explicit login in a browser profile connected to Infisical, then retry `frontend_vault_list`. Website passwords remain stored and must not be enrolled again.
-- Credentials sit in the login keychain. SSH or launchd contexts can fail with "User interaction is not allowed" even after login. Keychain failures, outages and unverifiable status remain vault-unavailable errors, **not** absent accounts. Do not fall back to a password prompt.
-- The adapter resolves the broker beside its loaded package and forwards `INFISICAL_PROFILE` and `XDG_CONFIG_HOME`. The runner excludes inherited machine tokens and Universal Auth credentials, uses system helper paths, and runs from its own directory so a project's local Infisical config cannot select its authentication.
-- Install the updated package in `~/.pi/agent/packages/pi-frontend-check` and run `/reload` to apply adapter changes. A worktree check verifies that worktree's broker, not the installed live package.
+`python3 broker.py list` verifies metadata access without returning passwords. Missing machine credentials or grants need human repair, not re-enrollment. Install changes by merging and run `/reload`. A worktree command checks that worktree, not the installed package.
 
 ## Limits
 
-Exact-origin matching intentionally rejects a login saved for another SSO domain; navigate to the actual password form's origin before enrolling. Sites may still require MFA, CAPTCHA, passkeys, consent, or renewed credentials. A shared password is **not** a shared session, nor a guarantee of unattended permanent access. This integration runs as the same macOS user as Pi; an agent with unrestricted local shell access is not an adversarial sandbox against that user or the organization's Infisical administrators.
+Exact-origin matching rejects other SSO domains. Sites can require MFA, CAPTCHA, passkeys or renewed credentials. This runs as Pi's local user and does not isolate an unrestricted local agent from that user's files or process environment.

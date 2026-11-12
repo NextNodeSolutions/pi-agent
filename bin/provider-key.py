@@ -3,28 +3,17 @@ import os
 import re
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 VAULT_CONFIG = Path.home() / ".config/agent-secrets/core-vault.json"
+MACHINE_CLI = Path(__file__).resolve().with_name("infisical")
 # Pi abandons a key command after 10 seconds, so the vault gets half and the shell export answers in the rest.
 VAULT_DEADLINE_SECONDS = 5
 KEY_WRITER = "import os,sys; sys.stdout.write(os.environ[sys.argv[1]])"
-IDENTITY_VARIABLES = ("INFISICAL_UNIVERSAL_AUTH_CLIENT_ID", "INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET")
 
 
 class VaultUnavailable(Exception):
     pass
-
-
-def run(command, environment, deadline):
-    try:
-        result = subprocess.run(command, capture_output=True, timeout=deadline - time.monotonic(), env=environment)
-    except (subprocess.TimeoutExpired, OSError) as error:
-        raise VaultUnavailable("Infisical did not answer") from error
-    if result.returncode or not result.stdout:
-        raise VaultUnavailable("Infisical command failed")
-    return result.stdout
 
 
 def single_word(output):
@@ -33,22 +22,19 @@ def single_word(output):
     return output
 
 
-def access_token(config, environment, deadline):
-    if any(not environment.get(name) for name in IDENTITY_VARIABLES):
-        raise VaultUnavailable("No Infisical machine identity in the environment")
-    command = ["infisical", "login", "--method=universal-auth", "--silent", "--plain", "--domain", config["domain"]]
-    return single_word(run(command, environment, deadline).strip()).decode()
-
-
 def vault_key(name, config, path):
-    deadline = time.monotonic() + VAULT_DEADLINE_SECONDS
     environment = {key: value for key, value in os.environ.items() if key != name}
     command = [
-        "infisical", "run", "--token", access_token(config, environment, deadline), "--domain", config["domain"],
-        "--projectId", config["projectId"], "--env", config["environment"], "--path", path, "--silent",
-        "--", "python3", "-c", KEY_WRITER, name,
+        str(MACHINE_CLI), "run", "--projectId", config["projectId"], "--env", config["environment"], "--path", path,
+        "--silent", "--", "python3", "-c", KEY_WRITER, name,
     ]
-    return single_word(run(command, environment, deadline))
+    try:
+        result = subprocess.run(command, capture_output=True, timeout=VAULT_DEADLINE_SECONDS, env=environment)
+    except (subprocess.TimeoutExpired, OSError) as error:
+        raise VaultUnavailable("Infisical did not answer") from error
+    if result.returncode or not result.stdout:
+        raise VaultUnavailable("Infisical command failed")
+    return single_word(result.stdout)
 
 
 def shell_export(name):

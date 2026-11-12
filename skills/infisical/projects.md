@@ -1,33 +1,11 @@
-# Projects and environments through the REST API
+# Projects and environments
 
-Extends "Rules" in `SKILL.md`; the core rules are not restated here.
+Extends "Projects and grants" in `SKILL.md`.
 
-Base URL `https://app.infisical.com/api` (US cloud; the CLI's `--domain` tells otherwise). Field names verified against the OpenAPI document at `/api/docs/json` on 2026-10-24.
+The read-only identity endpoint reports the bound identity's organization role as `admin`, but this does not prove its permission on the project-creation endpoint. Project creation remains human-run until that permission is proven read-only. Do not create a project to discover that permission. Ask the human to create the exact repository-named project in the dashboard with only the required environments, then add `Agents` under Project, Access Control, Machine Identities with the lowest sufficient role. The creator must retain human admin access.
 
-```sh
-TOKEN=$(infisical user get token | sed -n 's/^[Tt]oken:[[:space:]]*//p')
-H="Authorization: Bearer $TOKEN"; J='Content-Type: application/json'; API=https://app.infisical.com/api
+Existing project operations may use the machine-authenticated CLI or REST API when authorized. Inspect the current CLI help or API schema first. For REST, import `machineToken` and `vaultApi` from `~/.pi/agent/security/machine-identity.ts` inside a Node script. Keep the token in memory, build the authorization header there, and emit only allowlisted metadata or HTTP status codes. Never print the token or obtain the human's bearer token.
 
-# 1. Create the project without default environments. The response holds the project id.
-curl -sS -X POST -H "$H" -H "$J" "$API/v2/workspace" \
-  -d '{"projectName":"<name>","type":"secret-manager","shouldCreateDefaultEnvs":false}'
+If organization permissions later prove unattended creation is allowed, use `POST /v2/workspace` with `shouldCreateDefaultEnvs: false`, create precisely the required environments, and invite the human as admin before reporting completion. Project creation without human ownership is incomplete.
 
-# 2. Add each environment wanted, in order.
-curl -sS -X POST -H "$H" -H "$J" "$API/v1/workspace/<projectId>/environments" -d '{"name":"main","slug":"main"}'
-
-# 3. Inspect: environments with their ids.
-curl -sS -H "$H" "$API/v1/workspace/<projectId>" | python3 -c 'import json,sys; [print(e["id"],e["slug"],e["name"]) for e in json.load(sys.stdin)["workspace"]["environments"]]'
-
-# Rename or delete an environment (reread it in step 3 first).
-curl -sS -X PATCH  -H "$H" -H "$J" "$API/v1/workspace/<projectId>/environments/<envId>" -d '{"name":"main","slug":"main"}'
-curl -sS -X DELETE -H "$H" "$API/v1/workspace/<projectId>/environments/<envId>"
-```
-
-Then let the machine identity in if the MCP must read or write that project's secrets: add it from the dashboard (Project → Access Control → Machine Identities) with the lowest role that fits. The MCP cannot add itself.
-
-Secret writes go through the house script, which prompts for the value with no echo and prints the key name only:
-
-```sh
-node ~/.pi/agent/security/secret-set.mjs --projectId <projectId> --env <slug> --name <KEY> --path /
-node ~/.pi/agent/security/secret-names.mjs --projectId <projectId> --env <slug> --path /
-```
+After the grant, verify key names with `secret-names.mjs`, write the committed project link as described in "Local env", then verify the real consumer through machine-authenticated injection. An inaccessible project blocks setup rather than authorizing another identity.

@@ -6,7 +6,7 @@ import { promisify } from 'node:util'
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
-import protocol from '../shared-web-logins/protocol.json' with { type: 'json' }
+import identity from '../../../security/machine-identity.json' with { type: 'json' }
 
 import type { Static } from 'typebox'
 
@@ -37,13 +37,13 @@ type SharedLogin = Static<typeof loginSchema>
 
 function brokerFailure(error: unknown): Error {
 	// Only the exit code is safe: child output and error causes can carry a password.
-	const needsLogin =
+	const isIdentityUnavailable =
 		error instanceof Error &&
 		'code' in error &&
-		error.code === protocol.authenticationRequiredExitCode
+		error.code === identity.identityUnavailableExitCode
 	return new Error(
-		needsLogin
-			? 'Shared web-login vault needs an Infisical CLI login. Run infisical login in a local terminal, then retry. Do not re-enter the website password.'
+		isIdentityUnavailable
+			? 'Shared web-login vault refuses the Infisical machine identity: its variables are missing from this session, or it is not a member of the web-login project. Tell the user, who alone can fix either. Do not re-enter the website password.'
 			: 'Shared web-login vault unavailable. Do not re-enter the password yet.',
 	)
 }
@@ -67,8 +67,10 @@ async function callBroker(
 					TMPDIR: process.env.TMPDIR ?? tmpdir(),
 					USER: process.env.USER ?? '',
 					LOGNAME: process.env.LOGNAME ?? '',
-					XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME,
-					INFISICAL_PROFILE: process.env.INFISICAL_PROFILE,
+					[identity.clientIdVariable]:
+						process.env[identity.clientIdVariable],
+					[identity.clientSecretVariable]:
+						process.env[identity.clientSecretVariable],
 				},
 			},
 		)
