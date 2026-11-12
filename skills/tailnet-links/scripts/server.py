@@ -90,6 +90,13 @@ def listing(directory, request_path):
     return "<h1>" + html.escape(request_path) + '</h1><ul class="listing">' + parent + rows + "</ul>"
 
 
+def home_relative(directory):
+    try:
+        return str("~" / Path(directory).relative_to(Path.home()))
+    except ValueError:
+        return directory
+
+
 # The directory is a label, so a server whose directory cannot be read is still listed, under its origin.
 def server_directory(port):
     try:
@@ -101,13 +108,13 @@ def server_directory(port):
 def server_row(name, port):
     origin = "localhost:" + str(port)
     directory = server_directory(port)
-    place = directory.replace(str(Path.home()), "~", 1) if directory else origin
+    place = home_relative(directory) if directory else origin
     return SERVER_ROW.format(url=previews.url(name, port), place=html.escape(place), origin=origin if directory else "")
 
 
 def servers():
     try:
-        name = tailnet.host()
+        name = tailnet.read_host()
         live = filter(previews.is_listening, previews.owned_ports(tailnet.serve_config(), name))
         rows = "".join(server_row(name, port) for port in live)
     except LinkError as error:
@@ -155,11 +162,13 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Location", deliverables.MOUNT_PATH + quote(path) + "/")
             self.send_header("Content-Length", "0")
             return self.end_headers()
-        index = locate(path + INDEX_NAME)
+        is_root = path == "/"
+        # The root is the page that lists the servers, so a published index.html never replaces it.
+        index = None if is_root else locate(path + INDEX_NAME)
         if index and index.is_file():
             return self.send_file(index)
         files = listing(directory, path)
-        return self.send_page(HTTPStatus.OK, path, servers() + files if path == "/" else files)
+        return self.send_page(HTTPStatus.OK, path, servers() + files if is_root else files)
 
     def send_page(self, status, title, body):
         page = PAGE.format(title=html.escape(title), assets=ASSETS, body=body).encode()

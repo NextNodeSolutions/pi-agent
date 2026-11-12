@@ -44,7 +44,7 @@ A dev server that checks the `Host` header refuses the tailnet name. `scripts/de
 - **A port is tried once.** After a `➜  tailnet-link:` line, fix the reason it gives and run `tailnet-link <port>`.
 - **A program that reads the keyboard key by key gets no line**, an agent or an editor for example: a line written there would land in what it draws. Link its port with `tailnet-link <port>`.
 - **The watch is bounded.** It looks for new servers until the prompt returns, or until `WATCH_SECONDS` of `scripts/announce.py` after a program takes the terminal. Link a server that starts later with `tailnet-link <port>`.
-- **The root page lists the servers.** The URL `tailnet-link setup` prints shows the linked servers that are running, each with its project directory, above the published files. It is the bookmark for a phone, which has no terminal to read.
+- **The root page lists the servers.** The URL `tailnet-link setup` prints shows the linked servers that are running, each with its working directory when the machine can read it, above the published files. A published `index.html` never replaces that page. It is the bookmark for a phone, which has no terminal to read.
 
 ## Published files
 

@@ -59,8 +59,7 @@ def status(*flags):
     return json.loads(tailscale("status", "--json", *flags))
 
 
-@functools.lru_cache(maxsize=None)
-def host():
+def read_host():
     own = status("--peers=false")
     name = own.get("Self", {}).get("DNSName", "").rstrip(".")
     # A machine the tailnet dropped keeps reporting Running and its old name, with a sign-in URL pending.
@@ -68,6 +67,10 @@ def host():
     if not is_connected or not name:
         raise LinkError("This machine is not connected to the tailnet. " + SETUP_HINT)
     return name
+
+
+# A command names its machine many times and ends within seconds, so it asks once. A service that stays up asks each time.
+host = functools.lru_cache(maxsize=None)(read_host)
 
 
 def serve_config():
