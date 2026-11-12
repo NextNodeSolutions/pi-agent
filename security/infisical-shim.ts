@@ -7,6 +7,10 @@ import {
 } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
 
+import {
+	ProjectAccessRefused,
+	requireProjectAccess,
+} from './infisical-access.ts'
 import { ownArguments, sessionVerdict } from './infisical-commands.ts'
 import { PROJECT_ID_PATTERN } from './infisical-target.ts'
 import protocol from './machine-identity.json' with { type: 'json' }
@@ -98,14 +102,25 @@ function hasFlag(own: readonly string[], flag: string): boolean {
 	return own.some(token => token === flag || token.startsWith(`${flag}=`))
 }
 
+function flagValue(own: readonly string[], flag: string): string | undefined {
+	const index = own.findIndex(
+		token => token === flag || token.startsWith(`${flag}=`),
+	)
+	const token = own[index]
+	if (token === flag) return own[index + 1]
+	return token?.slice(flag.length + 1)
+}
+
 async function machineVariables(
 	own: readonly string[],
 ): Promise<NodeJS.ProcessEnv> {
 	const token = await machineToken()
-	if (hasFlag(own, '--projectId') || process.env.INFISICAL_PROJECT_ID)
-		return { INFISICAL_TOKEN: token }
-	const projectId = linkedProjectId()
+	const projectId =
+		flagValue(own, '--projectId') ??
+		process.env.INFISICAL_PROJECT_ID ??
+		linkedProjectId()
 	if (!projectId) return { INFISICAL_TOKEN: token }
+	await requireProjectAccess(token, projectId)
 	return { INFISICAL_TOKEN: token, INFISICAL_PROJECT_ID: projectId }
 }
 
@@ -155,6 +170,8 @@ export async function runInfisical(
 		const environment = await cliEnvironment(cliArguments)
 		process.execve(cli, [CLI_NAME, ...cliArguments], environment)
 	} catch (error: unknown) {
+		if (error instanceof ProjectAccessRefused)
+			return fail(error.message, protocol.projectAccessRefusedExitCode)
 		const exitCode =
 			error instanceof MachineIdentityUnavailable
 				? protocol.identityUnavailableExitCode

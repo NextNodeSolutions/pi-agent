@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 
+import { ProjectAccessRefused } from './infisical-access.ts'
 import protocol from './machine-identity.json' with { type: 'json' }
 import { MachineIdentityUnavailable } from './machine-identity.ts'
 
@@ -57,6 +58,8 @@ function listNames(options) {
 	)
 	if (commandOutput.status === protocol.identityUnavailableExitCode)
 		throw new MachineIdentityUnavailable(IDENTITY_FAILURE)
+	if (commandOutput.status === protocol.projectAccessRefusedExitCode)
+		throw new ProjectAccessRefused(commandOutput.stderr.trim())
 	if (commandOutput.error || commandOutput.status !== 0)
 		throw new Error(LOOKUP_FAILURE)
 	const lines = commandOutput.stdout
@@ -81,12 +84,13 @@ try {
 		process.stdout.write(`${JSON.stringify({ names })}\n`)
 	}
 } catch (error) {
+	const isRefused = error instanceof ProjectAccessRefused
 	const reason =
-		error instanceof MachineIdentityUnavailable
+		isRefused || error instanceof MachineIdentityUnavailable
 			? error.message
 			: LOOKUP_FAILURE
 	process.stderr.write(
 		`${reason}. No raw output was released. Usage: ${USAGE}\n`,
 	)
-	process.exitCode = 1
+	process.exitCode = isRefused ? protocol.projectAccessRefusedExitCode : 1
 }

@@ -1,6 +1,6 @@
 # bin — pi-scoped shims
 
-`infisical` delegates to `security/infisical-shim.ts`, supplies the machine token and refuses interactive commands. Authentication and project-link rules live in `skills/infisical/SKILL.md`. Claude Code must call this shim by its explicit path.
+`infisical` delegates to `security/infisical-shim.ts`, supplies the machine token, checks the selected project before starting the CLI and refuses interactive commands. A refused project prints its name and the one-time human step. An unknown project ID prints a broken-link message. Authentication and project-link rules live in `skills/infisical/SKILL.md`. Claude Code must call this shim by its explicit path.
 
 Pi prepends this dir first in PATH for the tools it spawns. Keep only what must
 shadow a system binary or is pi-owned:
