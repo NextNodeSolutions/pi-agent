@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+WATCHER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/watch.mjs"
+STATE_ROOT="${TMPDIR:-/tmp}"
+STATE_ROOT="${STATE_ROOT%/}/terminal-watch"
+TARGET_LABEL="terminal-watch.target"
+READY_SECONDS=15
+AGENT_PROGRAM='(^|/)(pi|claude|codex|opencode)$'
+
+usage() {
+  echo "usage: terminal-watch start [<terminal>] [--take-over] | stop [<terminal>] | status" >&2
+  exit 64
+}
+fail() { echo "terminal-watch: $2" >&2; exit "$1"; }
+
+caller() {
+  [[ -n "${HC_TERMINAL_ID:-}" ]] || fail 2 "HC_TERMINAL_ID is unset: run this from an agent inside a herdr terminal"
+  echo "$HC_TERMINAL_ID"
+}
+
+address_of() {
+  herdr-core get "${1##*/}" --json 2>/dev/null | jq -er 'select(.state == "live") | .address' \
+    || fail 1 "terminal $1 is not live"
+}
+
+live_terminals() {
+  local address
+  herdr-core ls --json | jq -r '.terminals[] | select(.state == "live") | .address' | while read -r address; do
+    herdr-core get "$address" --json
+  done
+}
+
+watchers() {
+  live_terminals | jq -c --arg label "$TARGET_LABEL" '
+    select(.labels[$label] != null)
+    | {watcher: .address, target: .labels[$label], owner: .parent, dir: .cwd}'
+}
+
+free_shell() {
+  local agent="$1" tab candidates
+  tab="$(herdr-core get "$agent" --json | jq -er '.labels["herdr.tab"] // empty')" \
+    || fail 64 "terminal $agent has no herdr tab: pass the terminal to watch"
+  candidates="$(live_terminals | jq -r --arg tab "$tab" --arg me "$agent" --arg label "$TARGET_LABEL" --arg agents "$AGENT_PROGRAM" '
+    select(.labels["herdr.tab"] == $tab and .address != $me and .status == null and .labels[$label] == null)
+    | select((.foreground.argv[0] // "") | test($agents) | not)
+    | .address')"
+  [[ "$(grep -c . <<<"$candidates")" == 1 ]] \
+    || fail 64 "expected one free shell in tab $tab, found: ${candidates//$'\n'/ }; pass the terminal to watch"
+  echo "$candidates"
+}
+
+end_watcher() {
+  herdr-core keep "$1" --off --json >/dev/null
+  herdr-core kill "$1" --json >/dev/null
+  herdr-core rm "$1" --json >/dev/null
+}
+
+launch() {
+  local agent="$1" target="$2" dir watcher
+  dir="$STATE_ROOT/$target/$(date +%Y%m%d-%H%M%S)"
+  mkdir -p "$dir"
+  watcher="$(herdr-core run --bg --json --parent "$agent" --cwd "$dir" --name "watch-$target" \
+    --label "$TARGET_LABEL=$target" --label "where=terminal-watch / $target" \
+    -- zsh -lc 'exec node "$0" "$@"' "$WATCHER" "$target" "$agent" "$dir" | jq -er '.address')" \
+    || fail 1 "herdr-core run failed for watcher of $target"
+  herdr-core wait "$watcher" --output watching --timeout "$READY_SECONDS" --json >/dev/null || true
+  jq -e '.phase == "waiting"' "$dir/state.json" >/dev/null 2>&1 \
+    || fail 1 "watcher $watcher did not start: $(herdr-core read "$watcher" | tail -5)"
+  jq -c --arg w "$watcher" --arg d "$dir" '{status: "started", watcher: $w, target: .terminal, owner: .agent, phase, dir: $d}' "$dir/state.json"
+}
+
+start() {
+  local agent target="" is_take_over=false existing mine
+  agent="$(caller)"
+  while (($#)); do
+    case "$1" in
+      --take-over) is_take_over=true; shift ;;
+      -*) usage ;;
+      *) target="$(address_of "$1")"; shift ;;
+    esac
+  done
+  [[ -n "$target" ]] || target="$(free_shell "$agent")"
+  existing="$(watchers | jq -c --arg t "$target" 'select(.target == $t)')"
+  mine="$(jq -c --arg me "$agent" 'select(.owner == $me) | . + {status: "reused"}' <<<"$existing")"
+  [[ -z "$mine" ]] || { head -1 <<<"$mine"; return 0; }
+  if [[ -n "$existing" && "$is_take_over" == false ]]; then
+    jq -c '. + {status: "owned-by-other"}' <<<"$existing"
+    return 0
+  fi
+  jq -r '.watcher' <<<"$existing" | while read -r watcher; do [[ -z "$watcher" ]] || end_watcher "$watcher"; done
+  launch "$agent" "$target"
+}
+
+stop() {
+  local agent target="" stopped
+  agent="$(caller)"
+  [[ -z "${1:-}" ]] || target="$(address_of "$1")"
+  stopped="$(watchers | jq -c --arg me "$agent" --arg t "$target" 'select(.owner == $me and ($t == "" or .target == $t))')"
+  jq -r '.watcher' <<<"$stopped" | while read -r watcher; do [[ -z "$watcher" ]] || end_watcher "$watcher"; done
+  jq -sc '{status: "stopped", watchers: .}' <<<"$stopped"
+}
+
+status() {
+  local watcher
+  watchers | while read -r watcher; do
+    jq -c --argjson w "$watcher" '$w + {phase, alertCount, command}' "$(jq -r '.dir' <<<"$watcher")/state.json"
+  done
+}
+
+subcommand="${1:-}"
+(($#)) && shift
+case "$subcommand" in
+  start) start "$@" ;;
+  stop) stop "$@" ;;
+  status) status ;;
+  *) usage ;;
+esac
