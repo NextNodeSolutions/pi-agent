@@ -1,0 +1,243 @@
+#!/usr/bin/env python3
+import contextlib
+import itertools
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import selectors
+import signal
+import socket
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+ROOT = Path(__file__).resolve().parent.parent
+BINDING = Path.home() / ".config/agent-secrets/core-vault.json"
+TOKEN_NAME = "CLAUDE_CODE_OAUTH_TOKEN"
+ACCOUNT_PATTERN = re.compile(r"Claude setup-token [0-9a-f]{6}")
+PROBE_MODEL = "claude/claude-haiku-5-5"
+PROBE_MAX_TOKENS = 16
+PROBE_KEY_TTL = "5m"
+PROBE_KEY_NAME = "claude-vault-sync"
+COMMAND_SECONDS = 120
+SYNC_SECONDS = 600
+STARTUP_SECONDS = 30
+STOP_SECONDS = 10
+HTTP_SECONDS = 90
+HTTP_OK = 200
+WORKER_ARGUMENT = "--vault-child"
+
+
+class SyncFailure(Exception):
+    pass
+
+
+def stop_process(process):
+    process.terminate()
+    try:
+        process.wait(timeout=STOP_SECONDS)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+
+def communicate_private(process, timeout):
+    try:
+        stdout, _ = process.communicate(timeout=timeout)
+        return stdout
+    finally:
+        if process.poll() is None:
+            stop_process(process)
+
+
+def run_private(step, arguments, timeout=COMMAND_SECONDS, stderr=subprocess.DEVNULL, **options):
+    try:
+        with subprocess.Popen(arguments, stdout=subprocess.PIPE, stderr=stderr, **options) as process:
+            stdout = communicate_private(process, timeout)
+    except subprocess.TimeoutExpired:
+        raise SyncFailure(f"{step} did not finish within {timeout} s.") from None
+    except OSError:
+        raise SyncFailure(f"{step} could not start.") from None
+    if process.returncode:
+        raise SyncFailure(f"{step} failed with exit {process.returncode}.")
+    return stdout
+
+
+def magpie_json(step, arguments):
+    return json.loads(run_private(step, ["magpie", *arguments]))
+
+
+def without_token():
+    return {name: value for name, value in os.environ.items() if name != TOKEN_NAME}
+
+
+def bound_run():
+    binding = json.loads(BINDING.read_text())
+    path = binding["clients"]["claude"]["path"]
+    paths = [folder for folder, names in binding["exports"].items() if TOKEN_NAME in names]
+    if paths != [path]:
+        raise SyncFailure(f"{BINDING} must export {TOKEN_NAME} from clients.claude.path only.")
+    output = run_private("Reading the Claude token from the vault", [
+        str(ROOT / "bin/infisical"), "run", "--projectId", binding["projectId"],
+        "--env", binding["environment"], "--path", path, "--silent", "--",
+        sys.executable, str(Path(__file__).resolve()), WORKER_ARGUMENT,
+    ], timeout=SYNC_SECONDS, stderr=None, env=without_token())
+    report = json.loads(output)
+    if report.get("verified_http") != HTTP_OK:
+        raise SyncFailure("The vault run reported no verified account.")
+    print(json.dumps(report))
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, new_url):
+        raise SyncFailure("Magpie redirected a credential-bearing request.")
+
+
+def post_json(url, payload, headers):
+    request = urllib.request.Request(
+        url, data=json.dumps(payload).encode(), headers=headers, method="POST"
+    )
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+    try:
+        with opener.open(request, timeout=HTTP_SECONDS) as response:
+            return response.status, json.load(response)
+    except urllib.error.HTTPError as error:
+        raise SyncFailure(f"Magpie answered HTTP {error.code} on {urllib.parse.urlsplit(url).path}.") from None
+    except (OSError, urllib.error.URLError):
+        raise SyncFailure(f"Magpie did not answer on {urllib.parse.urlsplit(url).path}.") from None
+
+
+def free_port():
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        return listener.getsockname()[1]
+
+
+def output_lines(process, deadline):
+    with selectors.DefaultSelector() as selector:
+        selector.register(process.stdout, selectors.EVENT_READ)
+        while selector.select(max(0, deadline - time.monotonic())):
+            yield process.stdout.readline()
+
+
+def wait_for_web(process, origin):
+    marker = origin.encode()
+    with contextlib.closing(output_lines(process, time.monotonic() + STARTUP_SECONDS)) as lines:
+        is_ready = any(marker in line and b"?k=" in line for line in itertools.takewhile(bool, lines))
+    if not is_ready:
+        raise SyncFailure("The temporary Magpie management API did not start.")
+
+
+@contextlib.contextmanager
+def management_api():
+    port = free_port()
+    origin = f"http://127.0.0.1:{port}"
+    web_key = secrets.token_urlsafe(32)
+    environment = without_token()
+    environment.pop("MAGPIE_WEB_URL", None)
+    environment["MAGPIE_WEB_KEY"] = web_key
+    process = subprocess.Popen(
+        ["magpie", "web", "--addr", f"127.0.0.1:{port}", "--no-open"],
+        env=environment, stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0,
+    )
+    try:
+        wait_for_web(process, origin)
+        yield origin, {
+            "Content-Type": "application/json", "Origin": origin,
+            "Cookie": f"magpie_web_{port}={web_key}",
+        }
+    finally:
+        stop_process(process)
+        process.stdout.close()
+
+
+def register_account(token):
+    with management_api() as (origin, headers):
+        _, registration = post_json(origin + "/api/signin/claude-token", {"token": token}, headers)
+    account = registration.get("user")
+    if not isinstance(account, str) or not ACCOUNT_PATTERN.fullmatch(account):
+        raise SyncFailure("Magpie registered the token but named no setup-token account.")
+    return account
+
+
+def gateway_url():
+    models = json.loads((ROOT / "models.json").read_text())
+    configured = urllib.parse.urlsplit(models["providers"]["magpie"]["baseUrl"])
+    if configured.scheme != "http" or not configured.port:
+        raise SyncFailure("models.json must give the magpie provider an http baseUrl with a port.")
+    return f"http://127.0.0.1:{configured.port}{configured.path.rstrip('/')}/chat/completions"
+
+
+def answers(key):
+    status, completion = post_json(gateway_url(), {
+        "model": PROBE_MODEL, "messages": [{"role": "user", "content": "Reply only OK."}],
+        "max_tokens": PROBE_MAX_TOKENS, "stream": False,
+    }, {"Content-Type": "application/json", "Authorization": f"Bearer {key}"})
+    if status != HTTP_OK or not completion.get("choices"):
+        raise SyncFailure(f"The vault account answered HTTP {status} without a completion.")
+    return status
+
+
+def verify_account(account):
+    issued = magpie_json("Issuing a temporary gateway key", [
+        "gateway-key", "issue", "--ttl", PROBE_KEY_TTL, "--name", PROBE_KEY_NAME,
+        "--models", PROBE_MODEL, "--accounts", f"claude/{account}", "--json",
+    ])
+    key_id = issued.get("id")
+    if not isinstance(key_id, str) or not key_id:
+        raise SyncFailure(f"Magpie returned no key id. Remove {PROBE_KEY_NAME} with magpie gateway-key list.")
+    try:
+        key = issued.get("key")
+        if not isinstance(key, str) or not key:
+            raise SyncFailure("Magpie returned no temporary gateway key.")
+        return answers(key)
+    finally:
+        run_private("Removing the temporary gateway key", ["magpie", "gateway-key", "remove", key_id])
+
+
+def setup_accounts():
+    accounts = magpie_json("Listing Claude accounts", ["accounts", "claude", "--json"])
+    if not isinstance(accounts, list):
+        raise SyncFailure("magpie accounts claude --json returned no list.")
+    return [entry["user"] for entry in accounts if ACCOUNT_PATTERN.fullmatch(entry["user"])]
+
+
+def synchronize():
+    token = os.environ.pop(TOKEN_NAME, "")
+    if not token or re.search(r"\s", token):
+        raise SyncFailure(f"The vault supplied no usable {TOKEN_NAME}.")
+    account = register_account(token)
+    status = verify_account(account)
+    superseded = [name for name in setup_accounts() if name != account]
+    for name in superseded:
+        run_private(f"Removing {name}", ["magpie", "accounts", "forget", "claude", name])
+    if setup_accounts() != [account]:
+        raise SyncFailure(f"Expected {account} as the only setup-token account after cleanup.")
+    print(json.dumps({"account": account, "verified_http": status, "removed": superseded}))
+
+
+def interrupted(_signum, _frame):
+    raise SyncFailure("Claude vault sync interrupted.")
+
+
+signal.signal(signal.SIGTERM, interrupted)
+
+try:
+    if sys.argv[1:] == [WORKER_ARGUMENT]:
+        synchronize()
+    elif not sys.argv[1:]:
+        bound_run()
+    else:
+        raise SyncFailure("Usage: magpie-claude-token-sync")
+except SyncFailure as error:
+    print(str(error), file=sys.stderr)
+    sys.exit(1)
+except (Exception, KeyboardInterrupt) as error:
+    print(f"Claude vault sync failed: {type(error).__name__}. Check the binding, machine identity and Magpie.", file=sys.stderr)
+    sys.exit(1)
