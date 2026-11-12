@@ -64,11 +64,11 @@ A function that takes props-like inputs **or** returns whole view/page subtrees 
 
 Every component has exactly ONE job and ONE reason to change - SRP is the first SOLID test, mechanics and examples in [composition.md](composition.md) (S section). One component per file, always. The ONLY exception: a minimal private sub-component that is precisely a part of its single consumer - co-located, never exported, never reused, kept as simple as possible (no size number; simplicity is the test, e.g. a tiny `<StatusDot />`). The moment it grows its own state, effects, a second caller, or a second reason to change --> own file.
 
-## RULE 9 - DRY, shallow, tested, unmemoized
+## RULE 9 - DRY, shallow, unmemoized
 
 - Duplicated JSX --> extract a component; duplicated stateful logic --> a custom hook. Rule of three: the third copy MUST be extracted; don't abstract on the first.
 - Aim much flatter than the linted depth-8: past ~3-4 levels, extract a child component. Fragments over wrapper `<div>`s.
-- Test behaviour, not internals: RTL queries by role/text, fire events, assert visible output. Never assert internal state, hook call order, or blind snapshots. Write the failing test first, then the code.
+- For the Tests gate in `~/.pi/agent/AGENTS.md`, state transitions, validation and conditional behaviour count as logic. Presentational components, layout and plain query wiring do not. Follow `coding-tdd` when the gate permits test work. Use RTL role/text queries, user events and visible output.
 - `useMemo`/`useCallback`/`React.memo` only for measured hot paths or to stabilize a dependency - never a default.
 
 ## State management

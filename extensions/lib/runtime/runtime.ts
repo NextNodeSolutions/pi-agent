@@ -10,6 +10,7 @@ import {
 	mkdir,
 	readFile,
 	readdir,
+	realpath,
 	stat,
 	writeFile,
 } from 'node:fs/promises'
@@ -48,6 +49,7 @@ export interface Runtime {
 	writeFile(path: string, content: string | Buffer): Promise<void>
 	mkdir(path: string): Promise<void>
 	access(path: string): Promise<void>
+	realpath(path: string): Promise<string>
 	exists(path: string): Promise<boolean>
 	existsSync(path: string): boolean
 	stat(path: string): Promise<RuntimeStat>
@@ -106,6 +108,7 @@ const LOCAL: Runtime = {
 		await mkdir(path, { recursive: true })
 	},
 	access: path => access(path),
+	realpath: path => realpath(path),
 	exists: isAccessible,
 	existsSync: path => existsSync(path),
 	stat: async path => fromStats(await stat(path)),

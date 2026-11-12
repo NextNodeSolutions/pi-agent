@@ -49,7 +49,7 @@ to work before the provider is ready, or its shape differs from the domain:
 
 1. Define the interface callers need from the actual use case, not a hypothetical provider swap.
 2. Translate the mismatch (cents vs dollars, token vs card) inside one adapter.
-3. If the current request authorizes test work, use a fake at that boundary for caller tests; otherwise validate through a runnable flow without adding tests.
+3. When `~/.pi/agent/AGENTS.md` under Tests permits caller tests, use a fake at that boundary. Otherwise validate through a runnable flow.
 
 A first, stable pure utility with no translated failure or domain mismatch does
 not justify an adapter.

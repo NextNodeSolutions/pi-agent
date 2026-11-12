@@ -1,88 +1,35 @@
 ---
 name: coding-tdd
 description: >-
-    Test authoring, off by default (`~/.pi/agent/AGENTS.md` # Tests): load
-    ONLY when the user explicitly authorizes test work or asks for TDD in the
-    current request. Then pace it - red-green first for business logic, one
-    failing test for a bug, build-then-lock for prototypes and glue code.
+    Test pace for reproduced behavioural bugs, new units that branch on input
+    or state, and explicitly authorized test work. Load before authoring a
+    test. Authorization lives in AGENTS.md under Tests, enforced by test_pace.
 ---
 
-# TDD - Authorized Test Work, Calibrated by Pace
+# Test pace
 
-## Authorization Gate
+## Obtain the verdict
 
-Tests are off by default (`~/.pi/agent/AGENTS.md` # Tests): everything below applies only once the user authorized this work. Otherwise prove the change out of band (command, script, API call, real flow) and add no test.
+Follow `~/.pi/agent/AGENTS.md` under Tests. Use `test_pace` before adding a test the human did not ask for. When the human's request asks for tests, write them directly: the guard reads that request itself. With `none` and no such request, prove the change through a runnable command, API call or real flow and proceed without test authoring.
 
-## Choose the Pace Before Writing Anything
+For Claude Code, run the same decision with `node --experimental-transform-types ~/.pi/agent/bin/test-pace.ts --session <current transcript JSONL> --intent <named production bug or requirement> <exact test paths...>`. The transcript is the newest `*.jsonl` in this project's folder under `~/.claude/projects/`; the script reads the human request from it. Its output carries `pace` and `permission` (`new`: the human asked for new tests; `existing`: existing tests may change). It is a decision, not a Pi session grant.
 
-Once authorized, ceremony beyond what a change deserves is waste. The pace decides how much test ritual a change gets - pick it explicitly when a task spans several steps, and state it in the plan:
+## Follow the pace
 
-| Pace | Applies when | Ritual |
-|---|---|---|
-| **Business** | new or changed observable behavior in domain logic: money, permissions, state transitions, contracts, invariants | strict test-first (Three Laws below) |
-| **Bug** | a reproducible defect | ONE failing test that names the bug, then the fix; the test stays |
-| **Refactor** | behavior-preserving edits | keep the existing suite green; no new tests; narrowest possible run |
-| **Default (build, then lock)** | prototypes, spikes, glue code, config, mechanical edits, presentation logic, one-off scripts | build the change directly; lock it with tests only once the shape stabilizes |
+| Verdict | Work order |
+|---|---|
+| `bug` | Reproduce the defect through a public interface. Write one test naming it. Run it and show red, apply the smallest fix, then show green. |
+| `logic` | State each observable requirement. Write one failing test for the next requirement, implement enough to pass, then refactor with the test green. Repeat only for another stated requirement. |
+| `none` | Build directly. Run the existing checks that cover the change. |
 
-Wrong-pace examples are the usual time sinks: a red-green cycle per mechanical edit, a full suite run per iteration, tests for a script that will be deleted tomorrow.
+For explicitly authorized work outside these verdicts, follow the user's scope. Build prototypes and glue directly before locking an accepted requirement. A behaviour-preserving refactor uses the existing suite.
 
-## Business Pace - The Three Laws
+## Keep the cycle small
 
-1. Write no production code except to pass a failing test.
-2. Write only enough of a test to fail - a compile/type error already counts as failing. Then stop.
-3. Write only enough production code to pass. Then stop.
+- Exercise the public input and output. The named bug or requirement is the test's title.
+- Show the failing assertion before the fix. An unrelated runner, import or environment failure does not reproduce the bug.
+- Run the single case or file during the cycle. Run the required suite once before presenting or committing.
+- Refactor only after green. A new requirement starts a new failing test.
+- Read `~/.pi/agent/skills/coding/testing.md` before authoring. It owns falsifiability, independent expected values, boundary fakes and determinism.
 
-Consequence: every production line exists because a test asked for it; the suite is one step ahead. A new idea mid-cycle becomes a new failing test.
-
-```js
-// Before: the claim is buried under assembly mechanics
-test('rejects an expired card', () => {
-  const clock = new FixedClock('2026-01-01');
-  const card = new Card('4111...', 12, 2020, 'VISA');
-  const validator = new CardValidator(clock, defaultRules());
-  const result = validator.validate(card);
-  const codes = result.errors.map((e) => e.code);
-  expect(codes).toContain('EXPIRED');
-});
-
-// After: build the world - run the action - check the result
-test('rejects an expired card', () => {
-  givenToday('2026-01-01');
-  const card = cardExpiring('12/2020');
-
-  const result = validate(card);
-
-  expectRejected(result, 'EXPIRED');
-});
-// Reads: Given today is 2026-01-01 and a card expiring 12/2020,
-// validate the card, expect it rejected as EXPIRED.
-```
-
-Structure rules at business pace: state facts in the world part (`givenToday`, `givenCustomer`), never assembly steps; one visible action; only the final claim (`expectRejected`, never `result.errors.map(...)`). Helpers carrying boilerplate serve the whole suite - the claim line never hides inside one.
-
-## Default Pace - Build, Then Lock
-
-- Build directly and iterate cheaply while the shape is unsettled; spike code pays no test tax.
-- Lock step (once, not per iteration): the design stabilized, the behavior was accepted, or the code is being reused - then write falsifiable tests around the stable shape.
-- One-off scripts and dead experiments: mark them expendable instead of half-testing; no ceremony on throwaway code.
-- Writing an unlocked test never excuses a mirror - an uncalibrated test is still a falsifiable one.
-
-## Mechanical Discipline (All Paces)
-
-- Run the NARROWEST scope: the single test case or file touched - never the full suite per cycle. One full run before presenting or committing, not more.
-- One narrow run per iteration step; batch small mechanical edits and run once after all of them.
-- A change provable by one narrow green run is refactor pace - adding a red-green cycle to it is tempo drift, not rigor.
-
-## Hold Tests to the Production Standard
-
-An unreadable test is a skipped test: when a locked test breaks, it must state what it wanted. Every test file obeys production naming, structure, and dead-code rules.
-
-## Tests Buy Courage (-ilities)
-
-Behavior-locked code is replaceable code: slow implementations get swapped, unreadable code gets cleaned, regressions arrive with names attached. "It works, don't touch it" marks an untested region, never good code.
-
-## Cross-References (authoritative elsewhere - never restate here)
-
-- Falsifiability, tautologies, fakes vs mocks, determinism: `~/.pi/agent/skills/coding/testing.md`.
-- Try-catch-first failure contracts are written at business/bug pace: `~/.pi/agent/skills/coding-error-design/SKILL.md`.
-- Clean seams (clock, storage, gateway) that make fake worlds cheap: `~/.pi/agent/skills/coding-boundaries/SKILL.md`.
+Failure contracts: `~/.pi/agent/skills/coding-error-design/SKILL.md`. Dependency boundaries: `~/.pi/agent/skills/coding-boundaries/SKILL.md`.

@@ -66,6 +66,19 @@ export class RemoteRuntime implements Runtime {
 		stdoutOf(path, await this.onPath(path, accessScript))
 	}
 
+	async realpath(path: string): Promise<string> {
+		const target = await targetFor(this.anchor)
+		const canonical = stdoutOf(
+			path,
+			await this.onPath(path, quoted => `realpath -e -- ${quoted}`),
+		)
+			.toString('utf8')
+			.trim()
+		return isWithin(canonical, target.remoteRoot)
+			? `${this.anchor.root}${canonical.slice(target.remoteRoot.length)}`
+			: canonical
+	}
+
 	async exists(path: string): Promise<boolean> {
 		const probe = await this.onPath(path, existsScript)
 		return probe.exitCode === 0

@@ -19,6 +19,8 @@ import { join } from 'node:path'
 
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
 
+import { isSubagentChild } from '#lib/subagent-child.ts'
+
 import { rewriteTexts } from './rewrite.ts'
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
@@ -26,7 +28,6 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 const DEV_SERVER_ENVIRONMENT = 'skills/tailnet-links/scripts/dev-server.env'
 const ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=(\S*)$/
 const LINE_BREAK = /\r?\n/
-const SUBAGENT_CHILD_FLAG = '1'
 const FAILURE_PREFIX = 'Links were left as written: '
 
 function exportDevServerEnvironment(): void {
@@ -47,7 +48,7 @@ function exportDevServerEnvironment(): void {
 
 export default function tailnetLinks(pi: ExtensionAPI): void {
 	exportDevServerEnvironment()
-	if (process.env.PI_SUBAGENT_CHILD === SUBAGENT_CHILD_FLAG) return
+	if (isSubagentChild()) return
 	pi.on('message_end', async (event, ctx) => {
 		const { message } = event
 		if (message.role !== 'assistant' || message.stopReason !== 'stop') {
