@@ -55,12 +55,15 @@ def is_running(command):
 
 
 # Every shell of a terminal runs its own watcher, so a job is announced by the one whose shell started it.
-def is_started_by(shell, job):
+def is_started_by(command, job):
     # A program the shell became through exec keeps the shell's process number.
-    if job == shell:
+    if job == command.shell:
         return True
+    # A shell that has a record runs its own watcher, and its record stays when it becomes a program through exec.
+    if command.record.with_name(str(job)).exists():
+        return False
     parent = run(["ps", "-o", "ppid=", "-p", str(job)], empty_exits=ENDED_EXITS)
-    return not parent or int(parent) == shell
+    return not parent or int(parent) == command.shell
 
 
 # The terminal keeps the typed command and what earlier commands printed, so a URL is this command's once the
@@ -112,7 +115,7 @@ def watch(arguments):
     while is_running(command) and time.monotonic() < deadline:
         foreground = os.tcgetpgrp(tty)
         if foreground != job:
-            job, is_own, deadline = foreground, is_started_by(command.shell, foreground), time.monotonic() + WATCH_SECONDS
+            job, is_own, deadline = foreground, is_started_by(command, foreground), time.monotonic() + WATCH_SECONDS
         # A program that reads its keys itself draws its own screen, so a line is written only under one that prints lines.
         if is_own and is_line_mode(tty):
             attempted |= announce(tty, job, pending(command, job, attempted))
