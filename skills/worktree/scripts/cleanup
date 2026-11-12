@@ -1,0 +1,196 @@
+#!/usr/bin/env python3
+from dataclasses import dataclass
+import fcntl
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+
+SCRIPTS = Path(__file__).resolve().parent
+CONFIG = Path.home() / ".pi/agent/extensions/subagent/config.json"
+COMMAND_TIMEOUT = 60
+PR_LIMIT = 1000
+
+
+class Skipped(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class Cleanup:
+    checkout: dict[str, str]
+    branch: str
+    pull: dict[str, object]
+    terminals: dict[str, object]
+
+
+def run(*arguments, cwd):
+    command_output = subprocess.run(arguments, cwd=cwd, text=True, capture_output=True,
+                                    timeout=COMMAND_TIMEOUT, check=False)
+    if command_output.returncode:
+        raise Skipped(command_output.stderr.strip() or command_output.stdout.strip()
+                      or f"{arguments[0]} exited {command_output.returncode}")
+    return command_output.stdout.strip()
+
+
+def git(main, *arguments):
+    return run("git", *arguments, cwd=main)
+
+
+def worktrees(repository):
+    listing = git(repository, "worktree", "list", "--porcelain", "-z")
+    entries = []
+    for record in listing.split("\0\0"):
+        fields = dict(field.split(" ", 1) if " " in field else (field, "")
+                      for field in record.split("\0") if field)
+        if "worktree" in fields:
+            entries.append(fields)
+    return entries
+
+
+def pull_requests(main, branch):
+    pulls = json.loads(run("gh", "pr", "list", "--head", branch, "--state", "all",
+                          "--limit", str(PR_LIMIT), "--json",
+                          "number,state,headRefOid,isCrossRepository", cwd=main))
+    if len(pulls) >= PR_LIMIT:
+        raise Skipped("PR query limit reached")
+    return [pull for pull in pulls if not pull["isCrossRepository"]]
+
+
+def ended_pull(main, branch):
+    pulls = pull_requests(main, branch)
+    if any(pull["state"] == "OPEN" for pull in pulls):
+        raise Skipped("open PR")
+    ended = [pull for pull in pulls if pull["state"] in ("MERGED", "CLOSED")]
+    if not ended:
+        raise Skipped("no merged or closed PR")
+    return ended
+
+
+def published_head(main, branch, head, pulls):
+    for pull in pulls:
+        remote_head = pull["headRefOid"]
+        if not remote_head:
+            continue
+        git(main, "fetch", "--quiet", "--no-tags", "origin",
+            f"refs/pull/{pull['number']}/head")
+        ancestry = subprocess.run(["git", "merge-base", "--is-ancestor", head,
+                                   remote_head], cwd=main, capture_output=True,
+                                  timeout=COMMAND_TIMEOUT, check=False)
+        if ancestry.returncode == 0:
+            return pull
+    raise Skipped(f"local commits on {branch} are not held by GitHub")
+
+
+def clean_checkout(main, entry):
+    folder = entry["worktree"]
+    if git(main, "-C", folder, "status", "--porcelain", "--untracked-files=all"):
+        raise Skipped("uncommitted or untracked changes")
+    if git(main, "-C", folder, "rev-parse", "HEAD") != entry["HEAD"]:
+        raise Skipped("checkout HEAD changed during cleanup")
+    if git(main, "rev-parse", entry["branch"]) != entry["HEAD"]:
+        raise Skipped("branch tip differs from checkout HEAD")
+
+
+def terminal(main, folder, *options, scripts=SCRIPTS):
+    return json.loads(run(str(scripts / "terminal"), "close", "--folder", folder,
+                          *options, cwd=main))
+
+
+def eligible(main, base, entry):
+    folder = Path(entry["worktree"]).resolve()
+    if folder == main:
+        raise Skipped("main checkout")
+    if not folder.is_relative_to(base) or folder == base:
+        raise Skipped("outside worktreeBaseDir")
+    if "locked" in entry or "prunable" in entry:
+        raise Skipped("locked or missing checkout")
+    if not entry.get("branch", "").startswith("refs/heads/"):
+        raise Skipped("detached HEAD")
+    branch = entry["branch"].removeprefix("refs/heads/")
+    pulls = ended_pull(main, branch)
+    clean_checkout(main, entry)
+    pull = published_head(main, branch, entry["HEAD"], pulls)
+    plan = terminal(main, str(folder), "--check")
+    return Cleanup(checkout=entry, branch=branch, pull=pull, terminals=plan)
+
+
+def remove(main, cleanup):
+    entry = cleanup.checkout
+    branch = cleanup.branch
+    pull = cleanup.pull
+    plan = cleanup.terminals
+    folder = entry["worktree"]
+    ended_pull(main, branch)
+    clean_checkout(main, entry)
+    current = terminal(main, folder, "--check")
+    if current != plan:
+        raise Skipped("terminal membership changed during cleanup")
+    with tempfile.TemporaryDirectory(prefix="worktree-close-") as snapshot:
+        scripts = Path(snapshot) / "scripts"
+        shutil.copytree(SCRIPTS, scripts)
+        shutil.copyfile(SCRIPTS.parent / "terminal.conf", Path(snapshot) / "terminal.conf")
+        if not plan["caller"]:
+            terminal(main, folder)
+        git(main, "worktree", "remove", "--", folder)
+        git(main, "update-ref", "-d", entry["branch"], entry["HEAD"])
+        subprocess.run(["git", "config", "--local", "--remove-section", f"branch.{branch}"],
+                       cwd=main, capture_output=True, check=False)
+        git(main, "worktree", "prune")
+        print(f"removed {folder}: PR #{pull['number']} {pull['state']}, local branch {branch}",
+              flush=True)
+        if plan["caller"]:
+            terminal(main, folder, scripts=scripts)
+
+
+def report_skip(entry, error):
+    reason = " ".join(str(error).splitlines())
+    print(f"skipped {entry['worktree']}: {reason}", flush=True)
+
+
+def sweep(main, base):
+    deferred = []
+    for entry in worktrees(main):
+        try:
+            cleanup = eligible(main, base, entry)
+            if cleanup.terminals["caller"]:
+                deferred.append(cleanup)
+                continue
+            remove(main, cleanup)
+        except (Skipped, OSError, ValueError, subprocess.TimeoutExpired) as error:
+            report_skip(entry, error)
+    for cleanup in deferred:
+        try:
+            remove(main, cleanup)
+        except (Skipped, OSError, ValueError, subprocess.TimeoutExpired) as error:
+            report_skip(cleanup.checkout, error)
+
+
+def main():
+    if len(sys.argv) > 2:
+        sys.exit("usage: cleanup [<repo-or-checkout>]")
+    repository = Path(sys.argv[1] if len(sys.argv) == 2 else os.getcwd()).resolve()
+    entries = worktrees(repository)
+    main_checkout = Path(entries[0]["worktree"]).resolve()
+    os.chdir(main_checkout)
+    base = Path(json.loads(CONFIG.read_text())["worktreeBaseDir"]).expanduser()
+    base = (main_checkout / base).resolve()
+    if base == main_checkout or main_checkout.is_relative_to(base):
+        raise Skipped("worktreeBaseDir must not contain the main checkout")
+    common = git(main_checkout, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    with (Path(common) / "worktree-cleanup.lock").open("w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise Skipped("another cleanup is running") from None
+        sweep(main_checkout, base)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (Skipped, OSError, ValueError, subprocess.TimeoutExpired) as error:
+        sys.exit(f"cleanup: {error}")
