@@ -29,7 +29,8 @@ _tailnet_link_read() {
 		ended=$?
 	done
 	(( ended == end_of_reading )) || kill $reader
-	wait $reader
+	# hc may answer and end between the limit and the kill, so its own success does not make the reading whole.
+	wait $reader && (( ended == end_of_reading ))
 }
 
 # The shell tells its watcher that the command ended by rewriting a file, and never by a signal: the watcher may have
