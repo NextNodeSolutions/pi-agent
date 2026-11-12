@@ -10,9 +10,9 @@ description: >-
 
 ## Obtain the verdict
 
-Follow `~/.pi/agent/AGENTS.md` under Tests. Use `test_pace` before adding a test without explicit human authorization. With `none`, prove the change through a runnable command, API call or real flow and proceed without test authoring.
+Follow `~/.pi/agent/AGENTS.md` under Tests. Use `test_pace` before adding a test the human did not ask for. When the human's request asks for tests, write them directly: the guard reads that request itself. With `none` and no such request, prove the change through a runnable command, API call or real flow and proceed without test authoring.
 
-For Claude Code, run the same decision with `node --experimental-transform-types ~/.pi/agent/bin/test-pace.ts --session <current transcript JSONL> --intent <named production bug or requirement> <exact test paths...>`. The script reads the human request from the transcript. Its output is a decision, not a Pi session grant.
+For Claude Code, run the same decision with `node --experimental-transform-types ~/.pi/agent/bin/test-pace.ts --session <current transcript JSONL> --intent <named production bug or requirement> <exact test paths...>`. The transcript is the newest `*.jsonl` in this project's folder under `~/.claude/projects/`; the script reads the human request from it. Its output carries `pace` and `permission` (`new`: the human asked for new tests; `existing`: existing tests may change). It is a decision, not a Pi session grant.
 
 ## Follow the pace
 

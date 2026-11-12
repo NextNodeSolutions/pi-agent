@@ -6,8 +6,16 @@ export const PACE_REQUEST_ENTRY = 'test-pace-request-v1'
 export const PACE_GRANT_ENTRY = 'test-pace-grant-v1'
 export const PACE_CREATED_ENTRY = 'test-pace-created-v1'
 export const PACE_DECISION_ENTRY = 'test-pace-decision-v1'
+export const PACE_PERMISSION_ENTRY = 'test-pace-permission-v1'
 
-export type PaceRequest = { id: string; text: string; allowedPaths: string[] }
+export type PaceRequest = {
+	id: string
+	text: string
+	/** Files or directories the human named with /test-pace allow. */
+	allowedPaths: string[]
+	/** Written by a parent agent for a subagent, so it carries no human permission. */
+	delegated: boolean
+}
 
 export function readPaceRequest(candidate: unknown): PaceRequest | undefined {
 	if (!candidate || typeof candidate !== 'object') return undefined
@@ -22,7 +30,12 @@ export function readPaceRequest(candidate: unknown): PaceRequest | undefined {
 		return undefined
 	if (!paths.every((path: unknown) => typeof path === 'string'))
 		return undefined
-	return { id, text, allowedPaths: paths }
+	return {
+		id,
+		text,
+		allowedPaths: paths,
+		delegated: Reflect.get(candidate, 'delegated') === true,
+	}
 }
 
 export function currentPaceRequest(
@@ -36,17 +49,56 @@ export function currentPaceRequest(
 	return readPaceRequest(saved.data)
 }
 
-export function createdTestPaths(entries: readonly SessionEntry[]): string[] {
+function recordedPaths(
+	entries: readonly SessionEntry[],
+	customType: string,
+	requestId?: string,
+): string[] {
 	return entries.flatMap(entry => {
-		if (entry.type !== 'custom' || entry.customType !== PACE_CREATED_ENTRY)
+		if (entry.type !== 'custom' || entry.customType !== customType)
 			return []
-		const paths: unknown = Reflect.get(Object(entry.data), 'paths')
+		const receipt = Object(entry.data)
+		if (requestId && Reflect.get(receipt, 'requestId') !== requestId)
+			return []
+		const paths: unknown = Reflect.get(receipt, 'paths')
 		return Array.isArray(paths)
 			? paths.filter(
 					(path: unknown): path is string => typeof path === 'string',
 				)
 			: []
 	})
+}
+
+export function createdTestPaths(entries: readonly SessionEntry[]): string[] {
+	return recordedPaths(entries, PACE_CREATED_ENTRY)
+}
+
+export function grantedTestPaths(
+	entries: readonly SessionEntry[],
+	requestId: string,
+): string[] {
+	return recordedPaths(entries, PACE_GRANT_ENTRY, requestId)
+}
+
+export function recordedPermission(
+	entries: readonly SessionEntry[],
+	requestId: string,
+): 'new' | 'existing' | 'none' | undefined {
+	const saved = entries.findLast(
+		entry =>
+			entry.type === 'custom' &&
+			entry.customType === PACE_PERMISSION_ENTRY &&
+			Reflect.get(Object(entry.data), 'requestId') === requestId,
+	)
+	if (saved?.type !== 'custom') return undefined
+	const permission: unknown = Reflect.get(Object(saved.data), 'permission')
+	if (
+		permission === 'new' ||
+		permission === 'existing' ||
+		permission === 'none'
+	)
+		return permission
+	return undefined
 }
 
 export function safePaceText(text: string): string {
@@ -65,36 +117,5 @@ export function safePaceText(text: string): string {
 export function forbidsTestAuthoring(text: string): boolean {
 	return /\b(?:do not|don't|never|no|without|pas|jamais|sans)\s+(?:(?:writing|adding|creating|editing|write|add|create|edit|update|modify|delete|remove|écrire|ecrire|ajouter|modifier|des|de|les|the|any|new|existing|unit|regression)\s+)*tests?\b|\btests?\s+(?:are\s+)?(?:forbidden|banned|not authorized)\b/i.test(
 		text,
-	)
-}
-
-function isPlainDirective(text: string): boolean {
-	return (
-		!/[\n\r<>`"\u201c\u201d]|\b(?:unless|if|sauf|si)\b/i.test(text) &&
-		!forbidsTestAuthoring(text)
-	)
-}
-
-export function explicitlyAllowsNewTests(text: string): boolean {
-	if (!isPlainDirective(text)) return false
-	return (
-		/^(?:please\s+)?(?:write|add|create)\s+(?:(?:unit|regression|integration|end-to-end|e2e)\s+)?tests(?:\s+(?:for|covering)\b|[.!]?$)/i.test(
-			text.trim(),
-		) ||
-		/^(?:écris|ecris|ajoute|crée|cree)\s+(?:des\s+|les\s+)?tests(?:\s+pour\b|[.!]?$)/i.test(
-			text.trim(),
-		)
-	)
-}
-
-export function explicitlyAllowsExistingTests(text: string): boolean {
-	if (!isPlainDirective(text)) return false
-	return (
-		/^(?:please\s+)?(?:edit|update|modify|delete|remove)\s+(?:(?:the|existing)\s+)*tests(?:\s+(?:for|to)\b|[.!]?$)/i.test(
-			text.trim(),
-		) ||
-		/^(?:modifie|supprime|mets à jour)\s+les\s+tests(?:\s+pour\b|[.!]?$)/i.test(
-			text.trim(),
-		)
 	)
 }

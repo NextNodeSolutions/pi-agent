@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 
 import { classifyTestPace } from '#lib/test-pace/decision.ts'
 import { ineligibleTarget, targetPaths } from '#lib/test-pace/paths.ts'
+import { physicalPath } from '#lib/test-pace/physical-path.ts'
 import {
 	createdTestPaths,
 	currentPaceRequest,
@@ -34,8 +35,11 @@ async function decide(
 			pace: 'none',
 			reason: 'No recorded human request. Submit the task as human input.',
 		}
+	const root = await physicalPath(ctx.cwd)
 	const reasons = await Promise.all(
-		paths.map(path => ineligibleTarget(path, createdTestPaths(entries))),
+		paths.map(path =>
+			ineligibleTarget(root, path, createdTestPaths(entries)),
+		),
 	)
 	const reason = reasons.find(Boolean)
 	if (reason) return { pace: 'none', reason }

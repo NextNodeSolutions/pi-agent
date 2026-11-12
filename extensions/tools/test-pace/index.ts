@@ -1,9 +1,14 @@
-/** Test pace records human requests and exact-path permission. tool.ts owns Jev decisions and guard receipts. */
+/** Test pace records human requests and path permission. tool.ts owns Jev pace decisions and guard receipts. */
 import { randomUUID } from 'node:crypto'
 
 import { isHumanPrompt, typedPromptText } from '#lib/human-prompt.ts'
+import { isSubagentChild } from '#lib/subagent-child.ts'
 import { targetPaths } from '#lib/test-pace/paths.ts'
-import { PACE_REQUEST_ENTRY, safePaceText } from '#lib/test-pace/request.ts'
+import {
+	currentPaceRequest,
+	PACE_REQUEST_ENTRY,
+	safePaceText,
+} from '#lib/test-pace/request.ts'
 
 import { registerTestPaceTool } from './tool.ts'
 
@@ -13,19 +18,23 @@ import type { PaceRequest } from '#lib/test-pace/request.ts'
 function registerPermissionCommand(pi: ExtensionAPI): void {
 	pi.registerCommand('test-pace', {
 		description:
-			'Authorize exact test or setup paths for this request: /test-pace allow <path> [...]. Human command only, scoped until the next request.',
+			'Let the agent write tests and test setup under the named files or directories: /test-pace allow <path> [...]. Human command only, valid until the next request.',
 		handler: async (args, ctx) => {
 			if (!args.startsWith('allow '))
-				throw new Error('Use /test-pace allow <exact path> [...].')
+				throw new Error(
+					'Use /test-pace allow <file or directory> [...].',
+				)
 			const paths = await targetPaths(
 				ctx.cwd,
 				args.slice('allow '.length).trim().split(/\s+/),
 				'permission',
 			)
+			const current = currentPaceRequest(ctx.sessionManager.getBranch())
 			pi.appendEntry(PACE_REQUEST_ENTRY, {
-				id: randomUUID(),
-				text: args,
-				allowedPaths: paths,
+				id: current?.id ?? randomUUID(),
+				text: current?.text ?? '',
+				allowedPaths: [...(current?.allowedPaths ?? []), ...paths],
+				delegated: false,
 			} satisfies PaceRequest)
 			ctx.ui.notify(
 				'Test permission recorded for the named paths until the next human request.',
@@ -35,7 +44,7 @@ function registerPermissionCommand(pi: ExtensionAPI): void {
 				{
 					customType: 'test-pace-permission',
 					content:
-						'Continue the current task with the exact test paths explicitly authorized by the human command.',
+						'Continue the current task: the human command authorized test writes under the named paths.',
 					display: true,
 				},
 				{ triggerTurn: true },
@@ -51,6 +60,7 @@ export default function testPace(pi: ExtensionAPI): void {
 			id: randomUUID(),
 			text: safePaceText(typedPromptText(event.text)),
 			allowedPaths: [],
+			delegated: isSubagentChild(),
 		} satisfies PaceRequest)
 	})
 	registerPermissionCommand(pi)

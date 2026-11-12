@@ -1,4 +1,4 @@
-import { dirname, isAbsolute, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 
 import { runtimeFor } from '#lib/runtime/runtime.ts'
 
@@ -6,8 +6,13 @@ import { physicalPath } from './physical-path.ts'
 
 import type { Runtime } from '#lib/runtime/runtime.ts'
 
-const TEST_PATH =
-	/(?:^|\/)(?:__tests__|tests?|specs?|fixtures?|__fixtures__|__mocks__|__snapshots__|e2e|cypress|playwright)(?:\/|$)|(?:^|\/)(?:test_[^/]+|[^/]+(?:[._-](?:test|spec)|_test))\.[^/]+$|(?:^|\/)(?:conftest\.py|(?:pytest|tox)\.ini|\.mocharc[^/]*|[^/]+\.snap|(?:vitest|jest|playwright|cypress|pytest|ava|karma|nyc)[^/]*\.(?:[cm]?[jt]s|json|toml|ini))$/i
+const TEST_DIRECTORY =
+	/(?:^|\/)(?:__tests__|tests?|specs?|__fixtures__|__mocks__|__snapshots__|e2e|cypress|playwright)(?:\/|$)/i
+const TEST_FILE =
+	/(?:^|\/)(?:test_[^/]+|[^/]+(?:[._-](?:test|spec)|_test))\.(?:[cm]?[jt]sx?|go|py|rb|rs|java|kt|php|cs|swift|dart|exs?|sh|bats)$/i
+const TEST_SETUP_FILE =
+	/(?:^|\/)(?:conftest\.py|(?:pytest|tox)\.ini|\.mocharc[^/]*|[^/]+\.snap|(?:vitest|jest|playwright|cypress|pytest|ava|karma|nyc)[^/]*\.(?:[cm]?[jt]s|json|toml|ini))$/i
+const PROSE = /\.(?:mdx?|txt|rst|adoc|pdf)$/i
 const END_TO_END_PATH = /(?:^|\/)(?:e2e|cypress|playwright)(?:\/|\.)|[.-]e2e\./i
 export const NODE_TEST_RUNNER =
 	/\b(?:vitest|jest|ava|mocha|tap|tape|uvu)\b|\b(?:node|tsx)\s+[^\n]*--test\b|\bbun\s+test\b/
@@ -17,11 +22,22 @@ const RESTRICTED_SETUP =
 	/(?:^|\/)(?:fixtures?|__fixtures__|__mocks__)(?:\/|$)|(?:^|\/)(?:conftest\.|(?:vitest|jest|playwright|cypress|pytest|ava|karma|nyc)[^/]*\.)/i
 
 export function isTestPath(path: string): boolean {
-	return TEST_PATH.test(path.replaceAll('\\', '/'))
+	const normalized = path.replaceAll('\\', '/')
+	return (
+		!PROSE.test(normalized) &&
+		(TEST_DIRECTORY.test(normalized) ||
+			TEST_FILE.test(normalized) ||
+			TEST_SETUP_FILE.test(normalized))
+	)
 }
 
-export function isEndToEndPath(path: string): boolean {
-	return END_TO_END_PATH.test(path)
+/** Judged from the working directory down: a parent directory named `test` is not a test. */
+export function isTestPathWithin(root: string, path: string): boolean {
+	return isTestPath(isAbsolute(path) ? relative(root, path) : path)
+}
+
+export function coversPath(roots: readonly string[], path: string): boolean {
+	return roots.some(root => path === root || path.startsWith(`${root}${sep}`))
 }
 
 export async function targetPaths(
@@ -29,22 +45,19 @@ export async function targetPaths(
 	paths: readonly string[],
 	scope: 'tests' | 'permission' = 'tests',
 ): Promise<string[]> {
-	if (!paths.length)
-		throw new Error('Name at least one exact target test path.')
+	if (!paths.length) throw new Error('Name at least one target path.')
 	const root = await physicalPath(cwd)
 	const canonical = await Promise.all(
 		paths.map(path => physicalPath(resolve(cwd, path))),
 	)
 	return [...new Set(canonical)].map(path => {
 		const local = relative(root, path)
-		if (
-			!local ||
-			local.startsWith('..') ||
-			isAbsolute(local) ||
-			(scope === 'tests' && !isTestPath(local))
-		)
+		const outside = local.startsWith('..') || isAbsolute(local)
+		if (outside || (scope === 'tests' && !isTestPath(local)))
 			throw new Error(
-				'Target must be an exact test path inside the working directory.',
+				scope === 'tests'
+					? 'Target must be an exact test path inside the working directory.'
+					: 'Permission targets must be files or directories inside the working directory.',
 			)
 		return path
 	})
@@ -106,13 +119,16 @@ function hasConfiguredRunner(manifest: unknown, command: string): boolean {
 	)
 }
 
+/** `path` is canonical; its kind is judged from `root` down, like every test path. */
 export async function ineligibleTarget(
+	root: string,
 	path: string,
 	createdPaths: readonly string[] = [],
 ): Promise<string | undefined> {
-	if (!TEST_CASE.test(path) || RESTRICTED_SETUP.test(path))
+	const local = relative(root, path)
+	if (!TEST_CASE.test(local) || RESTRICTED_SETUP.test(local))
 		return 'Only new test cases qualify. Test setup, helpers and fixtures need explicit human authorization.'
-	if (isEndToEndPath(path))
+	if (END_TO_END_PATH.test(local))
 		return 'End-to-end tests require explicit human authorization.'
 	if (!createdPaths.includes(path) && (await runtimeFor(path).exists(path)))
 		return 'An existing test requires explicit human authorization to change.'
