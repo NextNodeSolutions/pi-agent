@@ -22,7 +22,7 @@ USAGE = """usage: tailnet-link <target>...   print one HTTPS tailnet URL per tar
 
 A target is a file, a directory, a port (4321) or a local URL (http://localhost:4321/page).
 A file or a directory is copied to the published root; link it again after changing it.
-A port is previewed on its number plus 10000 for as long as its server runs.
+A port is previewed on its number plus 10000, or minus 10000 above 55535, for as long as its server runs.
 Name a file called like a command with its path: ./status"""
 PORT_WAIT_SECONDS = 20
 USAGE_EXIT = 2
