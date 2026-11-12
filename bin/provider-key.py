@@ -35,7 +35,7 @@ def single_word(output):
 
 def access_token(config, environment, deadline):
     if any(not environment.get(name) for name in IDENTITY_VARIABLES):
-        raise RuntimeError("No Infisical machine identity in the environment")
+        raise VaultUnavailable("No Infisical machine identity in the environment")
     command = ["infisical", "login", "--method=universal-auth", "--silent", "--plain", "--domain", config["domain"]]
     return single_word(run(command, environment, deadline).strip()).decode()
 
