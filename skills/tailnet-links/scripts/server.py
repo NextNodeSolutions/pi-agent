@@ -162,13 +162,15 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Location", deliverables.MOUNT_PATH + quote(path) + "/")
             self.send_header("Content-Length", "0")
             return self.end_headers()
-        is_root = path == "/"
+        # The root answers at more than one address (/, //, %2F), so it is known by its directory and listed under /.
+        is_root = directory == deliverables.ROOT.resolve()
+        shown_path = "/" if is_root else path
         # The root is the page that lists the servers, so a published index.html never replaces it.
         index = None if is_root else locate(path + INDEX_NAME)
         if index and index.is_file():
             return self.send_file(index)
-        files = listing(directory, path)
-        return self.send_page(HTTPStatus.OK, path, servers() + files if is_root else files)
+        files = listing(directory, shown_path)
+        return self.send_page(HTTPStatus.OK, shown_path, servers() + files if is_root else files)
 
     def send_page(self, status, title, body):
         page = PAGE.format(title=html.escape(title), assets=ASSETS, body=body).encode()
