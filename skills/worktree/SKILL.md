@@ -1,11 +1,15 @@
 ---
 name: worktree
-description: Create or reopen a Git worktree from free-text intent, open its draft pull request in the background, and open it in a new background terminal tab running an interactive Pi; with --cloud, the checkout and Pi live on a Boat VM started through the workspace CLI. Use for /worktree, when a session starts a task that changes a repository (it hands the task to the new tab), for requests to fork the current checkout, to resume a branch in its own tab, or to work on a branch entirely in the cloud. Fuzzy-matches existing branches first and confirms before opening them. The terminal app is reached only through scripts/terminal, so switching terminals never touches this workflow.
+description: Create or reopen a Git worktree from free-text intent, open its draft pull request in the background, and open it in a new background terminal tab running an interactive Pi; with --cloud, the checkout and Pi live on a Boat VM started through the workspace CLI. Use for /worktree, when a session starts a task that changes a repository (it hands the task to the new tab), to fork the current checkout, resume a branch in its own tab, work in the cloud, merge or close a PR, or clean dangling worktrees and tabs. Fuzzy-matches existing branches first and confirms before opening them. The terminal app is reached only through scripts/terminal, so switching terminals never touches this workflow.
 ---
 
 # Worktree
 
+For a merge or close request, complete the PR action and follow "Clean up ended pull requests". For cleanup alone, go directly to that section. Use the creation steps below for worktree requests.
+
 Treat the whole argument as free text, not a literal branch name. A `--cloud` token anywhere in it selects cloud mode and is removed from the text: resolve the target as below, then follow [cloud.md](cloud.md) in place of "Place the worktree" and "Create or reuse", and load it now.
+
+Before a hand-off, run `scripts/cleanup '<caller-checkout>'` from the main checkout. Continue creating the new worktree after reporting any skipped checkouts or cleanup failure.
 
 **Hand-off**: when the current session starts a task of its own that changes a repository, skip the `target_branch` question (reuse the branch the task names, otherwise create one as step 4 derives) and run every step. In "Open the tab", write the brief to an OS-temp file and launch `pi @<brief file>` in place of bare `pi`; the brief holds the user's request verbatim, the facts the session already established, the branch, and that the draft pull request job is running. The session then stays the coordinator: it never edits the new checkout, reports the hand-off and ends its turn, and answers later questions about the task from its pull request and `git worktree list`. On exit 2 it works in the new checkout itself.
 
@@ -43,6 +47,14 @@ Once the checkout exists, created or reused, start `scripts/draft-pr '<checkout>
 - **Base**: omit it for the repository's default branch; pass the caller's branch when the work stacks on it.
 - It pushes the branch, adding an empty `chore: start <branch>` commit when the branch has no commit of its own yet. Where a project `AGENTS.md` requires approval before a push, obtain it before starting the job.
 - A branch that already has an open pull request gets its URL back, never a second one.
+
+## Clean up ended pull requests
+
+Run `scripts/cleanup [<repo-or-checkout>]` to sweep the repository's registered worktrees. It reports each checkout as removed or skipped, with a reason. Run it after merging or closing a PR. Creating a PR keeps its checkout and tab.
+
+The cleanup script owns the safety checks. It preserves the main checkout, paths outside `worktreeBaseDir`, open PRs, dirty checkouts, commits GitHub does not hold, and tabs with working agents or unknown status. It also preserves tabs shared with terminals outside that checkout and agents awaiting background work. It fetches PR heads to prove commit ancestry even after a squash merge or remote branch deletion. Eligible local branches are deleted with their expected commit as a guard.
+
+`extensions/tools/worktree-cleanup/` automatically runs the same script after bash calls containing `gh pr merge` or `gh pr close`, then retries asynchronously once the agent settles. A skipped checkout stays for the next sweep. A PR ended on GitHub is discovered at the next hand-off. Terminal inspection must succeed before any deletion, including when no tab exists. All Git operations run from the main checkout. The caller's checkout is handled last, and its tab closes only after Git cleanup finishes.
 
 ## Open the tab
 

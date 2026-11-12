@@ -1,6 +1,6 @@
 # Terminal port
 
-Extends "Open the tab" in `SKILL.md`; the workflow rules are not restated here.
+Extends "Open the tab" and "Clean up ended pull requests" in `SKILL.md`; the workflow rules are not restated here.
 
 `scripts/terminal` reads the adapter name from `terminal.conf` (one word) and runs `scripts/adapters/<name>` with the same arguments. Nothing else in the skill knows which terminal is in use.
 
@@ -36,6 +36,16 @@ stdout is one JSON line:
 | `ready` | `true` / `false` after the readiness wait; `null` on reuse or when the terminal cannot tell |
 | `app` | optional: the program the terminal detected |
 
+### `close`
+
+```
+<adapter> close --folder <absolute-dir> [--check]
+```
+
+Find tabs by their recorded worktree key or a terminal cwd inside the folder, including nested directories. Inspect every live terminal in those tabs and their child terminals. Refuse the whole operation when any member is working, awaiting background work, outside the folder, or cannot report an idle status. A bare shell is safe to close. Inspection failure must refuse deletion even when no matching tab was found.
+
+`--check` performs inspection only. It returns one JSON line with `status: "ready"`, ordered `tabs`, sorted `terminals`, and `caller`, which says whether the caller belongs to the selection. Normal invocation rechecks status before closing each tab, closes the caller's tab last, and returns the same fields with `status: "closed"` or `"absent"`. Closing the caller's tab may terminate the invocation before it returns. Close is also available to callers outside the terminal app.
+
 ## herdr adapter
 
 `open` compares Git common directories to find the target project's space, preferring the caller's space when it belongs to that repository. Identify each space from its first terminal's foreground cwd, or shell cwd when no foreground cwd is reported. Ignore the space's saved creation folder. Derive the project name from Git's first registered worktree, so linked worktree folder names never become project names. Non-Git folders keep the caller's space.
@@ -45,3 +55,5 @@ Herdr's CLI omits the explicit-name flag. Pin an existing space with `space.rena
 `hc run --bg --no-parent --keep` uses the chosen `herdr.space` and a fresh `herdr.tab` id. Wrap the program in `zsh -lc 'exec …'` so the tab inherits `.zshenv`, since herdr-core runs from launchd without it. Herdr adopts the terminal without moving focus. `tab.rename` sets the requested branch title. Readiness is `hc wait` followed by the terminal's reported `status.app`.
 
 The `worktree.key` label identifies reusable terminals. Scan live terminals through `hc ls` and `hc get` in the chosen space and, for terminals whose shell cwd matches the target folder, the caller's space. Reused terminals keep their existing space, title and processes. Pin their space only when its first terminal belongs to the target repository.
+
+`close` delegates to `scripts/adapters/herdr-close.py`. It inspects live terminals and their descendants through `herdr-core ls/get`, then closes eligible tabs with `herdr-app do tab.close --confirmed true`. The cleanup caller snapshots this port into an OS-temp directory before removal so it can still close its own tab after its checkout disappears.

@@ -4,7 +4,7 @@ set -euo pipefail
 READY_WAIT_SECONDS=60
 
 usage() {
-  echo "usage: herdr open --folder <dir> --title <title> [--key <key>] -- <argv...>" >&2
+  echo "usage: herdr open --folder <dir> --title <title> [--key <key>] -- <argv...> | close --folder <dir> [--check]" >&2
   exit 64
 }
 fail() { echo "herdr adapter: $2" >&2; exit "$1"; }
@@ -127,5 +127,6 @@ command="${1:-}"
 (($#)) && shift
 case "$command" in
   open) open_tab "$@" ;;
+  close) exec python3 "$(dirname "${BASH_SOURCE[0]}")/herdr-close.py" "$@" ;;
   *) usage ;;
 esac
