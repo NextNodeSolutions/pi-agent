@@ -90,9 +90,17 @@ def listing(directory, request_path):
     return "<h1>" + html.escape(request_path) + '</h1><ul class="listing">' + parent + rows + "</ul>"
 
 
+# The directory is a label, so a server whose directory cannot be read is still listed, under its origin.
+def server_directory(port):
+    try:
+        return listeners.directory(port)
+    except LinkError:
+        return None
+
+
 def server_row(name, port):
     origin = "localhost:" + str(port)
-    directory = listeners.directory(port)
+    directory = server_directory(port)
     place = directory.replace(str(Path.home()), "~", 1) if directory else origin
     return SERVER_ROW.format(url=previews.url(name, port), place=html.escape(place), origin=origin if directory else "")
 

@@ -13,6 +13,7 @@ CLI_CANDIDATES = (
     "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
 )
 COMMAND_TIMEOUT_SECONDS = 30
+SUCCESS_EXITS = (0,)
 CONNECTED_STATE = "Running"
 STATE = Path.home() / ".local/state/tailnet-link"
 SETUP_HINT = "Run: tailnet-link setup"
@@ -22,16 +23,12 @@ class LinkError(Exception):
     pass
 
 
-def completed(arguments, timeout=COMMAND_TIMEOUT_SECONDS):
+def run(arguments, timeout=COMMAND_TIMEOUT_SECONDS, accepted_exits=SUCCESS_EXITS):
     try:
-        return subprocess.run(arguments, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(arguments, capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.TimeoutExpired) as error:
         raise LinkError("Command did not complete: " + " ".join(arguments) + ". " + str(error)) from error
-
-
-def run(arguments, timeout=COMMAND_TIMEOUT_SECONDS):
-    result = completed(arguments, timeout)
-    if result.returncode:
+    if result.returncode not in accepted_exits:
         raise LinkError("Command failed: " + " ".join(arguments) + "\n" + result.stderr.strip())
     return result.stdout.strip()
 

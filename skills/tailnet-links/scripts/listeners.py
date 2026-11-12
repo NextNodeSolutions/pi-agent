@@ -1,17 +1,20 @@
 import re
 
-from tailnet import completed
+from tailnet import run
 
 TCP = "-iTCP"
 LISTEN_STATE = "-sTCP:LISTEN"
+# A listing takes milliseconds, and the watcher and the root page both wait on it.
+TIMEOUT_SECONDS = 5
+# lsof exits 1 when nothing matches, which is an answer here and not a failure.
+ANSWER_EXITS = (0, 1)
 PORT = re.compile(r"^n.*:(\d+)$", re.M)
 PROCESS = re.compile(r"^p(\d+)$", re.M)
 NAME = re.compile(r"^n(.+)$", re.M)
 
 
-# lsof exits 1 when nothing matches, which is an answer here and not a failure.
 def lsof(*selection):
-    return completed(["lsof", "-nP", "-a", *selection]).stdout
+    return run(["lsof", "-nP", "-a", *selection], TIMEOUT_SECONDS, ANSWER_EXITS)
 
 
 def group_ports(group):
