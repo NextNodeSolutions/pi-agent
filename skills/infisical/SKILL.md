@@ -3,14 +3,15 @@ name: infisical
 description: >-
   Infisical machine authentication, project links, environment injection and
   value-safe secret operations. Load whenever a task touches Infisical in any
-  repository, a local env file, the CLI, or the Infisical MCP.
+  repository, a local env file, the CLI, or the Infisical MCP, and whenever
+  Infisical refuses a project (HTTP 403, ProjectMembershipNotFound).
 ---
 
 # Infisical
 
 ## Machine authentication
 
-Agents and unattended local jobs use Universal Auth, never the human's CLI session. `security/machine-identity.ts` owns login and domain lookup from `~/.config/agent-secrets/core-vault.json`. The shell must export `INFISICAL_UNIVERSAL_AUTH_CLIENT_ID` and `INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET`. Do not read their source files. Missing or refused credentials require the human to repair the session environment or project grant, not a browser login.
+Agents and unattended local jobs use Universal Auth, never the human's CLI session. `security/machine-identity.ts` owns login and domain lookup from `~/.config/agent-secrets/core-vault.json`. The shell must export `INFISICAL_UNIVERSAL_AUTH_CLIENT_ID` and `INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET`. Do not read their source files. Missing or refused credentials require the human to repair the session environment, not a browser login.
 
 Use `~/.pi/agent/bin/infisical` for CLI calls. Pi prepends that directory to tool PATH. Claude Code's pre-call hook requires the explicit path. The shim supplies a fresh token in the child's environment and refuses interactive commands and token/domain overrides. The human's own CLI session remains untouched. This is command routing, not isolation from an agent with unrestricted shell access.
 
@@ -32,7 +33,18 @@ Reuse the committed `.infisical.json` or `.infisical.yaml` after verifying its p
 
 ## Projects and grants
 
-Read [projects.md](projects.md) before creating projects or environments or changing memberships. An inaccessible project is not an empty vault. Project setup uses the automated provisioning command in that reference, including human admin access and exact environments. An existing inaccessible project still requires an authorized principal to grant access. Do not switch identities or create a replacement to evade a refusal.
+Create every project with the provisioning command in [projects.md](projects.md), never in the dashboard: Infisical makes the creator a project member, so only a project the machine identity creates is readable without a human step. Read projects.md before creating projects or environments or changing memberships. An inaccessible project is not an empty vault. Do not switch identities or create a replacement to evade a refusal.
+
+### Missing project access
+
+HTTP 403 `ProjectMembershipNotFound` means the machine identity is not a member of that project, and it cannot add itself.
+
+1. Run `node ~/.pi/agent/security/project-access.mjs`. Exit 0: every secret-manager project is readable. Exit 1: it lists every project the identity cannot read under `missing` and prints the one-time human step. Exit 2: the check failed; report its message.
+2. Tell the human once, in one message: the missing project names and that step. Never ask whether access has been restored.
+3. Keep working on everything that does not need those projects' secrets, and report the rest as waiting on that step.
+4. Before using such a project again, rerun the check. Its project under `readable` is the only evidence of access.
+
+A committed project ID listed under neither `readable` nor `missing` names no project of the organization: that is a broken link, not missing access.
 
 ## core-vault
 
