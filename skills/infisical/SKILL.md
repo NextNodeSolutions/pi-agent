@@ -5,8 +5,8 @@ description: >-
   machine identity versus the user's CLI session), creating projects and
   environments through the REST API so the user owns them, and writing secret
   values without exposing them. Load whenever a task touches Infisical in any
-  repository: a project, an environment, an identity, a secret, the `infisical`
-  CLI or the `@infisical/mcp` server.
+  repository: a project, an environment, an identity, a secret, a local env
+  file, the `infisical` CLI or the `@infisical/mcp` server.
 ---
 
 # Infisical
@@ -17,6 +17,14 @@ description: >-
 
 - **pi MCP** (`@infisical/mcp`, launched by pi): authenticates with the Universal Auth machine identity whose `INFISICAL_UNIVERSAL_AUTH_CLIENT_ID` and secret live in the shell environment (`~/.config/zsh/env/infisical.zsh`). It never acts as the user. Anything it creates belongs to that identity alone: the user is not a member and every later action needs an invitation.
 - **CLI** (`infisical login`): the user's own session. It reads and writes secrets, injects them with `infisical run`, and has no project or environment commands. `infisical user get token` returns its bearer token for the REST API.
+
+## Local env
+
+A checkout reads its project variables from Infisical at run time, so a new worktree needs no file copied: the project link is the committed config `infisical init` writes (`.infisical.json` or `.infisical.yaml`).
+
+- **Link**: reuse a committed link after verifying its project id; a mismatch is a blocker. Without one, `infisical login`, then `infisical init` at the repository root, and commit the file. A repository with no Infisical project yet gets one per [projects.md](projects.md).
+- **Run**: `infisical run --env=dev [--path /<app>] -- <command>`; Cloudflare Workers add the steps of "Local development" in `~/.pi/agent/skills/nextnode-deploy/github-org.md`.
+- **Migrate a leftover env file** (`.env`, `.env.local`, `.env.<mode>`, `.dev.vars`, per-app copies): `infisical secrets set --env <environment it serves> [--path /<app>] --file <file>`, never reading the file. Confirm every name the import reported with `secret-names.mjs`, delete the file, and point each script or doc that named it at `infisical run`. Tracked templates such as `.env.example` stay.
 
 ## Rules
 

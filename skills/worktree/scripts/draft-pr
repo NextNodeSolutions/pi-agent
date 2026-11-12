@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage='usage: draft-pr <checkout> <conventional-commit title> [base branch]'
+checkout=${1:?$usage}
+title=${2:?$usage}
+cd "$checkout"
+
+branch=$(git branch --show-current)
+if [[ -z $branch ]]; then
+	echo "draft-pr: $checkout has a detached HEAD; create the task branch first" >&2
+	exit 1
+fi
+
+open_pull_request=$(gh pr list --head "$branch" --state open --json url --jq '.[0].url // empty')
+if [[ -n $open_pull_request ]]; then
+	echo "$open_pull_request"
+	exit 0
+fi
+
+base=${3:-$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)}
+git fetch --quiet origin "$base"
+
+if [[ $(git rev-list --count "origin/$base..HEAD") == 0 ]]; then
+	# GitHub refuses a pull request without a commit; an empty commit gives hooks nothing to check, and a fresh worktree may lack their dependencies.
+	git commit --quiet --allow-empty --no-verify -m "chore: start $branch"
+	git push --quiet --no-verify -u origin "$branch"
+else
+	git push --quiet -u origin "$branch"
+fi
+
+gh pr create --draft --base "$base" --head "$branch" --title "$title" --body ''

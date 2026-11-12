@@ -90,17 +90,25 @@ Never use `~/.pi/agent` as a scratch or deliverable directory (including `tmp/`)
 
 ## Git
 
+Every task that changes a Git repository follows this flow. A project `AGENTS.md` or a skill with its own Git flow overrides the matching step (Accor requires approval for each push).
+
+1. **Worktree tab**: hand each task to its own branch, worktree and Pi tab through the "Hand-off" path of `~/.pi/agent/skills/worktree/SKILL.md`; the session that hands it off stays the coordinator of those worktrees and leaves the work to the tab. A session already in that task's worktree works there. Never switch a checkout's branch unless the user asks for it.
+2. **Draft pull request**: as soon as the worktree exists, open its draft pull request in the background ("Open the draft pull request" in that skill) and start the work without waiting for it.
+3. **Env, in every repository**: run each command that needs project variables through Infisical, never from a local env file; a leftover local env file moves into the vault and is deleted. Mechanics: "Local env" in `~/.pi/agent/skills/infisical/SKILL.md`.
+4. **Commit and push**: commit each change atomically (below), then push the task branch. Push the default branch only when asked.
+5. **Ready**: once the work is done and the project's checks pass, end-to-end suite included, mark the pull request ready (`gh pr ready`), its title naming the final intention.
+6. **Clean end**: a task ends with every file it created or changed committed or removed, the branch pushed; scratch files live in the OS temp directory.
+
 - **Worktree placement**: use `worktreeBaseDir` from `~/.pi/agent/extensions/subagent/config.json` for every worktree, including manual flows. Resolve relative paths from the repository's main checkout, not a linked worktree; use Git's registered main worktree to find it.
-- **Never invent or override** Git author, committer, or signing identity through command flags, environment variables, config changes, or history rewriting, unless the user explicitly authorizes that specific identity change — use the existing configuration unchanged.
-- If identity is missing, conflicting, or suspect, stop and ask — never guess an email from a name or GitHub handle.
-- **Never overwrite or delete changes or data you did not create for the task** — ask first before any destructive or irreversible operation.
-- Commit on a dedicated branch by default, created before the first commit; commit on the main branch only on an explicit request, and then a fast-forward merge (`git merge --ff-only`) is fine for a branch you created on the spot.
-- **Merge with `git merge --no-ff`** by default, so the merge commit stays visible.
-- **Never push systematically** — push when asked.
-- **Never deploy to production or cloud infrastructure from the local machine** — deploys go through CI pipelines only (GitHub env-secrets, quality gates). Local cloud credentials (wrangler OAuth, API tokens) are for read-only inspection; a deploy request is fulfilled by wiring or triggering CI, never by running the deploy command locally.
-- **While an `ask_user_question` is paused for discussion, act on nothing in its scope** — only the user's explicit recorded answers authorize a pending choice; defaults apply only after they resume and answer.
 - **Atomic commit — one definition**: a commit is atomic only when all four hold: one intention (one behavior added or changed, one fix, or one refactor — revertible in a single command); self-contained (it compiles and passes its tests at that commit, not only at branch tip); one domain (config, migration, refactor and fix share a commit only when strictly dependent, otherwise separate ordered commits); faithful message (a Conventional Commit `type(scope): description` naming that single intention). Never a catch-all commit, never "WIP".
 - **Before a commit, reread the `AGENTS.md` guarantees and rules on the changed files' path against the diff** — a rule the diff weakens is a bug to fix before committing, and the pull request names each guarantee it touches with the check that covers it.
+- Commit on the default branch only on an explicit request, and then a fast-forward merge (`git merge --ff-only`) is fine for a branch you created on the spot.
+- **Merge with `git merge --no-ff`** by default, so the merge commit stays visible.
+- **Never invent or override** Git author, committer, or signing identity through command flags, environment variables, config changes, or history rewriting, unless the user explicitly authorizes that specific identity change — use the existing configuration unchanged.
+- If identity is missing, conflicting, or suspect, stop and ask — never guess an email from a name or GitHub handle.
+- **Never overwrite or delete changes or data you did not create for the task** — ask first before any destructive or irreversible operation. A local env file whose names are confirmed in the vault (step 3) is the one exception.
+- **Never deploy to production or cloud infrastructure from the local machine** — deploys go through CI pipelines only (GitHub env-secrets, quality gates). Local cloud credentials (wrangler OAuth, API tokens) are for read-only inspection; a deploy request is fulfilled by wiring or triggering CI, never by running the deploy command locally.
+- **While an `ask_user_question` is paused for discussion, act on nothing in its scope** — only the user's explicit recorded answers authorize a pending choice; defaults apply only after they resume and answer.
 
 ## Third-party code
 

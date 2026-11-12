@@ -34,13 +34,13 @@ The CI lookup uses the repository name, not `.infisical.json`. The next deploy s
 
 ## Local development
 
-For a project with application secrets, developers use their own Infisical account, never the CI identity, and must be members of the repository's project. Reuse an existing `.infisical.json` after verifying its project id. A mismatch is a blocker, not permission to overwrite it. If absent, `infisical login`, then `infisical init` at the repository root links the checkout to the project and writes it. It holds the project id, not secrets. Commit it.
+For a project with application secrets, developers use their own Infisical account, never the CI identity, and must be members of the repository's project. Link the checkout and migrate leftover env files as "Local env" in `~/.pi/agent/skills/infisical/SKILL.md` says.
 
 ```sh
 CLOUDFLARE_INCLUDE_PROCESS_ENV=true infisical run --env=dev -- pnpm dev
 ```
 
-`infisical run` injects the `dev` secrets as process variables. It does not rewrite or remove existing env files. Wrangler's local runtime fills the Worker's `env` from `.dev.vars` or `.env`, not from the process. Cloudflare documents `CLOUDFLARE_INCLUDE_PROCESS_ENV=true` to include the process environment, only when no `.dev.vars` file exists. If one exists, report the conflict and obtain authorization before moving or removing user-owned files. Keep secret values out of local env files. Nonsecret settings may remain gitignored. Verify with the project's dev server before claiming a secret reaches `env` locally.
+`infisical run` injects the `dev` secrets as process variables. It does not rewrite or remove existing env files. Wrangler's local runtime fills the Worker's `env` from `.dev.vars` or `.env`, not from the process. Cloudflare documents `CLOUDFLARE_INCLUDE_PROCESS_ENV=true` to include the process environment, only when no `.dev.vars` file exists. If one exists, migrate it first. Verify with the project's dev server before claiming a secret reaches `env` locally.
 
 ## Discover settings live
 

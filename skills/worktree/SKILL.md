@@ -1,11 +1,13 @@
 ---
 name: worktree
-description: Create or reopen a Git worktree from free-text intent and open it in a new background terminal tab running an interactive Pi; with --cloud, the checkout and Pi live on a Boat VM started through the workspace CLI. Use for /worktree, requests to fork the current checkout, to resume a branch in its own tab, or to work on a branch entirely in the cloud. Fuzzy-matches existing branches first and confirms before opening them. The terminal app is reached only through scripts/terminal, so switching terminals never touches this workflow.
+description: Create or reopen a Git worktree from free-text intent, open its draft pull request in the background, and open it in a new background terminal tab running an interactive Pi; with --cloud, the checkout and Pi live on a Boat VM started through the workspace CLI. Use for /worktree, when a session starts a task that changes a repository (it hands the task to the new tab), for requests to fork the current checkout, to resume a branch in its own tab, or to work on a branch entirely in the cloud. Fuzzy-matches existing branches first and confirms before opening them. The terminal app is reached only through scripts/terminal, so switching terminals never touches this workflow.
 ---
 
 # Worktree
 
 Treat the whole argument as free text, not a literal branch name. A `--cloud` token anywhere in it selects cloud mode and is removed from the text: resolve the target as below, then follow [cloud.md](cloud.md) in place of "Place the worktree" and "Create or reuse", and load it now.
+
+**Hand-off**: when the current session starts a task of its own that changes a repository, skip the `target_branch` question (reuse the branch the task names, otherwise create one as step 4 derives) and run every step. In "Open the tab", write the brief to an OS-temp file and launch `pi @<brief file>` in place of bare `pi`; the brief holds the user's request verbatim, the facts the session already established, the branch, and that the draft pull request job is running. The session then stays the coordinator: it never edits the new checkout, reports the hand-off and ends its turn, and answers later questions about the task from its pull request and `git worktree list`. On exit 2 it works in the new checkout itself.
 
 ## Resolve the target
 
@@ -33,6 +35,15 @@ On error, inspect the reported state before retrying. Never grant repository tru
 
 Verify: `git -C <checkout> branch --show-current` names the branch, and its `HEAD` equals the captured base (or the confirmed tip).
 
+## Open the draft pull request
+
+Once the checkout exists, created or reused, start `scripts/draft-pr '<checkout>' '<title>' [<base>]` as a background job and go on without waiting. Its completion prints the pull request URL; a failure goes into the report while the worktree stays usable.
+
+- **Title**: a Conventional Commit naming the task's single intention. It becomes the squash commit, so retitle the pull request when the intention changes.
+- **Base**: omit it for the repository's default branch; pass the caller's branch when the work stacks on it.
+- It pushes the branch, adding an empty `chore: start <branch>` commit when the branch has no commit of its own yet. Where a project `AGENTS.md` requires approval before a push, obtain it before starting the job.
+- A branch that already has an open pull request gets its URL back, never a second one.
+
 ## Open the tab
 
 ```bash
@@ -41,9 +52,9 @@ Verify: `git -C <checkout> branch --show-current` names the branch, and its `HEA
 
 It opens a tab beside the caller without moving focus, or reuses the tab already sitting in that folder, and prints one JSON line. Read [terminal-port.md](terminal-port.md) for the output fields, exit codes, and how to switch terminals; load it when the script fails or the user changes terminal.
 
-- `created` with `ready: true`: Pi waits at its prompt. Never submit the ticket or start implementation.
+- `created` with `ready: true`: Pi runs the hand-off brief, or waits at its prompt when the user asked for the tab. Never type into the tab afterwards.
 - `created` with `ready: false`: report the terminal id as started but unconfirmed; never relaunch blindly or answer approval dialogs.
 - `reused`: leave its processes alone; never start a second Pi.
 - Exit 2: the caller is outside the configured terminal. Keep the worktree and report its path.
 
-Report the branch, path, tab status, and Pi readiness, distinguishing creation from reuse. Install dependencies, copy env files, or start services only on request.
+Report the branch, path, pull request, tab status, and Pi readiness, distinguishing creation from reuse. Install dependencies or start services only on request.
