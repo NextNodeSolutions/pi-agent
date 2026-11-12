@@ -1,7 +1,15 @@
 import { NODE_TEST_RUNNER } from './paths.ts'
 
+function parsedManifest(content: string): unknown {
+	try {
+		return JSON.parse(content)
+	} catch {
+		return {}
+	}
+}
+
 function testSetup(content: string): string {
-	const manifest: unknown = JSON.parse(content)
+	const manifest = parsedManifest(content)
 	const scripts: unknown = Reflect.get(Object(manifest), 'scripts')
 	const dependencies = [
 		'dependencies',
@@ -9,7 +17,7 @@ function testSetup(content: string): string {
 		'optionalDependencies',
 	].flatMap(section => {
 		const packages: unknown = Reflect.get(Object(manifest), section)
-		return Object.entries(Object(packages)).filter(([name]) =>
+		return Object.keys(Object(packages)).filter(name =>
 			NODE_TEST_RUNNER.test(name),
 		)
 	})
@@ -47,6 +55,6 @@ export function proposedContent(
 		const newText: unknown = Reflect.get(Object(edit), 'newText')
 		if (typeof oldText !== 'string' || typeof newText !== 'string')
 			throw new Error('Expected exact edit text.')
-		return content.replace(oldText, newText)
+		return content.replace(oldText, () => newText)
 	}, before)
 }
