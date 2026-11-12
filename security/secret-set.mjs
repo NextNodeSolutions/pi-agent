@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util'
 
+import { requireProjectAccess } from './infisical-access.ts'
 import { call, HTTP_OK, names, secretsApi } from './infisical-rest.ts'
 import { describeTarget, parseSecretTarget } from './infisical-target.ts'
 import { machineToken } from './machine-identity.ts'
@@ -89,6 +90,7 @@ async function setSecret(options) {
 		environment: target.environment,
 	}
 	const token = await machineToken()
+	await requireProjectAccess(token, target.workspaceId)
 	const secretValue = await readValue(target)
 	const exists = (await names(token, where, target.path)).includes(
 		target.name,

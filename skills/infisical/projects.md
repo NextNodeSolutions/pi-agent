@@ -14,6 +14,6 @@ The command reuses a uniquely matching visible secret-manager project or creates
 
 Use `--check` for a read-only verification of project, human admin and environments. An existing non-admin human membership, unexpected environments, duplicate names or an API refusal fails explicitly rather than silently changing permissions or deleting configuration. Handle an authorized role change through the documented membership API, preserving other roles.
 
-A project the access check lists under `missing` is an access failure, not authorization to create a replacement. Preserve its committed ID and follow "Missing project access" in `SKILL.md`. Creating a new project does not unlock another existing project.
+A project named in an access refusal is an access failure, not authorization to create a replacement. Preserve its committed ID and follow "Missing project access" in `SKILL.md`. Creating a new project does not unlock another existing project.
 
 After provisioning, write the committed link as "Local env" describes, populate authorized secrets through the value-safe scripts, and verify the real consumer with machine-authenticated injection. No interactive CLI session or browser login participates in provisioning.

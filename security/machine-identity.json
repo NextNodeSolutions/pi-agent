@@ -2,5 +2,6 @@
 	"clientIdVariable": "INFISICAL_UNIVERSAL_AUTH_CLIENT_ID",
 	"clientSecretVariable": "INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET",
 	"identityUnavailableExitCode": 77,
+	"projectAccessRefusedExitCode": 78,
 	"humanSessionExitCode": 64
 }

@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util'
 
+import { requireProjectAccess } from './infisical-access.ts'
 import { call, HTTP_OK, names, query, secretsApi } from './infisical-rest.ts'
 import {
 	parseLocation,
@@ -35,8 +36,18 @@ function readOptions() {
 	}
 }
 
+function requireLocations(token, locations) {
+	const projectIds = new Set(locations.map(location => location.workspaceId))
+	return Promise.all(
+		[...projectIds].map(projectId =>
+			requireProjectAccess(token, projectId),
+		),
+	)
+}
+
 async function move(options) {
 	const token = await machineToken()
+	await requireLocations(token, [options.from, options.to])
 	const api = secretsApi()
 	const { name, from, to, path } = options
 	const read = await call(token, 'GET', `${api}/${name}?${query(from, path)}`)

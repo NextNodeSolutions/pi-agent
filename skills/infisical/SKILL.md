@@ -37,14 +37,13 @@ Create every project with the provisioning command in [projects.md](projects.md)
 
 ### Missing project access
 
-HTTP 403 `ProjectMembershipNotFound` means the machine identity is not a member of that project, and it cannot add itself.
+The command that needs a project checks access before running the CLI, reading a value or touching secrets. HTTP 403 `ProjectMembershipNotFound` stops it with a report naming the identity, the refused project, other unreadable secret-manager projects and the one-time human step.
 
-1. Run `node ~/.pi/agent/security/project-access.mjs`. Exit 0: every secret-manager project is readable. Exit 1: it lists every project the identity cannot read under `missing` and prints the one-time human step. Exit 2: the check failed; report its message.
-2. Tell the human once, in one message: the missing project names and that step. Never ask whether access has been restored.
-3. Keep working on everything that does not need those projects' secrets, and report the rest as waiting on that step.
-4. Before using such a project again, rerun the check. Its project under `readable` is the only evidence of access.
+1. Relay that report to the human once. Never ask whether access has been restored.
+2. Keep working on everything that does not need those projects' secrets, and report the rest as waiting on that step.
+3. Rerun the same command when it is needed again. A successful project check is the evidence of access.
 
-A committed project ID listed under neither `readable` nor `missing` names no project of the organization: that is a broken link, not missing access.
+HTTP 404 means no project has that ID. Correct the committed link or `--projectId` before rerunning.
 
 ## core-vault
 
