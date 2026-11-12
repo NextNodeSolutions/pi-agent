@@ -151,6 +151,6 @@ def watch(arguments):
     tty = os.open(TTY, os.O_RDWR | os.O_NOCTTY)
     try:
         follow(command, tty)
-    except LinkError as error:
+    except (LinkError, OSError) as error:
         # A probe that failed fails again a second later, so the watcher says why once, under the same guard, and ends.
         say(command, tty, os.tcgetpgrp(tty), failure_line(error))
