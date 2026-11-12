@@ -24,7 +24,7 @@ Use the relevant sub-file for details:
 - [tsdown.md](tsdown.md) - bundler config base for publishable packages
 - [vitest.md](vitest.md) - test configs and all export paths (backend, frontend, astro, vite-plugin)
 - [configs.md](configs.md) - commitlint, lint-staged, oxfmt, Tailwind theme, editorconfig, .npmrc, semantic-release
-- [ci.md](ci.md) - pull-request checks: the scripts a project exposes to the organization's `Checks` workflow
+- [ci.md](ci.md) - pull-request checks: the manifest fields and check scripts the organization's `Checks` workflow reads
 
 ---
 
@@ -61,25 +61,21 @@ lint-staged.config.js     # imports standards/lint-staged
 .infisical.json           # apps with secrets: links the checkout to its Infisical project
 ```
 
-And these package.json fields:
+And these root package.json fields:
 
 ```json
 {
-  "packageManager": "pnpm@<current-pnpm-version>",
+  "type": "module",
+  "packageManager": "pnpm@<core monorepo pnpm version>",
+  "engines": { "node": ">=24" },
   "scripts": {
-    "lint": "oxlint",
     "format": "oxfmt --write .",
-    "format:check": "oxfmt --check .",
-    "test": "vitest run",
-    "test:unit": "vitest run tests/unit",
-    "test:integration": "vitest run tests/integration",
-    "type-check": "tsc --noEmit",
-    "build": "<the project's build>"
+    "format:check": "oxfmt --check ."
   }
 }
 ```
 
-**`packageManager` is required** - The NextNode CI pipeline (`pnpm/action-setup`) reads the pnpm version from this field. Without it, the pipeline will fail. Always pin to the exact version in use in the monorepo (check the root `package.json`) - never a range or major-only.
+`packageManager` takes the exact version from `SKILL.md`, never a range or a major alone. [ci.md](ci.md) lists the check scripts, where a workspace declares them, and what the `Checks` workflow refuses in these fields.
 
 ## GitHub repository
 
@@ -95,7 +91,7 @@ For local execution and `.infisical.json`, follow "Local development" in `~/.pi/
 
 ## Pull-request checks
 
-Checks run from the organization's `Checks` workflow, never from a workflow file in the project. Read [ci.md](ci.md) for the scripts the project must expose and how a repository is enabled.
+Checks run from the organization's `Checks` workflow, never from a workflow file in the project. Read [ci.md](ci.md) for what the workflow reads, the scripts a NextNode project declares and how a repository is enabled.
 
 ## Agent skills
 
@@ -108,7 +104,7 @@ Impeccable is the only skill a project installs through its own CLI. Each develo
 | Weakening core oxlint rules (`no-explicit-any`, `eqeqeq`, `strict`, etc.) | Add project-specific overrides only on top of the base config |
 | Hand-formatting against oxfmt (spaces, semicolons, double quotes, manual import order) | Let oxfmt enforce: tabs, no semis, single quotes (JSX double), auto import sort |
 | Inline type imports: `import { type Foo }` | Separate type imports: `import type { Foo }` |
-| Skipping `astro check` on Astro projects | Run both `pnpm run lint` (oxlint) AND `pnpm astro check` |
+| Type-checking an Astro project with plain `tsc` | Declare `type-check` as `astro check`, as [ci.md](ci.md) states |
 | Relying on extended tsconfig to inherit `exclude` | Add `"exclude": ["vitest.config.ts"]` in every project's own `tsconfig.json` |
 | Secret values in `.env.local`, `.dev.vars`, `nextnode.toml`, a workflow or any committed file | Store secrets in the repository's Infisical project and run locally through `infisical run` |
 | Copying a tooling pattern from an existing repo without checking upstream | ALWAYS fetch the current best practice from the tool's official docs (husky, pnpm, turbo, …) before scaffolding — patterns in older repos (and even in this skill) can lag upstream. Canonical example: the husky CI guard (`.husky/install.mjs`, see configs.md for the docs link) — not a `[ -n "$CI" ] \|\| husky` shell one-liner |
