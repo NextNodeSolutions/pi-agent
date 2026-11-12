@@ -24,7 +24,7 @@ import { rewriteTexts } from './rewrite.ts'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 const DEV_SERVER_ENVIRONMENT = 'skills/tailnet-links/scripts/dev-server.env'
-const ASSIGNMENT_SEPARATOR = '='
+const ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=(\S*)$/
 const LINE_BREAK = /\r?\n/
 const SUBAGENT_CHILD_FLAG = '1'
 const FAILURE_PREFIX = 'Links were left as written: '
@@ -35,15 +35,13 @@ function exportDevServerEnvironment(): void {
 		'utf8',
 	)
 	for (const line of assignments.split(LINE_BREAK).filter(Boolean)) {
-		const nameLength = line.indexOf(ASSIGNMENT_SEPARATOR)
-		if (nameLength <= 0) {
+		const [, name, value] = ASSIGNMENT.exec(line) ?? []
+		if (!name) {
 			throw new Error(
-				`${DEV_SERVER_ENVIRONMENT} holds one NAME=value per line, not "${line}". Fix that line.`,
+				`${DEV_SERVER_ENVIRONMENT} holds one NAME=value per line, with no space and no comment, not "${line}". Fix that line.`,
 			)
 		}
-		process.env[line.slice(0, nameLength)] ??= line.slice(
-			nameLength + ASSIGNMENT_SEPARATOR.length,
-		)
+		process.env[name] ??= value
 	}
 }
 

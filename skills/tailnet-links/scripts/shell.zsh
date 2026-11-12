@@ -6,7 +6,7 @@
 	for assignment in ${(f)"$(<$scripts/dev-server.env)"}; do
 		assignment=${assignment%$'\r'}
 		name=${assignment%%=*}
-		[[ $assignment == *=* && $name == [A-Za-z_]* && $name != *[^A-Za-z0-9_]* ]] || continue
+		[[ $assignment == *=* && $assignment != *[[:space:]]* && $name == [A-Za-z_]* && $name != *[^A-Za-z0-9_]* ]] || continue
 		# A value the caller already set stays, as it does in Pi, and is exported like one this file sets.
 		[[ -v $name ]] && export $name || export $assignment
 	done
