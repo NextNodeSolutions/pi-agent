@@ -88,6 +88,8 @@ def bound_run():
         sys.executable, str(Path(__file__).resolve()), WORKER_ARGUMENT,
     ], timeout=SYNC_SECONDS, env=without_token())
     report = json.loads(output)
+    if isinstance(report.get("error"), str):
+        raise SyncFailure(report["error"])
     if report.get("verified_http") != HTTP_OK:
         raise SyncFailure("The vault run reported no verified account.")
     print(json.dumps(report))
@@ -130,7 +132,7 @@ def wait_for_web(process, origin):
     with contextlib.closing(output_lines(process, time.monotonic() + STARTUP_SECONDS)) as lines:
         is_ready = any(marker in line and b"?k=" in line for line in itertools.takewhile(bool, lines))
     if not is_ready:
-        raise SyncFailure("The temporary Magpie management API did not start.")
+        raise SyncFailure(f"The temporary Magpie management API did not start within {STARTUP_SECONDS} s (exit {process.poll()}).")
 
 
 @contextlib.contextmanager
@@ -236,8 +238,11 @@ try:
     else:
         raise SyncFailure("Usage: magpie-claude-token-sync")
 except SyncFailure as error:
-    print(str(error), file=sys.stderr)
-    sys.exit(1)
+    if sys.argv[1:] == [WORKER_ARGUMENT]:
+        print(json.dumps({"error": str(error)}))
+    else:
+        print(str(error), file=sys.stderr)
+        sys.exit(1)
 except (Exception, KeyboardInterrupt) as error:
     print(f"Claude vault sync failed: {type(error).__name__}. Check the binding, machine identity and Magpie.", file=sys.stderr)
     sys.exit(1)
