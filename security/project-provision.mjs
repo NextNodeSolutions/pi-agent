@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util'
 
+import { projectAccess } from './infisical-access.ts'
 import { call, HTTP_OK } from './infisical-rest.ts'
 import { ENVIRONMENT_PATTERN, PROJECT_ID_PATTERN } from './infisical-target.ts'
 import { machineToken, vaultApi } from './machine-identity.ts'
@@ -85,10 +86,13 @@ async function selectProject(token, settings) {
 		)
 	const [existing] = matches
 	if (existing) return projectRecord(existing)
-	if (settings.check)
+	const { missing } = await projectAccess(token)
+	if (missing.some(project => project.name === settings.name))
 		throw new Error(
-			'Project is absent or inaccessible; check mode performs no writes',
+			'This project exists but the machine identity is not a member. Run node ~/.pi/agent/security/project-access.mjs for the one-time human step; nothing was created',
 		)
+	if (settings.check)
+		throw new Error('Project is absent; check mode performs no writes')
 	const created = await request(token, 'POST', PROJECTS, {
 		projectName: settings.name,
 		slug: settings.name.toLowerCase(),
