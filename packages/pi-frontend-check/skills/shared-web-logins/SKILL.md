@@ -24,7 +24,7 @@ Connexion à un compte web avec Pi, compte connu ou manquant. Pas pour les clés
 ## Pitfalls
 
 - `frontend_batch` `type` accepts `type=password` fields only on dev/test origins (localhost, private hosts, `.local`/`.test`) for disposable test accounts; production origins stay vault-only. After `frontend_vault_fill` or a `secret` step, Pi captures remain blocked until this client connection is released; text output is redacted. A `sec:` handle works once, on its origin, for three minutes: claim it in the next `frontend_batch` call.
-- A vault failure is not an absent account. The broker uses the machine identity, including enrollment. Missing credentials or project access require human repair, not another website password or an interactive Infisical login. Follow `~/.pi/agent/skills/infisical/SKILL.md`.
+- A vault failure is not an absent account. The broker uses the machine identity, including enrollment. Verify the configured vault location before diagnosing a missing grant. A missing location, rejected access or absent machine credentials is not a reason to request another website password or start an interactive Infisical login. Follow `~/.pi/agent/skills/infisical/SKILL.md`.
 
 ## Verification
 

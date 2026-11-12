@@ -71,7 +71,7 @@ def run_machine_cli(arguments: list[str], *, payload: bytes | None = None) -> by
     if return_code == MachineIdentityUnavailable.exit_code:
         raise MachineIdentityUnavailable("The Infisical machine identity is missing from the environment or refused")
     if return_code and ACCESS_REFUSED.search(diagnostics):
-        raise MachineIdentityUnavailable("The Infisical machine identity has no access to the web-login project")
+        raise MachineIdentityUnavailable("The configured browser-login vault location is missing or inaccessible to the Infisical machine identity")
     if return_code:
         raise VaultUnavailable("Infisical rejected the web-login operation")
     return output

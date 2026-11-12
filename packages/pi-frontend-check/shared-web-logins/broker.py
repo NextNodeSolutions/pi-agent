@@ -23,10 +23,20 @@ KEY_PATTERN = re.compile(r"WEB_LOGIN_[A-F0-9]{32}\Z")
 
 
 def _settings() -> dict:
-    settings = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-    if not all(settings.get(key) for key in ("projectId", "environment", "path")):
-        raise VaultUnavailable("Web-login project configuration is incomplete")
-    return settings
+    binding_file = Path.home() / ".config" / "agent-secrets" / "core-vault.json"
+    try:
+        settings = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+        binding = json.loads(binding_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise VaultUnavailable("Cannot read the browser-login vault configuration") from None
+    if not isinstance(settings, dict) or not isinstance(binding, dict):
+        raise VaultUnavailable("Invalid browser-login vault configuration")
+    project_id, environment, path = binding.get("projectId"), binding.get("environment"), settings.get("path")
+    if (not isinstance(project_id, str) or not re.fullmatch(r"[a-zA-Z0-9-]+", project_id)
+            or not isinstance(environment, str) or not re.fullmatch(r"[a-zA-Z0-9_-]+", environment)
+            or not isinstance(path, str) or not path.startswith("/") or re.search(r"[\r\n\0]", path)):
+        raise VaultUnavailable("Browser-login vault configuration is incomplete or invalid")
+    return {"projectId": project_id, "environment": environment, "path": path}
 
 
 def _run_cli(arguments: list[str], *, payload: bytes | None = None) -> bytes:

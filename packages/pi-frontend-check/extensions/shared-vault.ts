@@ -43,7 +43,7 @@ function brokerFailure(error: unknown): Error {
 		error.code === identity.identityUnavailableExitCode
 	return new Error(
 		isIdentityUnavailable
-			? 'Shared web-login vault refuses the Infisical machine identity: its variables are missing from this session, or it is not a member of the web-login project. Tell the user, who alone can fix either. Do not re-enter the website password.'
+			? 'Shared web-login vault unavailable: machine credentials are missing or refused, or the configured vault location is missing or inaccessible. Check the machine environment and vault configuration. Do not re-enter the website password.'
 			: 'Shared web-login vault unavailable. Do not re-enter the password yet.',
 	)
 }

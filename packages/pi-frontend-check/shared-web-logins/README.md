@@ -6,7 +6,7 @@ Infisical holds login records. Browser sessions and personal Brave remain separa
 
 The broker uses the machine identity through the repository's `bin/infisical` shim. Authentication, environment requirements and project grants are documented in `skills/infisical/SKILL.md` at the repository root. Enrollment uses that same identity. No user-session preflight, keychain access or browser login is required.
 
-`config.json` owns the web-login project, environment and path. `security/machine-identity.json` owns the credential variable names and exit protocol. Missing credentials, rejected authentication and project access refusals return its identity-unavailable exit code. Outages and other failures return 1. Neither means the website account is absent.
+`~/.config/agent-secrets/core-vault.json` owns the project and environment. `config.json` owns only the browser tool folder path within that vault. `security/machine-identity.json` owns the credential variable names and exit protocol. Missing credentials, rejected authentication and project access refusals return its identity-unavailable exit code. Outages and other failures return 1. Neither means the website account is absent.
 
 ## Components
 
@@ -21,7 +21,7 @@ Run `python3 ~/.pi/agent/packages/pi-frontend-check/shared-web-logins/enroll.py`
 
 Use `frontend_vault_list`, choose an exact-origin handle, type its identifier and call `frontend_vault_fill`. Submit only with authorization, then verify the protected page. Password fills recheck the origin and refuse ambiguous fields. Tool output is redacted and captures remain blocked after a fill until the connection is released.
 
-`python3 broker.py list` verifies metadata access without returning passwords. Missing machine credentials or grants need human repair, not re-enrollment. Install changes by merging and run `/reload`. A worktree command checks that worktree, not the installed package.
+`python3 broker.py list` verifies metadata access without returning passwords. A 404 can mean a missing configured location or refused access. Verify the configuration and project metadata before asking for a grant. A failed lookup is not a reason to re-enroll passwords. Install changes by merging and run `/reload`. A worktree command checks that worktree, not the installed package.
 
 ## Limits
 
