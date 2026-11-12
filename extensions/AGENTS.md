@@ -47,7 +47,7 @@ Read `~/.pi/agent/extensions/DESIGN.md` before restyling or migrating any pi ren
 
 ## Tests
 
-- The config carries no test tree. An agent writes a test only under an explicit test authorization (`../AGENTS.md` # Tests); when authorized it lives at `../tests/<name>.test.ts` (relative to a module under `extensions/`), `node --test`. Run it with `pnpm run test` — it passes `--experimental-transform-types`, so parameter properties and enums load; a hand-written `node --test` fails on those with `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`. Keep logic importable and testable without a TUI.
+- Follow the Tests gate in `../AGENTS.md` before authoring a test. A permitted test lives at `../tests/<name>.test.ts` (relative to a module under `extensions/`), `node --test`. Run it with `pnpm run test` — it passes `--experimental-transform-types`, so parameter properties and enums load; a hand-written `node --test` fails on those with `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`. Keep logic importable and testable without a TUI.
 
 ## Imports
 

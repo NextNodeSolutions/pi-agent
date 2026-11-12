@@ -7,5 +7,13 @@
 		"allowImportingTsExtensions": true,
 		"types": ["node"]
 	},
-	"include": ["extensions", "security", "tests", "bin/setup.ts", "*.ts"]
+	"include": [
+		"extensions",
+		"security",
+		"tests",
+		"bin/setup.ts",
+		"bin/test-pace*.ts",
+		"bin/eval-test-pace.ts",
+		"*.ts"
+	]
 }

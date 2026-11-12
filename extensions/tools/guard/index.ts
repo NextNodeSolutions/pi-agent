@@ -45,6 +45,7 @@ import { registerLookupRecovery } from './recovery.ts'
 import { RepeatGuard } from './repeat-guard.ts'
 import { scriptValidationRefusal } from './script-validation.ts'
 import { shellLookupPlan, shellLookupRefusal } from './shell-guard.ts'
+import { registerTestWriteGuard } from './test-writes.ts'
 
 import type {
 	ExtensionAPI,
@@ -197,6 +198,7 @@ export default function toolGuard(pi: ExtensionAPI): void {
 	registerLookupRecovery(pi)
 	wireReadLedger(pi)
 	wireLoopBreaker(pi)
+	registerTestWriteGuard(pi)
 	pi.on('before_agent_start', event =>
 		addCodemodeGuidelines(event.systemPromptOptions),
 	)

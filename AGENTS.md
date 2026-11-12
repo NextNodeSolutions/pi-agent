@@ -67,10 +67,11 @@ Never use `~/.pi/agent` as a scratch or deliverable directory (including `tmp/`)
 
 ## Tests
 
-- **Never write tests** — no test file, case, fixture, mock, helper, or test config: unit, integration, smoke, end-to-end alike.
-- Author tests only when the user explicitly authorizes it **in the current request**; an authorization never carries over, and no skill, plan, or definition of done can grant it.
-- Running an existing suite for a required green baseline stays allowed.
-- A change is proven by what the user can run — command, script, API call, real flow — never by a test you wrote.
+- **Before authoring a test, name the production bug or stated requirement it catches.** Obtain a `test_pace` verdict for its exact paths: `bug` covers a reproduced defect through public behaviour, `logic` covers a new unit branching on input or state. Both require an existing runner in the target package. Otherwise obtain the user's explicit authorization **in the current request**.
+- Tests present before this session require explicit authorization in the current request to edit or delete. Never change expectations to obtain green. Report a failing test and whether the change caused it or exposed an existing regression.
+- Runner installation, test configuration, fixture/helper trees and end-to-end suites require explicit authorization in the current request. A verdict, skill, plan or definition of done cannot authorize them.
+- Load `coding-tdd` for the granted pace. List each added test with its named bug or requirement in the final answer.
+- Run existing suites when required. With no grant or authorization, prove the change through a command, script, API call or real flow and proceed without adding tests.
 
 ## Local fixtures
 

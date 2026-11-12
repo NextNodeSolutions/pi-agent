@@ -30,5 +30,8 @@ shadow a system binary or is pi-owned:
   answer afterwards; a no-op elsewhere. `check` runs at session start by
   `extensions/model/gateway-priority/`.
 
+- `test-pace.ts` — Claude Code calls the shared test decision with its current transcript: `node --experimental-transform-types ~/.pi/agent/bin/test-pace.ts --session <JSONL> --intent <bug or requirement> <test paths...>`. It reads the request itself, sends no source code and does not mint Pi grants.
+- `eval-test-pace.ts` — run through the core vault providers environment to calibrate the pinned question against `test-pace-cases.ts`. Cases paraphrase historical requests with agent-labelled expectations. The report separates false grants, unavailable calls and conservative refusals.
+
 Personal cross-context tools live in `~/.local/bin` (last in PATH on purpose),
 not here.
