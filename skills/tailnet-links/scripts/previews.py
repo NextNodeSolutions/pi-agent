@@ -12,7 +12,7 @@ CONNECT_TIMEOUT_SECONDS = 1
 # Serve reaches a server bound to either loopback family only through the name, never through 127.0.0.1 or ::1.
 BACKEND_PREFIX = "http://localhost:"
 REFUSED_STATUS = 403
-DEV_SERVER_ENV = (Path(__file__).resolve().parent / "dev-server.env").read_text().splitlines()
+DEV_SERVER_ENV = (Path(__file__).resolve().parent / "dev-server.env").read_text().split()
 
 
 def https_port(port):

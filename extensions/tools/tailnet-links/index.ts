@@ -25,6 +25,7 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 const DEV_SERVER_ENVIRONMENT = 'skills/tailnet-links/scripts/dev-server.env'
 const ASSIGNMENT_SEPARATOR = '='
+const LINE_BREAK = /\r?\n/
 const SUBAGENT_CHILD_FLAG = '1'
 const FAILURE_PREFIX = 'Links were left as written: '
 
@@ -33,7 +34,7 @@ function exportDevServerEnvironment(): void {
 		join(getAgentDir(), DEV_SERVER_ENVIRONMENT),
 		'utf8',
 	)
-	for (const line of assignments.split('\n').filter(Boolean)) {
+	for (const line of assignments.split(LINE_BREAK).filter(Boolean)) {
 		const nameLength = line.indexOf(ASSIGNMENT_SEPARATOR)
 		if (nameLength <= 0) {
 			throw new Error(
