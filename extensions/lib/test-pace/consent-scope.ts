@@ -11,6 +11,7 @@ const BOLD = /^\*\*(.+)\*\*$/u
 const TRAILING = /(?::\d+)*[.,:;!?]*$/u
 const WILDCARD = /[*?{]/u
 const HOME = '~/'
+const ANY_DIRECTORY = '**/'
 
 type Named = { path: string; isDirectory: boolean }
 
@@ -21,6 +22,8 @@ function namedPath(token: string): Named | undefined {
 		(!bare.includes('/') && !(bare.includes('.') && isTestPath(bare)))
 	)
 		return undefined
+	if (!bare.includes('/'))
+		return { path: `${ANY_DIRECTORY}${bare}`, isDirectory: true }
 	const expanded = bare.startsWith(HOME)
 		? join(homedir(), bare.slice(HOME.length))
 		: bare

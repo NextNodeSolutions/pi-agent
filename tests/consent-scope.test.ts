@@ -57,12 +57,12 @@ test('covers the working directory when no path is named', async () => {
 	)
 })
 
-test('keeps a named bare test filename scoped to that file', async () => {
+test('scopes a bare test filename to files of that name anywhere under the root', async () => {
 	assert.deepEqual(
 		await consentScope(fixture.root, [
 			'Add a test for src/cart.ts in cart.test.ts?',
 		]),
-		[join(fixture.root, 'cart.test.ts')],
+		[join(fixture.root, '**/cart.test.ts')],
 	)
 })
 
