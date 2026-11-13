@@ -43,7 +43,7 @@ shadow a system binary or is pi-owned:
   `extensions/model/gateway-priority/`.
 
 - `test-pace.ts` — Claude Code calls the shared test decision with its current transcript: `node --experimental-transform-types ~/.pi/agent/bin/test-pace.ts --session <JSONL> --intent <bug or requirement> <test paths...>`. It reads the human's requests, questionnaire answers and relays itself and prints `pace` (`bug`, `logic`, `none`) and `permission` (`new`, `existing`, `none`: the human consent covering every named path). It sends no source code and does not mint Pi grants.
-- `eval-test-pace.ts` — run through the core vault providers environment to calibrate the pinned pace, consent and operation questions, against the cases `test-pace-cases.ts` loads; a consent case may carry the agent `question` its reply answers. Expectations are agent-labelled. Each report separates false grants, unavailable calls and conservative refusals; any false grant, a missed withdrawal included, or unavailable call fails the run.
+- `eval-test-pace.ts` — run through the core vault providers environment to calibrate the pinned pace, consent, operation and stop-target questions, against the cases `test-pace-cases.ts` loads; a consent case may carry the agent `question` its reply answers, and a stop-target case the `thread` a stop may cancel grants in. Expectations are agent-labelled. Each report separates false grants, unavailable calls and conservative refusals; any false grant, a missed withdrawal or stop included, or unavailable call fails the run.
 
 Personal cross-context tools live in `~/.local/bin` (last in PATH on purpose),
 not here.

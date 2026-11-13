@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 
 import { CONSENT_VERDICTS } from '../extensions/lib/test-pace/permission.ts'
+import { STOP_TARGETS } from '../extensions/lib/test-pace/stop-target.ts'
 
 import type { TestPace } from '../extensions/lib/test-pace/decision.ts'
 import type { ConsentVerdict } from '../extensions/lib/test-pace/permission.ts'
@@ -18,6 +19,11 @@ type PermissionCase = Labelled<ConsentVerdict> & { question: string }
 type OperationCase = Labelled<(typeof OPERATION_OUTCOMES)[number]> & {
 	question: string
 	operation: string
+}
+/** `request` is a stop the human typed to another terminal; `thread` names the terminal whose grants it may cancel. */
+type StopTargetCase = Labelled<(typeof STOP_TARGETS)[number]> & {
+	question: string
+	thread: string
 }
 
 function labelled<Label extends string>(
@@ -43,6 +49,14 @@ export const operationCases = labelled(
 	(sample): sample is OperationCase =>
 		typeof Reflect.get(sample, 'question') === 'string' &&
 		typeof Reflect.get(sample, 'operation') === 'string',
+)
+export const stopTargetCases = labelled(
+	'./test-stop-target-cases.json',
+	STOP_TARGETS,
+).filter(
+	(sample): sample is StopTargetCase =>
+		typeof Reflect.get(sample, 'question') === 'string' &&
+		typeof Reflect.get(sample, 'thread') === 'string',
 )
 export const paceCases = labelled('./test-pace-cases.json', [
 	'bug',
