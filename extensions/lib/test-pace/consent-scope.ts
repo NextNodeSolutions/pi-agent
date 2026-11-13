@@ -5,6 +5,9 @@ import { runtimeFor } from '#lib/runtime/runtime.ts'
 
 import { coversPath, isTestPath } from './paths.ts'
 import { physicalPath } from './physical-path.ts'
+import { classifyScopePath } from './scope-path.ts'
+
+import type { Evidence } from './evidence.ts'
 
 const SEPARATORS = /[\s`'"<>,;|]+|\]\(/u
 /** Bold text, not a glob such as `**\/__snapshots__/**`. */
@@ -22,6 +25,8 @@ const ANY_DIRECTORY = '**/'
 type Named = { written: string; path: string; isDirectory: boolean }
 /** Whether the permission covers a written path rather than naming it as context. */
 export type PathJudge = (written: string) => Promise<boolean>
+/** `answered`: Jev read every path it was asked about. */
+type Scoped = { scope: string[]; answered: boolean }
 
 function count(token: string, char: string): number {
 	return token.split(char).length - 1
@@ -135,7 +140,7 @@ async function coveredPaths(
 	return Array.from(new Set(entries.flat()))
 }
 
-/** The last text naming a covered path decides; an exchange naming none covers nothing by itself (`consent.ts` gives it the earlier grants' scope). */
+/** The last text naming a covered path decides; an exchange naming none covers nothing by itself (`inheritedScopes` gives it the earlier grants' scope). */
 export async function consentScope(
 	root: string,
 	isCovered: PathJudge,
@@ -145,6 +150,44 @@ export async function consentScope(
 		const newer = await found
 		return newer.length ? newer : coveredPaths(root, isCovered, text)
 	}, Promise.resolve([]))
+}
+
+/** A path Jev did not read stays out of the grant and keeps the judgment unrecorded, so it is read again. */
+export async function grantScope(
+	root: string,
+	evidence: Evidence,
+): Promise<Scoped> {
+	const reads: boolean[] = []
+	const scope = await consentScope(
+		root,
+		async written => {
+			const decision = await classifyScopePath(evidence, written)
+			reads.push(Boolean(decision.answer))
+			return decision.isCovered
+		},
+		[evidence.scopeText ?? evidence.question, evidence.reply],
+	)
+	return { scope, answered: reads.every(Boolean) }
+}
+
+/** A grant naming no path covers what the active grants before it cover, never the whole repository. */
+export function inheritedScopes<Grant extends { scope: string[] }>(
+	grants: readonly Grant[],
+): Grant[] {
+	return grants.map((grant, index) =>
+		grant.scope.length
+			? grant
+			: {
+					...grant,
+					scope: [
+						...new Set(
+							grants
+								.slice(0, index)
+								.flatMap(earlier => earlier.scope),
+						),
+					],
+				},
+	)
 }
 
 export function consentCovers(scope: readonly string[], path: string): boolean {

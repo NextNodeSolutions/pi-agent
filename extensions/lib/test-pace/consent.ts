@@ -1,10 +1,9 @@
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
-import { consentCovers, consentScope } from './consent-scope.ts'
+import { consentCovers, grantScope, inheritedScopes } from './consent-scope.ts'
 import { classifyConsent, CONSENT_VERDICTS, isGrant } from './permission.ts'
 import { relayedEvidence } from './relay-evidence.ts'
-import { classifyScopePath } from './scope-path.ts'
 import { classifyStopTarget } from './stop-target.ts'
 
 import type { Static } from 'typebox'
@@ -32,7 +31,6 @@ export type ConsentKind = EditKind | 'none'
 /** `answered`: Jev decided, so the judgment can be recorded instead of asked again. */
 type Judged = { judgment: Judgment; answered: boolean }
 type Decided = { verdict: ConsentVerdict; answered: boolean }
-type Scoped = { scope: string[]; answered: boolean }
 type Judge = (evidence: Evidence) => Promise<Judgment>
 
 async function stopVerdict(
@@ -58,21 +56,6 @@ async function decide(evidence: Evidence): Promise<Decided> {
 		verdict: evidence.mayGrant === false ? 'none' : decision.verdict,
 		answered: Boolean(decision.answer),
 	}
-}
-
-/** A path Jev did not read stays out of the grant and keeps the judgment unrecorded, so it is read again. */
-async function grantScope(root: string, evidence: Evidence): Promise<Scoped> {
-	const reads: boolean[] = []
-	const scope = await consentScope(
-		root,
-		async written => {
-			const decision = await classifyScopePath(evidence, written)
-			reads.push(Boolean(decision.answer))
-			return decision.isCovered
-		},
-		[evidence.scopeText ?? evidence.question, evidence.reply],
-	)
-	return { scope, answered: reads.every(Boolean) }
 }
 
 export async function judgeEvidence(
@@ -111,24 +94,6 @@ async function judgeAll(
 	}
 	await Promise.all(Array.from({ length: JUDGE_CONCURRENCY }, next))
 	return judgments
-}
-
-/** A grant naming no path covers what the active grants before it cover, never the whole repository. */
-function inheritedScopes(grants: readonly Judgment[]): Judgment[] {
-	return grants.map((grant, index) =>
-		grant.scope.length
-			? grant
-			: {
-					...grant,
-					scope: [
-						...new Set(
-							grants
-								.slice(0, index)
-								.flatMap(earlier => earlier.scope),
-						),
-					],
-				},
-	)
 }
 
 function activeConsents(judgments: readonly Judgment[]): Judgment[] {
