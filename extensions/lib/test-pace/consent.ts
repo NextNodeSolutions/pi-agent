@@ -2,11 +2,12 @@ import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
 import { consentCovers, consentScope } from './consent-scope.ts'
-import { classifyConsent, isConsentVerdict, isGrant } from './permission.ts'
+import { classifyConsent, CONSENT_VERDICTS, isGrant } from './permission.ts'
 import { relayedEvidence } from './relay-evidence.ts'
 
+import type { Static } from 'typebox'
 import type { Evidence, SessionRecords } from './evidence.ts'
-import type { ConsentDecision, ConsentVerdict } from './permission.ts'
+import type { ConsentDecision } from './permission.ts'
 
 export const PACE_CONSENT_ENTRY = 'test-pace-consent-v1'
 const JUDGE_CONCURRENCY = 6
@@ -15,20 +16,13 @@ const TEST_TOPIC = /test|spec|fixture|suite|e2e|tdd/iu
 const JUDGMENT_SCHEMA = Type.Object({
 	evidenceId: Type.String(),
 	at: Type.String(),
-	verdict: Type.String(),
+	verdict: Type.Enum(CONSENT_VERDICTS),
 	scope: Type.Array(Type.String()),
 	question: Type.String(),
 	reply: Type.String(),
 })
 
-export type Judgment = {
-	evidenceId: string
-	at: string
-	verdict: ConsentVerdict
-	scope: string[]
-	question: string
-	reply: string
-}
+export type Judgment = Static<typeof JUDGMENT_SCHEMA>
 
 export type EditKind = 'new' | 'existing'
 export type ConsentKind = EditKind | 'none'
@@ -126,13 +120,6 @@ export function consentKind(
 	return consentsAllowing(consents, path, 'new').length ? 'new' : 'none'
 }
 
-function readJudgment(saved: unknown): Judgment | undefined {
-	if (!Value.Check(JUDGMENT_SCHEMA, saved)) return undefined
-	const { evidenceId, at, verdict, scope, question, reply } = saved
-	if (!isConsentVerdict(verdict)) return undefined
-	return { evidenceId, at, verdict, scope, question, reply }
-}
-
 export function recordedJudgments(
 	entries: readonly unknown[],
 ): Map<string, Judgment> {
@@ -140,8 +127,10 @@ export function recordedJudgments(
 		entries.flatMap(entry => {
 			if (Reflect.get(Object(entry), 'customType') !== PACE_CONSENT_ENTRY)
 				return []
-			const judgment = readJudgment(Reflect.get(Object(entry), 'data'))
-			return judgment ? [[judgment.evidenceId, judgment] as const] : []
+			const saved: unknown = Reflect.get(Object(entry), 'data')
+			return Value.Check(JUDGMENT_SCHEMA, saved)
+				? [[saved.evidenceId, saved] as const]
+				: []
 		}),
 	)
 }

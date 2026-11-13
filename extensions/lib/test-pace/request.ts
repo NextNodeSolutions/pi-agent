@@ -31,22 +31,17 @@ const REQUEST_SCHEMA = Type.Object({
 export type RequestOrigin = Static<typeof ORIGIN_SCHEMA>
 export type PaceRequest = Static<typeof REQUEST_SCHEMA>
 
-export function relayOrigin(sender: string | undefined): RequestOrigin {
-	return sender ? { kind: 'relay', sender } : { kind: 'relay' }
-}
-
 export function readPaceRequest(candidate: unknown): PaceRequest | undefined {
 	if (!Value.Check(REQUEST_SCHEMA, candidate)) return undefined
-	const origin =
-		candidate.origin.kind === 'relay'
-			? relayOrigin(candidate.origin.sender)
-			: { kind: candidate.origin.kind }
-	return { id: candidate.id, text: candidate.text, origin }
+	return candidate
 }
 
 export function typedOrigin(typed: string): RequestOrigin {
 	const relay = readRelay(typed)
-	return relay ? relayOrigin(relay.sender) : { kind: 'human' }
+	if (!relay) return { kind: 'human' }
+	return relay.sender
+		? { kind: 'relay', sender: relay.sender }
+		: { kind: 'relay' }
 }
 
 export function currentPaceRequest(
