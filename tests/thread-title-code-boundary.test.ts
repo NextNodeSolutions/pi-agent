@@ -41,9 +41,9 @@ test('closes a fence only on a closing fence line', () => {
 	assert.equal(highlight(markdown), markdown)
 })
 
-test('leaves a link destination as written and styles its label', () => {
+test('leaves a whole Markdown link as written', () => {
 	assert.equal(
-		highlight('[Multi API docs](https://example.test/API)\n'),
-		'[<Multi API> docs](https://example.test/API)\n',
+		highlight('[Multi API docs](https://example.test/API) then Multi API.\n'),
+		'[Multi API docs](https://example.test/API) then <Multi API>.\n',
 	)
 })

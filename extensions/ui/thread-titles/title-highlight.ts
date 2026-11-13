@@ -1,24 +1,33 @@
-/** Style every known thread title in Markdown prose, leaving code spans, code blocks and link destinations as written. */
+/** Style every known thread title in Markdown prose, leaving code, links and URLs as written. */
 const FENCE = /^[\s>]*(`{3,}|~{3,})/u
 const FENCE_CLOSE = /^[\s>]*(`{3,}|~{3,})[ \t]*$/u
 const BLOCKQUOTE_PREFIX = /^(?: {0,3}> ?)+/u
-const INDENTED_CODE = /^(?: {4,}|\t)/u
+const LIST_MARKER = /^([ \t]*)(?:[-*+]|\d{1,9}[.)])[ \t]+/u
+const HEADING = /^[ \t]{0,3}#{1,6}[ \t]/u
+const INDENTED_CODE = /^[ \t]*/u
+const DEFINITION = /^[ \t]{0,3}\[[^\]\n]+\]:/u
+const LINK_OR_URL =
+	/!?\[[^\]\n]*\](?:\([^)\n]*\)|\[[^\]\n]*\])?|\b(?:https?|ftp):\/\/\S+|<[^\s<>]+>/gu
 const BACKTICK_RUN = /`+/gu
-const LINK_DESTINATION = /\]\([^\n)]*\)/gu
+const PARAGRAPH_BREAK = /(\r?\n[ \t]*\r?\n)/u
+const LINE_BREAK = /(?<=\r?\n)/u
+const LINE_TAIL = /\r?\n$/u
 const REGEX_SPECIAL = /[.*+?^${}()|[\]\\]/gu
 const WORD_CHARACTER = /[\p{L}\p{N}_]/u.source
-const LINE_BREAK = /(?<=\n)/u
-const LINE_TAIL = /\n$/u
+const CODE_INDENT = 4
 const ESCAPE_PAIR = 2
+const TAB_WIDTH = 4
 
 type StyleTitle = (title: string) => string
 type Fence = { readonly character: string; readonly length: number }
 type LineKind = 'blank' | 'prose' | 'code'
-type LineScan = {
-	readonly isCode: boolean
+type ScanState = {
 	readonly fence: Fence | undefined
 	readonly kind: LineKind
+	readonly containerIndent: number
 }
+type LineScan = ScanState & { readonly isProtected: boolean }
+type Range = readonly [start: number, end: number]
 
 /** One alternation, longest title first, so a title never matches inside a longer one. */
 export function titlePattern(titles: readonly string[]): RegExp | undefined {
@@ -39,47 +48,78 @@ function isEscaped(text: string, at: number): boolean {
 	return backslashes % ESCAPE_PAIR === 1
 }
 
-/** CommonMark code spans: a backtick run closes only on the next unescaped run of the same length. */
+/** CommonMark code spans: a backtick run closes on the next run of the same length, and a backslash never escapes it. */
 function codeSpanEnd(text: string, start: number, length: number): number {
 	for (const run of text.slice(start + length).matchAll(BACKTICK_RUN)) {
-		const index = start + length + run.index
-		if (run[0].length === length && !isEscaped(text, index))
-			return index + length
+		if (run[0].length === length) return start + length + run.index + length
 	}
 	return -1
 }
 
-/** A link destination is not prose: styling inside it would break the URL. */
-function styleWords(text: string, pattern: RegExp, style: StyleTitle): string {
-	let styled = ''
-	let cursor = 0
-	for (const destination of text.matchAll(LINK_DESTINATION)) {
-		const start = destination.index
-		styled +=
-			text.slice(cursor, start).replace(pattern, style) + destination[0]
-		cursor = start + destination[0].length
-	}
-	return styled + text.slice(cursor).replace(pattern, style)
-}
-
-function styleSpans(text: string, pattern: RegExp, style: StyleTitle): string {
-	let styled = ''
+function codeSpanRanges(text: string): Range[] {
+	const ranges: Range[] = []
 	let cursor = 0
 	for (const run of text.matchAll(BACKTICK_RUN)) {
 		const start = run.index
 		if (start < cursor || isEscaped(text, start)) continue
 		const end = codeSpanEnd(text, start, run[0].length)
 		if (end < 0) continue
-		styled +=
-			styleWords(text.slice(cursor, start), pattern, style) +
-			text.slice(start, end)
+		ranges.push([start, end])
 		cursor = end
 	}
-	return styled + styleWords(text.slice(cursor), pattern, style)
+	return ranges
+}
+
+/** Links, autolinks and bare URLs render as one unit: styling inside them breaks the target. */
+function linkRanges(text: string): Range[] {
+	return [...text.matchAll(LINK_OR_URL)].map(link => [
+		link.index,
+		link.index + link[0].length,
+	])
+}
+
+/** Code spans and links are protected together, so a code span inside a link label cannot expose the link. */
+function styleSpansInParagraph(
+	text: string,
+	pattern: RegExp,
+	style: StyleTitle,
+): string {
+	const ranges = [...codeSpanRanges(text), ...linkRanges(text)].toSorted(
+		(left, right) => left[0] - right[0],
+	)
+	let styled = ''
+	let cursor = 0
+	for (const [start, end] of ranges) {
+		if (end <= cursor) continue
+		const from = Math.max(start, cursor)
+		styled +=
+			text.slice(cursor, from).replace(pattern, style) +
+			text.slice(from, end)
+		cursor = end
+	}
+	return styled + text.slice(cursor).replace(pattern, style)
+}
+
+function styleSpans(text: string, pattern: RegExp, style: StyleTitle): string {
+	const [first = '', ...rest] = text.split(PARAGRAPH_BREAK)
+	let styled = styleSpansInParagraph(first, pattern, style)
+	let isSeparator = true
+	for (const part of rest) {
+		styled += isSeparator
+			? part
+			: styleSpansInParagraph(part, pattern, style)
+		isSeparator = !isSeparator
+	}
+	return styled
+}
+
+function leadingColumns(line: string): number {
+	const indentation = INDENTED_CODE.exec(line)?.[0] ?? ''
+	return indentation.replace(/\t/gu, ' '.repeat(TAB_WIDTH)).length
 }
 
 function isClosing(run: string, fence: Fence): boolean {
-	return run[0] === fence.character && run.length >= fence.length
+	return run.charAt(0) === fence.character && run.length >= fence.length
 }
 
 function closedFence(body: string, fence: Fence): Fence | undefined {
@@ -88,25 +128,58 @@ function closedFence(body: string, fence: Fence): Fence | undefined {
 	return fence
 }
 
-/** Fences nest in lists and quotes and indented code follows a blank line, so each line is read past its `>` prefix. */
-function scanLine(
-	line: string,
-	fence: Fence | undefined,
-	previousKind: LineKind,
-): LineScan {
-	const body = line.replace(BLOCKQUOTE_PREFIX, '').replace(LINE_TAIL, '')
-	if (fence)
-		return { isCode: true, fence: closedFence(body, fence), kind: 'code' }
+function openedFence(body: string): Fence | undefined {
 	const opening = FENCE.exec(body)?.[1]
-	if (opening)
+	if (!opening) return undefined
+	return { character: opening.charAt(0), length: opening.length }
+}
+
+function listIndent(body: string): number | undefined {
+	const marker = LIST_MARKER.exec(body)
+	if (!marker) return undefined
+	return leadingColumns(marker[0])
+}
+
+/** A heading ends the paragraph before it, so an indented line after one starts a code block. */
+function lineKind(body: string): LineKind {
+	if (HEADING.test(body)) return 'blank'
+	return body.trim() ? 'prose' : 'blank'
+}
+
+function scanLine(line: string, state: ScanState): LineScan {
+	const body = line.replace(BLOCKQUOTE_PREFIX, '').replace(LINE_TAIL, '')
+	const containerIndent = listIndent(body) ?? state.containerIndent
+	if (state.fence)
 		return {
-			isCode: true,
-			fence: { character: opening.charAt(0), length: opening.length },
+			isProtected: true,
+			fence: closedFence(body, state.fence),
 			kind: 'code',
+			containerIndent,
 		}
-	if (INDENTED_CODE.test(body) && previousKind !== 'prose')
-		return { isCode: true, fence, kind: 'code' }
-	return { isCode: false, fence, kind: body.trim() ? 'prose' : 'blank' }
+	if (DEFINITION.test(body))
+		return {
+			isProtected: true,
+			fence: undefined,
+			kind: 'blank',
+			containerIndent,
+		}
+	if (state.kind === 'prose')
+		return {
+			isProtected: false,
+			fence: undefined,
+			kind: lineKind(body),
+			containerIndent,
+		}
+	const fence = openedFence(body.replace(LIST_MARKER, ''))
+	if (fence)
+		return { isProtected: true, fence, kind: 'code', containerIndent }
+	const indented = leadingColumns(body) >= containerIndent + CODE_INDENT
+	return {
+		isProtected: indented,
+		fence: undefined,
+		kind: indented ? 'code' : lineKind(body),
+		containerIndent,
+	}
 }
 
 export function highlightTitles(
@@ -117,8 +190,11 @@ export function highlightTitles(
 	if (markdown.search(pattern) < 0) return markdown
 	let styled = ''
 	let prose = ''
-	let fence: Fence | undefined
-	let previousKind: LineKind = 'blank'
+	let state: ScanState = {
+		fence: undefined,
+		kind: 'blank',
+		containerIndent: 0,
+	}
 
 	const flushProse = (): void => {
 		styled += styleSpans(prose, pattern, style)
@@ -126,15 +202,14 @@ export function highlightTitles(
 	}
 
 	for (const line of markdown.split(LINE_BREAK)) {
-		const scan = scanLine(line, fence, previousKind)
-		if (scan.isCode) {
+		const scan = scanLine(line, state)
+		if (scan.isProtected) {
 			flushProse()
 			styled += line
 		} else {
 			prose += line
 		}
-		fence = scan.fence
-		previousKind = scan.kind
+		state = scan
 	}
 
 	flushProse()
