@@ -11,7 +11,6 @@ import { highlightTitles, titlePattern } from './title-highlight.ts'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 const REFRESH_INTERVAL_MS = 10_000
-const MISSING_PROGRAM = 'ENOENT'
 
 const styleTitle = (title: string): string =>
 	uiTheme.bold(uiTheme.fg('agent', title))
@@ -21,7 +20,7 @@ export default function threadTitles(pi: ExtensionAPI): void {
 	let pattern: RegExp | undefined
 	let timer: NodeJS.Timeout | undefined
 	let isRefreshing = false
-	let isHcMissing = false
+	let isLive = false
 
 	const stop = (): void => {
 		clearInterval(timer)
@@ -31,19 +30,12 @@ export default function threadTitles(pi: ExtensionAPI): void {
 	const refresh = async (): Promise<void> => {
 		if (isRefreshing) return
 		isRefreshing = true
-		try {
-			const previousTitleCount = knownTitles.size
-			for (const title of await readThreadTitles()) knownTitles.add(title)
-			if (knownTitles.size !== previousTitleCount)
-				pattern = titlePattern([...knownTitles])
-		} catch (error: unknown) {
-			isHcMissing =
-				error instanceof Error &&
-				Reflect.get(error, 'code') === MISSING_PROGRAM
-			if (isHcMissing) stop()
-		} finally {
-			isRefreshing = false
-		}
+		const titles = await readThreadTitles().catch(() => [])
+		isRefreshing = false
+		const previousCount = knownTitles.size
+		for (const title of titles) knownTitles.add(title)
+		if (knownTitles.size !== previousCount)
+			pattern = titlePattern([...knownTitles])
 	}
 
 	pi.registerMarkdownTransformer((markdown, context) =>
@@ -52,12 +44,19 @@ export default function threadTitles(pi: ExtensionAPI): void {
 			: markdown,
 	)
 	pi.on('session_start', async (_event, context) => {
-		if (!context.hasUI) return
+		if (!context.hasUI || !process.env.HC_TERMINAL_ID) return
 		stop()
+		isLive = true
 		await refresh()
-		if (isHcMissing) return
+		if (!isLive) return
 		timer = setInterval(() => void refresh(), REFRESH_INTERVAL_MS)
 		timer.unref()
 	})
-	pi.on('session_shutdown', stop)
+	pi.on('turn_start', () => {
+		if (isLive) void refresh()
+	})
+	pi.on('session_shutdown', () => {
+		isLive = false
+		stop()
+	})
 }
