@@ -11,7 +11,8 @@ import type { ConsentDecision } from './permission.ts'
 
 export const PACE_CONSENT_ENTRY = 'test-pace-consent-v1'
 const JUDGE_CONCURRENCY = 6
-const TEST_TOPIC = /test|spec|fixture|suite|e2e|tdd/iu
+const TEST_TOPIC =
+	/test|spec|fixture|suite|e2e|tdd|snapshot|mock|jest|cypress|playwright/iu
 
 const JUDGMENT_SCHEMA = Type.Object({
 	evidenceId: Type.String(),
