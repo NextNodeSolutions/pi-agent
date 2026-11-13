@@ -1,5 +1,10 @@
 import { readFileSync } from 'node:fs'
 
+import {
+	CONSENT_VERDICTS,
+	isConsentVerdict,
+} from '../extensions/lib/test-pace/permission.ts'
+
 import type { TestPace } from '../extensions/lib/test-pace/decision.ts'
 import type { ConsentVerdict } from '../extensions/lib/test-pace/permission.ts'
 
@@ -46,10 +51,7 @@ function permissionCase(candidate: unknown): PermissionCase[] {
 		typeof id === 'string' &&
 		typeof request === 'string' &&
 		typeof question === 'string' &&
-		(expected === 'new' ||
-			expected === 'existing' ||
-			expected === 'withdraw' ||
-			expected === 'none')
+		isConsentVerdict(expected)
 	return valid ? [{ id, question, request, expected }] : []
 }
 
@@ -71,5 +73,5 @@ export const paceCases: PaceCase[] = labelled('./test-pace-cases.json', [
 ]).filter(isPaceCase)
 export const permissionCases: PermissionCase[] = labelled(
 	'./test-permission-cases.json',
-	['new', 'existing', 'withdraw', 'none'],
+	CONSENT_VERDICTS,
 ).flatMap(permissionCase)

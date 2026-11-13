@@ -6,16 +6,11 @@ import { forbidsTestAuthoring, safePaceText } from './request.ts'
 import type { ChoiceQuestion, ChoiceResult } from '#lib/jev/client.ts'
 
 /** `existing` includes `new`; `withdraw` takes back every earlier consent. */
-export type ConsentVerdict = 'new' | 'existing' | 'withdraw' | 'none'
+export const CONSENT_VERDICTS = ['new', 'existing', 'withdraw', 'none'] as const
+export type ConsentVerdict = (typeof CONSENT_VERDICTS)[number]
 export type ConsentDecision = { verdict: ConsentVerdict; answer?: ChoiceResult }
 export type ConsentExchange = { question: string; reply: string }
 
-const VERDICTS: ReadonlySet<string> = new Set([
-	'new',
-	'existing',
-	'withdraw',
-	'none',
-])
 const QUESTION_CHARS = 3000
 export const PERMISSION_CONFIDENCE = 0.8
 export const CONSENT_QUESTION: ChoiceQuestion = {
@@ -31,15 +26,21 @@ export const CONSENT_QUESTION: ChoiceQuestion = {
 	},
 }
 
-function isVerdict(choice: string): choice is ConsentVerdict {
-	return VERDICTS.has(choice)
+export function isConsentVerdict(
+	candidate: unknown,
+): candidate is ConsentVerdict {
+	return CONSENT_VERDICTS.some(verdict => verdict === candidate)
+}
+
+export function isGrant(verdict: ConsentVerdict): boolean {
+	return verdict === 'new' || verdict === 'existing'
 }
 
 export function decideConsent(
 	answer: Pick<ChoiceResult, 'choice' | 'confidence'>,
 ): ConsentVerdict {
 	if (answer.confidence < PERMISSION_CONFIDENCE) return 'none'
-	return isVerdict(answer.choice) ? answer.choice : 'none'
+	return isConsentVerdict(answer.choice) ? answer.choice : 'none'
 }
 
 export async function classifyConsent(

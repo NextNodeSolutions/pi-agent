@@ -1,5 +1,5 @@
 import { consentCovers, consentScope } from './consent-scope.ts'
-import { classifyConsent } from './permission.ts'
+import { classifyConsent, isConsentVerdict, isGrant } from './permission.ts'
 import { relayedEvidence } from './relay-evidence.ts'
 
 import type { SessionRecords } from './evidence.ts'
@@ -44,7 +44,6 @@ export async function judgeEvidence(
 		evidence.mayGrant === false && decision.verdict !== 'withdraw'
 			? 'none'
 			: decision.verdict
-	const granted = verdict === 'new' || verdict === 'existing'
 	return {
 		judgment: {
 			evidenceId: evidence.id,
@@ -52,7 +51,7 @@ export async function judgeEvidence(
 			question: evidence.question,
 			reply: evidence.reply,
 			verdict,
-			scope: granted
+			scope: isGrant(verdict)
 				? await consentScope(root, [evidence.question, evidence.reply])
 				: [],
 		},
@@ -86,10 +85,7 @@ function activeConsents(judgments: readonly Judgment[]): Judgment[] {
 	)
 	return ordered
 		.slice(withdrawn + 1)
-		.filter(
-			judgment =>
-				judgment.verdict === 'new' || judgment.verdict === 'existing',
-		)
+		.filter(judgment => isGrant(judgment.verdict))
 }
 
 /** A session's consents in force: its human answers, and the sender answers its relays are bound to. */
@@ -137,10 +133,7 @@ function readJudgment(saved: unknown): Judgment | undefined {
 		typeof at === 'string' &&
 		typeof question === 'string' &&
 		typeof reply === 'string' &&
-		(verdict === 'new' ||
-			verdict === 'existing' ||
-			verdict === 'withdraw' ||
-			verdict === 'none') &&
+		isConsentVerdict(verdict) &&
 		Array.isArray(scope) &&
 		scope.every(path => typeof path === 'string')
 	if (!valid) return undefined
