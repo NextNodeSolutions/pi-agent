@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 
-import { senderSessionFile } from '#lib/hc-relay.ts'
+import { ownTerminal, senderSessionFile } from '#lib/hc-relay.ts'
 
 import { parseEntries, sessionBranch, sessionRecords } from './evidence.ts'
 
@@ -78,8 +78,8 @@ function prefixedEvidence(
  */
 export async function relayedEvidence(
 	relays: readonly Relay[],
-	address: string | undefined,
 ): Promise<Evidence[]> {
+	const address = ownTerminal()
 	if (!address) return []
 	const senders = [...new Set(relays.map(relay => relay.sender))]
 	const evidence = await Promise.all(

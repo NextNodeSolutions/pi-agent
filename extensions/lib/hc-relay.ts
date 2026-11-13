@@ -11,6 +11,10 @@ const run = promisify(execFile)
 
 export type RelayedText = { sender: string | undefined; text: string }
 
+export function ownTerminal(): string | undefined {
+	return process.env.HC_TERMINAL_ID
+}
+
 /** `hc send` types `<hc from="t1 name">text</hc>` into the receiver's input, where Pi records it as interactive. */
 export function readRelay(text: string): RelayedText | undefined {
 	const wrapped = WRAPPER.exec(text)?.groups

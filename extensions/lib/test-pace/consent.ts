@@ -1,6 +1,8 @@
 import { consentCovers, consentScope } from './consent-scope.ts'
 import { classifyConsent } from './permission.ts'
+import { relayedEvidence } from './relay-evidence.ts'
 
+import type { SessionRecords } from './evidence.ts'
 import type { ConsentDecision, ConsentVerdict } from './permission.ts'
 
 export const PACE_CONSENT_ENTRY = 'test-pace-consent-v1'
@@ -26,6 +28,7 @@ export type Judgment = {
 export type ConsentKind = 'new' | 'existing' | 'none'
 /** `answered`: Jev decided, so the judgment can be recorded instead of asked again. */
 export type Judged = { judgment: Judgment; answered: boolean }
+export type Judge = (evidence: Evidence) => Promise<Judgment>
 
 export async function judgeEvidence(
 	root: string,
@@ -56,26 +59,26 @@ export async function judgeEvidence(
 	}
 }
 
-export async function judgeAll<Subject, Verdict>(
-	subjects: readonly Subject[],
-	judge: (subject: Subject) => Promise<Verdict>,
-): Promise<Verdict[]> {
-	const queue = subjects.map((subject, index) => ({ subject, index }))
-	const settled: { index: number; verdict: Verdict }[] = []
+async function judgeAll(
+	evidence: readonly Evidence[],
+	judge: Judge,
+): Promise<Judgment[]> {
+	const queue = evidence.map((subject, index) => ({ subject, index }))
+	const settled: { index: number; judgment: Judgment }[] = []
 	async function next(): Promise<void> {
 		const task = queue.shift()
 		if (!task) return
-		settled.push({ index: task.index, verdict: await judge(task.subject) })
+		settled.push({ index: task.index, judgment: await judge(task.subject) })
 		await next()
 	}
 	await Promise.all(Array.from({ length: JUDGE_CONCURRENCY }, next))
 	return settled
 		.toSorted((a, b) => a.index - b.index)
-		.map(({ verdict }) => verdict)
+		.map(({ judgment }) => judgment)
 }
 
 /** Grants accumulate in time order; a withdrawal clears every grant before it. */
-export function activeConsents(judgments: readonly Judgment[]): Judgment[] {
+function activeConsents(judgments: readonly Judgment[]): Judgment[] {
 	const ordered = judgments.toSorted((a, b) => a.at.localeCompare(b.at))
 	const withdrawn = ordered.findLastIndex(
 		judgment => judgment.verdict === 'withdraw',
@@ -86,6 +89,17 @@ export function activeConsents(judgments: readonly Judgment[]): Judgment[] {
 			judgment =>
 				judgment.verdict === 'new' || judgment.verdict === 'existing',
 		)
+}
+
+/** A session's consents in force: its human answers, and the sender answers its relays are bound to. */
+export async function sessionConsents(
+	records: SessionRecords,
+	judge: Judge,
+): Promise<Judgment[]> {
+	const relayed = await relayedEvidence(records.relays)
+	return activeConsents(
+		await judgeAll([...records.evidence, ...relayed], judge),
+	)
 }
 
 export function consentKind(
