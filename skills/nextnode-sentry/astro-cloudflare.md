@@ -89,7 +89,7 @@ names are not generated from TOML. Follow "Generated Worker types" in
 app-owned `Cloudflare.Env` secret declaration. Use `Cloudflare.Env` to type
 `buildSentryOptions`. Changing or authoring tests to match
 (e.g. re-stubbing `locals.runtime.env` as `vi.mock('cloudflare:workers', ...)`) only
-under an explicit test authorization in the current request.
+with consent under `~/.pi/agent/AGENTS.md` under Tests.
 
 ## Adapter v14 config changes
 
@@ -114,8 +114,7 @@ incompatible with the Cloudflare Vite plugin"). If you hit it: keep the preset a
 filter the Cloudflare plugins out for tests (export a config function, await the
 preset, drop every plugin whose name starts with `vite-plugin-cloudflare` or
 `@astrojs/cloudflare`). Authoring that `vitest.config.ts` change, or any test edits
-this skill implies, requires an explicit test authorization in the current request —
-test files are never created or modified by this skill uninvited.
+this skill implies, follows `~/.pi/agent/AGENTS.md` under Tests.
 
 ## Local runtime verification
 

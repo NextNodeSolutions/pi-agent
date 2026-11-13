@@ -3,16 +3,17 @@ name: coding-tdd
 description: >-
     Test pace for reproduced behavioural bugs, new units that branch on input
     or state, and explicitly authorized test work. Load before authoring a
-    test. Authorization lives in AGENTS.md under Tests, enforced by test_pace.
+    test. Authorization lives in AGENTS.md under Tests, enforced by the
+    test-write guard.
 ---
 
 # Test pace
 
 ## Obtain the verdict
 
-Follow `~/.pi/agent/AGENTS.md` under Tests. Use `test_pace` before adding a test the human did not ask for. When the human's request asks for tests, write them directly: the guard reads that request itself. With `none` and no such request, prove the change through a runnable command, API call or real flow and proceed without test authoring.
+Follow `~/.pi/agent/AGENTS.md` under Tests. Use `test_pace` before adding a test the human did not ask for. When the human asked for tests or said yes to a test edit, write them directly: the guard reads the conversation itself. A refused write means no consent covers that path; ask once, naming the paths and the kind of edit. With `none` and no consent, prove the change through a runnable command, API call or real flow and proceed without test authoring.
 
-For Claude Code, run the same decision with `node --experimental-transform-types ~/.pi/agent/bin/test-pace.ts --session <current transcript JSONL> --intent <named production bug or requirement> <exact test paths...>`. The transcript is the newest `*.jsonl` in this project's folder under `~/.claude/projects/`; the script reads the human request from it. Its output carries `pace` and `permission` (`new`: the human asked for new tests; `existing`: existing tests may change). It is a decision, not a Pi session grant.
+For Claude Code, run the same decision with `node --experimental-transform-types ~/.pi/agent/bin/test-pace.ts --session <current transcript JSONL> --intent <named production bug or requirement> <exact test paths...>`. The transcript is the newest `*.jsonl` in this project's folder under `~/.claude/projects/`; the script reads the human's requests, answers and relays from it. Its output carries `pace` and `permission`, the consent covering every named path (`new`: new tests and their setup may be added; `existing`: existing tests may change; `none`: ask first). It is a decision, not a Pi session grant.
 
 ## Follow the pace
 

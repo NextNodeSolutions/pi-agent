@@ -25,6 +25,11 @@
  * read that terminal's screen with `hc read` (`receipt.ts`); the lifecycle
  * sweeper takes a read after a helper finished as its result received.
  *
+ * `pi.session` (`SESSION_LABEL`): the interactive session's file, so a
+ * terminal this session relays to with `hc send` can read the human answers
+ * behind the relay (`#lib/test-pace/relay-evidence.ts`), and the lifecycle
+ * sweeper can reopen the conversation after it closes the terminal.
+ *
  * A subagent inherits this terminal's environment, so only the interactive
  * session publishes: a child's counts and shutdown would overwrite the
  * parent's labels.
@@ -32,6 +37,7 @@
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
+import { ownTerminal } from '#lib/hc-relay.ts'
 import {
 	BASH_JOBS_EVENT,
 	BASH_JOBS_VERSION,
@@ -113,7 +119,7 @@ function pendingWork(pi: Pick<ExtensionAPI, 'events'>): string {
 }
 
 export default function herdrStatus(pi: ExtensionAPI): void {
-	const terminal = process.env.HC_TERMINAL_ID
+	const terminal = ownTerminal()
 	if (!terminal) return
 	const labelOn: LabelOn = async (target, key, shown) => {
 		try {
@@ -142,5 +148,6 @@ export default function herdrStatus(pi: ExtensionAPI): void {
 		if (!ctx.hasUI) return
 		void label(WAITING_LABEL, '')
 		void label(TITLE_LABEL, '')
+		void label(SESSION_LABEL, '')
 	})
 }
