@@ -106,6 +106,7 @@ async function scopeEntry(root: string, named: Named): Promise<string[]> {
 	return counts ? [path] : []
 }
 
+/** The last text naming a path decides; an exchange naming none covers nothing by itself (`consent.ts` gives it the earlier grants' scope). */
 export async function consentScope(
 	root: string,
 	texts: readonly string[],
@@ -121,7 +122,7 @@ export async function consentScope(
 			return Array.from(new Set(entries.flat()))
 		}),
 	)
-	return scopes.find(scope => scope.length) ?? [root]
+	return scopes.find(scope => scope.length) ?? []
 }
 
 export function consentCovers(scope: readonly string[], path: string): boolean {

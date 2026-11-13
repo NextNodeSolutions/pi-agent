@@ -83,5 +83,6 @@
 	{"id":"c022","question":"","request":"You may edit the existing tests for this migration as long as you do not change their logic. Do nothing yet, just answer noted.","expected":"existing"},
 	{"id":"c023","question":"May I fix the imports in tests/a.test.ts after the rename?","request":"yes, but finish the rename first, then do it","expected":"existing"},
 	{"id":"c024","question":"Should I add tests for the parser now?","request":"not now, we will decide about tests later","expected":"none"},
-	{"id":"c025","question":"","request":"Tu pourras ajouter des tests pour le reducer, mais ne commence pas encore, dis juste ok","expected":"new"}
+	{"id":"c025","question":"","request":"Tu pourras ajouter des tests pour le reducer, mais ne commence pas encore, dis juste ok","expected":"new"},
+	{"id":"c026","question":"Understood. Existing tests may move with the code, and I can update their import paths mechanically. I'll leave all assertions and test logic untouched. What change should I apply?","request":"Carry out TASK-MOVE.md exactly as written, now. Do not ask me anything before you start.","expected":"existing"}
 ]

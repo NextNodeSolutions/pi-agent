@@ -50,10 +50,10 @@ test('reads the scope from the reply as well as the question', async () => {
 	)
 })
 
-test('covers the working directory when no path is named', async () => {
+test('covers nothing by itself when no path is named', async () => {
 	assert.deepEqual(
 		await consentScope(fixture.root, ['ok, add tests for the reducer']),
-		[fixture.root],
+		[],
 	)
 })
 
@@ -71,7 +71,7 @@ test('ignores URLs and outside paths that are not tests', async () => {
 		await consentScope(fixture.root, [
 			'See https://example.com/tests/x.test.ts and /var/log/notes.md',
 		]),
-		[fixture.root],
+		[],
 	)
 })
 

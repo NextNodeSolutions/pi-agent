@@ -98,14 +98,34 @@ async function judgeAll(
 	return judgments
 }
 
+/** A grant naming no path covers what the active grants before it cover, never the whole repository. */
+function inheritedScopes(grants: readonly Judgment[]): Judgment[] {
+	return grants.map((grant, index) =>
+		grant.scope.length
+			? grant
+			: {
+					...grant,
+					scope: [
+						...new Set(
+							grants
+								.slice(0, index)
+								.flatMap(earlier => earlier.scope),
+						),
+					],
+				},
+	)
+}
+
 function activeConsents(judgments: readonly Judgment[]): Judgment[] {
 	const ordered = judgments.toSorted((a, b) => a.at.localeCompare(b.at))
 	const withdrawn = ordered.findLastIndex(
 		judgment => judgment.verdict === 'withdraw',
 	)
-	return ordered
-		.slice(withdrawn + 1)
-		.filter(judgment => isGrant(judgment.verdict))
+	return inheritedScopes(
+		ordered
+			.slice(withdrawn + 1)
+			.filter(judgment => isGrant(judgment.verdict)),
+	)
 }
 
 export async function sessionConsents(
