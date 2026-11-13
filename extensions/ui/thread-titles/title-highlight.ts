@@ -1,10 +1,10 @@
 /** Style every known thread title in Markdown prose, leaving code, links and URLs as written. */
 const FENCE = /^[\s>]*(`{3,}|~{3,})/u
-const FENCE_CLOSE = /^[\s>]*(`{3,}|~{3,})[ \t]*$/u
+const FENCE_CLOSE = new RegExp(`${FENCE.source}[ \\t]*$`, 'u')
 const BLOCKQUOTE_PREFIX = /^(?: {0,3}> ?)+/u
 const LIST_MARKER = /^([ \t]*)(?:[-*+]|\d{1,9}[.)])[ \t]+/u
 const HEADING = /^[ \t]{0,3}#{1,6}[ \t]/u
-const INDENTED_CODE = /^[ \t]*/u
+const INDENT_END = /[^ \t]|$/u
 const DEFINITION = /^[ \t]{0,3}\[[^\]\n]+\]:/u
 const LINK_OR_URL =
 	/!?\[[^\]\n]*\](?:\([^)\n]*\)|\[[^\]\n]*\])?|\b(?:https?|ftp):\/\/\S+|<[^\s<>]+>/gu
@@ -20,10 +20,9 @@ const TAB_WIDTH = 4
 
 type StyleTitle = (title: string) => string
 type Fence = { readonly character: string; readonly length: number }
-type LineKind = 'blank' | 'prose' | 'code'
 type ScanState = {
 	readonly fence: Fence | undefined
-	readonly kind: LineKind
+	readonly isParagraphOpen: boolean
 	readonly containerIndent: number
 }
 type LineScan = ScanState & { readonly isProtected: boolean }
@@ -31,7 +30,7 @@ type Range = readonly [start: number, end: number]
 
 /** One alternation, longest title first, so a title never matches inside a longer one. */
 export function titlePattern(titles: readonly string[]): RegExp | undefined {
-	const alternatives = [...new Set(titles)]
+	const alternatives = titles
 		.filter(title => title.trim())
 		.toSorted((left, right) => right.length - left.length)
 		.map(title => title.replace(REGEX_SPECIAL, '\\$&'))
@@ -114,8 +113,9 @@ function styleSpans(text: string, pattern: RegExp, style: StyleTitle): string {
 }
 
 function leadingColumns(line: string): number {
-	const indentation = INDENTED_CODE.exec(line)?.[0] ?? ''
-	return indentation.replace(/\t/gu, ' '.repeat(TAB_WIDTH)).length
+	return line
+		.slice(0, line.search(INDENT_END))
+		.replaceAll('\t', ' '.repeat(TAB_WIDTH)).length
 }
 
 function isClosing(run: string, fence: Fence): boolean {
@@ -141,43 +141,30 @@ function listIndent(body: string): number | undefined {
 }
 
 /** A heading ends the paragraph before it, so an indented line after one starts a code block. */
-function lineKind(body: string): LineKind {
-	if (HEADING.test(body)) return 'blank'
-	return body.trim() ? 'prose' : 'blank'
+function opensParagraph(body: string): boolean {
+	return !HEADING.test(body) && body.trim() !== ''
 }
 
 function scanLine(line: string, state: ScanState): LineScan {
 	const body = line.replace(BLOCKQUOTE_PREFIX, '').replace(LINE_TAIL, '')
 	const containerIndent = listIndent(body) ?? state.containerIndent
-	if (state.fence)
-		return {
-			isProtected: true,
-			fence: closedFence(body, state.fence),
-			kind: 'code',
-			containerIndent,
-		}
-	if (DEFINITION.test(body))
-		return {
-			isProtected: true,
-			fence: undefined,
-			kind: 'blank',
-			containerIndent,
-		}
-	if (state.kind === 'prose')
-		return {
-			isProtected: false,
-			fence: undefined,
-			kind: lineKind(body),
-			containerIndent,
-		}
-	const fence = openedFence(body.replace(LIST_MARKER, ''))
-	if (fence)
-		return { isProtected: true, fence, kind: 'code', containerIndent }
-	const indented = leadingColumns(body) >= containerIndent + CODE_INDENT
+	const protect = (fence: Fence | undefined): LineScan => ({
+		isProtected: true,
+		fence,
+		isParagraphOpen: false,
+		containerIndent,
+	})
+	if (state.fence) return protect(closedFence(body, state.fence))
+	if (DEFINITION.test(body)) return protect(undefined)
+	if (!state.isParagraphOpen) {
+		const fence = openedFence(body.replace(LIST_MARKER, ''))
+		if (fence || leadingColumns(body) >= containerIndent + CODE_INDENT)
+			return protect(fence)
+	}
 	return {
-		isProtected: indented,
+		isProtected: false,
 		fence: undefined,
-		kind: indented ? 'code' : lineKind(body),
+		isParagraphOpen: opensParagraph(body),
 		containerIndent,
 	}
 }
@@ -192,7 +179,7 @@ export function highlightTitles(
 	let prose = ''
 	let state: ScanState = {
 		fence: undefined,
-		kind: 'blank',
+		isParagraphOpen: false,
 		containerIndent: 0,
 	}
 

@@ -20,7 +20,6 @@ export default function threadTitles(pi: ExtensionAPI): void {
 	let pattern: RegExp | undefined
 	let timer: NodeJS.Timeout | undefined
 	let isRefreshing = false
-	let isLive = false
 
 	const stop = (): void => {
 		clearInterval(timer)
@@ -46,17 +45,12 @@ export default function threadTitles(pi: ExtensionAPI): void {
 	pi.on('session_start', async (_event, context) => {
 		if (!context.hasUI || !process.env.HC_TERMINAL_ID) return
 		stop()
-		isLive = true
-		await refresh()
-		if (!isLive) return
 		timer = setInterval(() => void refresh(), REFRESH_INTERVAL_MS)
 		timer.unref()
+		await refresh()
 	})
 	pi.on('turn_start', () => {
-		if (isLive) void refresh()
+		if (timer) void refresh()
 	})
-	pi.on('session_shutdown', () => {
-		isLive = false
-		stop()
-	})
+	pi.on('session_shutdown', stop)
 }

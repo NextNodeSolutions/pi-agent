@@ -1,9 +1,11 @@
 /** Thread titles as the Command Center lists them, read from hc's terminal API in one call. */
 import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 
 import { TITLE_LABEL } from '#lib/ui/herdr-labels.ts'
 import { reflectMember } from '#lib/ui/pi-members.ts'
 
+const execFileAsync = promisify(execFile)
 const HC_TIMEOUT_MS = 2000
 const LIST_REQUEST = `${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'terminal.list', params: {} })}\n`
 const PRINCIPAL_CHAT = 'principal-chat'
@@ -38,24 +40,9 @@ export function listedThreadTitles(response: unknown): string[] {
 	return terminals.filter(isListedThread).map(labelledTitle).filter(Boolean)
 }
 
-export function readThreadTitles(): Promise<string[]> {
-	return new Promise((resolve, reject) => {
-		const child = execFile(
-			'hc',
-			['connect'],
-			{ timeout: HC_TIMEOUT_MS },
-			(error, stdout) => {
-				if (error) {
-					reject(error)
-					return
-				}
-				try {
-					resolve(listedThreadTitles(JSON.parse(stdout)))
-				} catch (cause) {
-					reject(cause)
-				}
-			},
-		)
-		child.stdin?.end(LIST_REQUEST)
-	})
+export async function readThreadTitles(): Promise<string[]> {
+	const pending = execFileAsync('hc', ['connect'], { timeout: HC_TIMEOUT_MS })
+	pending.child.stdin?.end(LIST_REQUEST)
+	const { stdout } = await pending
+	return listedThreadTitles(JSON.parse(stdout))
 }
