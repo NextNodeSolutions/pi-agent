@@ -83,6 +83,6 @@ export function consentCovers(scope: readonly string[], path: string): boolean {
 	return scope.some(named =>
 		WILDCARD.test(named)
 			? matchesGlob(path, named)
-			: coversPath([named], path),
+			: coversPath(named, path),
 	)
 }

@@ -36,8 +36,8 @@ export function isTestPathWithin(root: string, path: string): boolean {
 	return isTestPath(isAbsolute(path) ? relative(root, path) : path)
 }
 
-export function coversPath(roots: readonly string[], path: string): boolean {
-	return roots.some(root => path === root || path.startsWith(`${root}${sep}`))
+export function coversPath(root: string, path: string): boolean {
+	return path === root || path.startsWith(`${root}${sep}`)
 }
 
 export async function targetPaths(
