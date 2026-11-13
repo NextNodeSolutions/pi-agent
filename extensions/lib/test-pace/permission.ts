@@ -1,6 +1,6 @@
 import { askChoice, isJevConfigured } from '#lib/jev/client.ts'
 
-import { PACE_TIMEOUT_MS } from './decision.ts'
+import { JUDGE_TIMEOUT_MS } from './closed-choice.ts'
 import { safePaceText } from './request.ts'
 
 import type { ChoiceQuestion, ChoiceResult } from '#lib/jev/client.ts'
@@ -65,7 +65,7 @@ export async function classifyConsent(
 		const answer = await askChoice(
 			judgedExchange(exchange),
 			CONSENT_QUESTION,
-			{ timeoutMs: PACE_TIMEOUT_MS, signal },
+			{ timeoutMs: JUDGE_TIMEOUT_MS, signal },
 		)
 		return { verdict: decideConsent(answer), answer }
 	} catch {

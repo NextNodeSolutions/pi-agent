@@ -1,28 +1,33 @@
 import { askChoice, isJevConfigured } from '#lib/jev/client.ts'
 
-import { PACE_TIMEOUT_MS } from './decision.ts'
-
 import type { ChoiceQuestion, ChoiceResult } from '#lib/jev/client.ts'
 
-type Passing = { choice: string; threshold: number }
-export type ClosedChoice = { isPassed: boolean; answer?: ChoiceResult }
+export const JUDGE_TIMEOUT_MS = 4_000
 
-/** Only the passing choice at its threshold passes; a missing key, a timeout or an error fails closed. */
-export async function askClosedChoice(
+type ClosedQuestion<Label extends string> = ChoiceQuestion & {
+	criteria: Record<Label, string>
+}
+type ClosedChoice<Label extends string> = {
+	choice: Label
+	answer?: ChoiceResult
+}
+
+/** Only the passing label at its threshold passes; a missing key, a timeout or an error fails closed. */
+export async function askClosedChoice<Label extends string>(
 	state: unknown,
-	question: ChoiceQuestion,
-	passing: Passing,
-): Promise<ClosedChoice> {
-	if (!isJevConfigured()) return { isPassed: false }
+	question: ClosedQuestion<NoInfer<Label>>,
+	[passing, failing]: readonly [passing: Label, failing: Label],
+	threshold: number,
+): Promise<ClosedChoice<Label>> {
+	if (!isJevConfigured()) return { choice: failing }
 	try {
 		const answer = await askChoice(state, question, {
-			timeoutMs: PACE_TIMEOUT_MS,
+			timeoutMs: JUDGE_TIMEOUT_MS,
 		})
 		const isPassed =
-			answer.choice === passing.choice &&
-			answer.confidence >= passing.threshold
-		return { isPassed, answer }
+			answer.choice === passing && answer.confidence >= threshold
+		return { choice: isPassed ? passing : failing, answer }
 	} catch {
-		return { isPassed: false }
+		return { choice: failing }
 	}
 }

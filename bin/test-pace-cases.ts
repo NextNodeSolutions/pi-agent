@@ -1,13 +1,12 @@
 import { readFileSync } from 'node:fs'
 
+import { OPERATION_OUTCOMES } from '../extensions/lib/test-pace/operation.ts'
 import { CONSENT_VERDICTS } from '../extensions/lib/test-pace/permission.ts'
 import { SCOPE_PATH_ROLES } from '../extensions/lib/test-pace/scope-path.ts'
 import { STOP_TARGETS } from '../extensions/lib/test-pace/stop-target.ts'
 
 import type { TestPace } from '../extensions/lib/test-pace/decision.ts'
 import type { ConsentVerdict } from '../extensions/lib/test-pace/permission.ts'
-
-export const OPERATION_OUTCOMES = ['allowed', 'refused'] as const
 
 type Labelled<Label extends string> = {
 	id: string
@@ -48,38 +47,28 @@ function labelled<Label extends string>(
 	return samples
 }
 
+function withText<Case extends Labelled<string>>(...keys: readonly string[]) {
+	return (sample: Labelled<string>): sample is Case =>
+		keys.every(key => typeof Reflect.get(sample, key) === 'string')
+}
+
 export const operationCases = labelled(
 	'./test-operation-cases.json',
 	OPERATION_OUTCOMES,
-).filter(
-	(sample): sample is OperationCase =>
-		typeof Reflect.get(sample, 'question') === 'string' &&
-		typeof Reflect.get(sample, 'operation') === 'string',
-)
+).filter(withText<OperationCase>('question', 'operation'))
 export const stopTargetCases = labelled(
 	'./test-stop-target-cases.json',
 	STOP_TARGETS,
-).filter(
-	(sample): sample is StopTargetCase =>
-		typeof Reflect.get(sample, 'question') === 'string' &&
-		typeof Reflect.get(sample, 'thread') === 'string',
-)
+).filter(withText<StopTargetCase>('question', 'thread'))
 export const scopePathCases = labelled(
 	'./test-scope-path-cases.json',
 	SCOPE_PATH_ROLES,
-).filter(
-	(sample): sample is ScopePathCase =>
-		typeof Reflect.get(sample, 'question') === 'string' &&
-		typeof Reflect.get(sample, 'path') === 'string',
-)
+).filter(withText<ScopePathCase>('question', 'path'))
 export const paceCases = labelled('./test-pace-cases.json', [
 	'bug',
 	'logic',
 	'none',
-]).filter(
-	(sample): sample is PaceCase =>
-		typeof Reflect.get(sample, 'intent') === 'string',
-)
+]).filter(withText<PaceCase>('intent'))
 export const permissionCases = labelled(
 	'./test-permission-cases.json',
 	CONSENT_VERDICTS,

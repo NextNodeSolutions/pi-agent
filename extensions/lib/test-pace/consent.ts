@@ -62,17 +62,17 @@ async function decide(evidence: Evidence): Promise<Decided> {
 
 /** A path Jev did not read stays out of the grant and keeps the judgment unrecorded, so it is read again. */
 async function grantScope(root: string, evidence: Evidence): Promise<Scoped> {
-	const reads: boolean[] = []
+	let isEveryPathRead = true
 	const scope = await consentScope(
 		root,
 		async written => {
 			const decision = await classifyScopePath(evidence, written)
-			reads.push(Boolean(decision.answer))
-			return decision.isCovered
+			isEveryPathRead &&= Boolean(decision.answer)
+			return decision.role === 'covered'
 		},
 		[evidence.scopeText ?? evidence.question, evidence.reply],
 	)
-	return { scope, answered: reads.every(Boolean) }
+	return { scope, answered: isEveryPathRead }
 }
 
 export async function judgeEvidence(
@@ -115,20 +115,11 @@ async function judgeAll(
 
 /** A grant naming no path covers what the active grants before it cover, never the whole repository. */
 function inheritedScopes(grants: readonly Judgment[]): Judgment[] {
-	return grants.map((grant, index) =>
-		grant.scope.length
-			? grant
-			: {
-					...grant,
-					scope: [
-						...new Set(
-							grants
-								.slice(0, index)
-								.flatMap(earlier => earlier.scope),
-						),
-					],
-				},
-	)
+	return grants.map((grant, index) => {
+		if (grant.scope.length) return grant
+		const earlier = grants.slice(0, index).flatMap(before => before.scope)
+		return { ...grant, scope: Array.from(new Set(earlier)) }
+	})
 }
 
 function activeConsents(judgments: readonly Judgment[]): Judgment[] {
@@ -140,7 +131,7 @@ function activeConsents(judgments: readonly Judgment[]): Judgment[] {
 		ordered
 			.slice(withdrawn + 1)
 			.filter(judgment => isGrant(judgment.verdict)),
-	)
+	).filter(grant => grant.scope.length)
 }
 
 export async function sessionConsents(
