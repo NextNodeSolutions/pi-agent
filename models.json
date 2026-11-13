@@ -349,9 +349,6 @@
         }
       ]
     },
-    "zai": {
-      "apiKey": "$ZAI_API_KEY"
-    },
     "openrouter": {
       "apiKey": "$OPENROUTER_API_KEY",
       "models": [
