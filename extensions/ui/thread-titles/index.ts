@@ -32,8 +32,10 @@ export default function threadTitles(pi: ExtensionAPI): void {
 		if (isRefreshing) return
 		isRefreshing = true
 		try {
+			const previousTitleCount = knownTitles.size
 			for (const title of await readThreadTitles()) knownTitles.add(title)
-			pattern = titlePattern([...knownTitles])
+			if (knownTitles.size !== previousTitleCount)
+				pattern = titlePattern([...knownTitles])
 		} catch (error: unknown) {
 			isHcMissing =
 				error instanceof Error &&
