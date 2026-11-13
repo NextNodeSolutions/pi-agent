@@ -170,6 +170,7 @@ export function registerSessionTitle(
 		try {
 			const title = await generateTitle(ctx, prompt)
 			if (ctx.sessionManager.getSessionId() !== session) return
+			if (ctx.sessionManager.getSessionName()) return
 			if (title) pi.setSessionName(title)
 			else await publish(fallbackTitle(prompt))
 		} finally {
