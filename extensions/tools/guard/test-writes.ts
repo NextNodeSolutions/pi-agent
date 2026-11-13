@@ -1,7 +1,7 @@
 import { basename, resolve } from 'node:path'
 
 import { runtimeFor } from '#lib/runtime/runtime.ts'
-import { consentCovers } from '#lib/test-pace/consent-scope.ts'
+import { consentsAllowing } from '#lib/test-pace/consent.ts'
 import { permitsOperation } from '#lib/test-pace/operation.ts'
 import { isTestPathWithin, packageRunner } from '#lib/test-pace/paths.ts'
 import { physicalPath } from '#lib/test-pace/physical-path.ts'
@@ -144,15 +144,14 @@ async function admits(check: Check, target: Target): Promise<boolean> {
 		(await isGranted(ctx, request, target.path))
 	)
 		return true
-	const covering = (await check.consents()).filter(
-		consent =>
-			consentCovers(consent.scope, target.path) &&
-			(consent.verdict === 'existing' ||
-				(consent.verdict === 'new' && (target.setup || !present))),
+	const allowing = consentsAllowing(
+		await check.consents(),
+		target.path,
+		target.setup || !present ? 'new' : 'existing',
 	)
 	return (
 		await Promise.all(
-			covering.map(consent => permitsOperation(consent, check.operation)),
+			allowing.map(consent => permitsOperation(consent, check.operation)),
 		)
 	).some(Boolean)
 }

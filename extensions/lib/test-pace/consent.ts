@@ -25,7 +25,8 @@ export type Judgment = {
 	question: string
 	reply: string
 }
-export type ConsentKind = 'new' | 'existing' | 'none'
+export type EditKind = 'new' | 'existing'
+export type ConsentKind = EditKind | 'none'
 /** `answered`: Jev decided, so the judgment can be recorded instead of asked again. */
 export type Judged = { judgment: Judgment; answered: boolean }
 export type Judge = (evidence: Evidence) => Promise<Judgment>
@@ -102,16 +103,26 @@ export async function sessionConsents(
 	)
 }
 
+/** The consents covering `path` that allow an edit of this kind; `existing` includes `new`. */
+export function consentsAllowing(
+	consents: readonly Judgment[],
+	path: string,
+	kind: EditKind,
+): Judgment[] {
+	return consents.filter(
+		consent =>
+			consentCovers(consent.scope, path) &&
+			(consent.verdict === 'existing' ||
+				(kind === 'new' && consent.verdict === 'new')),
+	)
+}
+
 export function consentKind(
 	consents: readonly Judgment[],
 	path: string,
 ): ConsentKind {
-	const covering = consents.filter(consent =>
-		consentCovers(consent.scope, path),
-	)
-	if (covering.some(consent => consent.verdict === 'existing'))
-		return 'existing'
-	return covering.length ? 'new' : 'none'
+	if (consentsAllowing(consents, path, 'existing').length) return 'existing'
+	return consentsAllowing(consents, path, 'new').length ? 'new' : 'none'
 }
 
 function readJudgment(saved: unknown): Judgment | undefined {
