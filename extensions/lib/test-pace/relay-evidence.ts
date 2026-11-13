@@ -83,7 +83,7 @@ export async function relayedEvidence(
 	relays: readonly Relay[],
 ): Promise<Evidence[]> {
 	const address = ownTerminal()
-	if (!address) return []
+	if (!address || !relays.length) return []
 	const receivers = await receiverNames(address)
 	const senders = [...new Set(relays.map(relay => relay.sender))]
 	const evidence = await Promise.all(
