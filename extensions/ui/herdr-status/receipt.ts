@@ -2,8 +2,7 @@ import { readLabel } from '#lib/ui/herdr-labels.ts'
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
-const COMMAND_END = /[;&|\n]/u
-const READ = /^hc\s+read\b(?<rest>.*)$/u
+const READ = /^hc\s+read\b(?<rest>[^;&|<>\n]*)(?:$|&&)/u
 const VALUE_FLAGS = new Set(['--lines'])
 const TERMINAL = /^[\w./-]+$/u
 const QUOTES = /^["']|["']$/gu
@@ -19,13 +18,15 @@ function terminalIn(readArguments: string): string | null {
 	return terminal
 }
 
-// Only a command that begins with the read can be taken as done: an earlier command may skip it, and a later one does not undo it.
+// Only a read whose own failure fails the command proves it ran: an earlier command may skip it, a redirect may stop it, and `||`, `;` or `|` hide its exit.
 function screenRead(command: string): string | null {
-	const [first = ''] = command.trim().split(COMMAND_END)
-	const found = READ.exec(first)
+	const found = READ.exec(command.trim())
 	if (!found) return null
 	return terminalIn(found.groups?.['rest'] ?? '')
 }
+
+const isRunningJob = (details: unknown): boolean =>
+	typeof details === 'object' && details !== null && 'jobId' in details
 
 // The receipt carries the command's start, so a terminal that finished while the command ran never counts as read after it finished.
 export function registerReadReceipts(pi: ExtensionAPI, reader: string): void {
@@ -53,6 +54,7 @@ export function registerReadReceipts(pi: ExtensionAPI, reader: string): void {
 		const { command } = event.input
 		if (event.isError || !ctx.hasUI || typeof command !== 'string')
 			return undefined
+		if (isRunningJob(event.details)) return undefined
 		const terminal = screenRead(command)
 		if (terminal !== null) void stamp(terminal, startMs)
 		return undefined
