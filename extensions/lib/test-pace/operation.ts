@@ -1,5 +1,5 @@
 import { askClosedChoice } from './closed-choice.ts'
-import { redactedPaceText, safePaceText } from './request.ts'
+import { redactedPaceText, safePaceText } from './pace-text.ts'
 
 import type { ChoiceResult } from '#lib/jev/client.ts'
 import type { ClosedQuestion } from './closed-choice.ts'

@@ -1,4 +1,4 @@
-import { safePaceText } from './request.ts'
+import { safePaceText } from './pace-text.ts'
 
 export type ConsentExchange = { question: string; reply: string }
 
