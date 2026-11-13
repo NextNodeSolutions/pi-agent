@@ -121,13 +121,13 @@ export function parseEntries(content: string): object[] {
 /** The current branch of a Pi session file: from its last entry up through parent ids. */
 export function sessionBranch(entries: readonly object[]): object[] {
 	const byId = new Map(entries.map(entry => [field(entry, 'id'), entry]))
-	const branch: object[] = []
+	const branch = new Set<object>()
 	let current = entries.findLast(
 		entry => typeof field(entry, 'id') === 'string',
 	)
-	while (current && !branch.includes(current)) {
-		branch.push(current)
+	while (current && !branch.has(current)) {
+		branch.add(current)
 		current = byId.get(field(current, 'parentId'))
 	}
-	return branch.toReversed()
+	return [...branch].toReversed()
 }
