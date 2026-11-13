@@ -182,10 +182,16 @@ function closing(subject: Subject, scene: Scene): Objection {
 	}
 }
 
+function firstObjection(subject: Subject, scene: Scene): Objection | null {
+	for (const guard of GUARDS) {
+		const objection = guard(subject, scene)
+		if (objection !== null) return objection
+	}
+	return null
+}
+
 function judge(subject: Subject, scene: Scene): Verdict {
-	const objection = GUARDS.map(guard => guard(subject, scene)).find(
-		raised => raised !== null,
-	)
+	const objection = firstObjection(subject, scene)
 	const outcome = objection ?? closing(subject, scene)
 	const isResult = subject.kind === 'helper' || subject.kind === 'thread'
 	return {
