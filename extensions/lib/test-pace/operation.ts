@@ -2,7 +2,7 @@ import { askClosedChoice } from './closed-choice.ts'
 import { redactedPaceText, safePaceText } from './request.ts'
 
 import type { ChoiceQuestion, ChoiceResult } from '#lib/jev/client.ts'
-import type { ConsentExchange } from './permission.ts'
+import type { ConsentExchange } from './exchange.ts'
 
 export const OPERATION_CONFIDENCE = 0.6
 const MAX_OPERATION_CHARS = 24_000

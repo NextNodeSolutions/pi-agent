@@ -1,6 +1,6 @@
 import { PACE_REQUEST_ENTRY, readPaceRequest } from './request.ts'
 
-import type { ConsentExchange } from './permission.ts'
+import type { ConsentExchange } from './exchange.ts'
 import type { PaceRequest } from './request.ts'
 
 const ASK_TOOL = 'ask_user_question'

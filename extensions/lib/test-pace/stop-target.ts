@@ -1,8 +1,8 @@
 import { askClosedChoice } from './closed-choice.ts'
-import { judgedExchange } from './permission.ts'
+import { judgedExchange } from './exchange.ts'
 
 import type { ChoiceQuestion, ChoiceResult } from '#lib/jev/client.ts'
-import type { ConsentExchange } from './permission.ts'
+import type { ConsentExchange } from './exchange.ts'
 
 export const STOP_TARGET_CONFIDENCE = 0.8
 export const STOP_TARGETS = ['elsewhere', 'here'] as const

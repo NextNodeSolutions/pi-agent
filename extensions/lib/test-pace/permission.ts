@@ -1,15 +1,14 @@
 import { judgeAnswer } from './closed-choice.ts'
-import { safePaceText } from './request.ts'
+import { judgedExchange } from './exchange.ts'
 
 import type { ChoiceQuestion, ChoiceResult } from '#lib/jev/client.ts'
+import type { ConsentExchange } from './exchange.ts'
 
 /** `existing` includes `new`; `withdraw` takes back every earlier consent. */
 export const CONSENT_VERDICTS = ['new', 'existing', 'withdraw', 'none'] as const
 export type ConsentVerdict = (typeof CONSENT_VERDICTS)[number]
 export type ConsentDecision = { verdict: ConsentVerdict; answer?: ChoiceResult }
-export type ConsentExchange = { question: string; reply: string }
 
-const QUESTION_CHARS = 3000
 export const PERMISSION_CONFIDENCE = 0.8
 /** A reply Jev could not read may take consent back, so it cancels earlier grants until it is read. */
 const UNREAD_VERDICT: ConsentVerdict = 'withdraw'
@@ -32,17 +31,6 @@ function isConsentVerdict(candidate: unknown): candidate is ConsentVerdict {
 
 export function isGrant(verdict: ConsentVerdict): boolean {
 	return verdict === 'new' || verdict === 'existing'
-}
-
-/** Every judge of an exchange reads the same slice of it. */
-export function judgedExchange(exchange: ConsentExchange): {
-	agentMessage: string
-	humanReply: string
-} {
-	return {
-		agentMessage: safePaceText(exchange.question).slice(-QUESTION_CHARS),
-		humanReply: safePaceText(exchange.reply),
-	}
 }
 
 function decideConsent(
