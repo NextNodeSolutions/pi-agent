@@ -98,9 +98,12 @@ def verify(member, folder):
     raise Refused(f"terminal {address} cannot report an idle agent status", 3)
 
 
-def caller_tab(members):
+# An auxiliary caller belongs to its owner thread's tab: the Command Center ends it once that tab closes.
+def caller_tab(members, all_terminals):
     by_address = {member["address"]: member for member in members}
-    address = os.environ.get("HC_TERMINAL_ID")
+    caller = next((terminal for terminal in all_terminals
+                   if terminal["address"] == caller_address()), None)
+    address = (caller and auxiliary_owner(caller, set(by_address))) or caller_address()
     visited = set()
     while address in by_address and address not in visited:
         member = by_address[address]
@@ -135,13 +138,12 @@ def inspect(folder):
         raise Refused("matching terminal has no tab or parent tab", 3)
     for member in members:
         verify(member, folder)
-    caller = os.environ.get("HC_TERMINAL_ID")
-    own_tab = caller_tab(members)
+    own_tab = caller_tab(members, all_terminals)
     ordered_tabs = sorted(tabs, key=lambda tab: (tab == own_tab, tab))
     return {"status": "ready", "tabs": ordered_tabs,
             "terminals": sorted(member["address"] for member in members),
             "auxiliaries": sorted(auxiliaries),
-            "caller": is_caller(caller, members, auxiliaries)}
+            "caller": is_caller(caller_address(), members, auxiliaries)}
 
 
 def end_auxiliary(address):
