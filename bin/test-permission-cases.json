@@ -78,5 +78,10 @@
 	{"id":"c017","question":"The failing test expects 3 items but the API now returns 4. Should I change the expectation to 4?","request":"yes, the API is right","expected":"existing"},
 	{"id":"c018","question":"May I move tests/legacy/ into tests/unit/?","request":"oui mais ne change pas la logique des tests","expected":"existing"},
 	{"id":"c019","question":"Want me to also write unit tests for the parser?","request":"sure","expected":"new"},
-	{"id":"c020","question":"May I update tests/cart.test.ts?","request":"wait, first explain why it fails","expected":"none"}
+	{"id":"c020","question":"May I update tests/cart.test.ts?","request":"wait, first explain why it fails","expected":"none"},
+	{"id":"c021","question":"","request":"You may update the existing test math.test.ts for the renames of this task. Do nothing yet, just answer noted.","expected":"existing"},
+	{"id":"c022","question":"","request":"You may edit the existing tests for this migration as long as you do not change their logic. Do nothing yet, just answer noted.","expected":"existing"},
+	{"id":"c023","question":"May I fix the imports in tests/a.test.ts after the rename?","request":"yes, but finish the rename first, then do it","expected":"existing"},
+	{"id":"c024","question":"Should I add tests for the parser now?","request":"not now, we will decide about tests later","expected":"none"},
+	{"id":"c025","question":"","request":"Tu pourras ajouter des tests pour le reducer, mais ne commence pas encore, dis juste ok","expected":"new"}
 ]
