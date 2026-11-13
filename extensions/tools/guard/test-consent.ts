@@ -20,17 +20,14 @@ export type ConsentReader = (ctx: ExtensionContext) => Promise<Judgment[]>
 /** Judges each human answer once per branch; Jev's verdicts are recorded so later writes reread them. */
 export function consentReader(pi: ExtensionAPI): ConsentReader {
 	const judging = new Map<string, Promise<Judgment>>()
-	async function judge(root: string, evidence: Evidence): Promise<Judgment> {
-		const { judgment, answered } = await judgeEvidence(root, evidence)
-		if (answered) pi.appendEntry(PACE_CONSENT_ENTRY, judgment)
-		return judgment
-	}
 	async function judgeOnce(
 		root: string,
 		evidence: Evidence,
 	): Promise<Judgment> {
 		try {
-			return await judge(root, evidence)
+			const { judgment, answered } = await judgeEvidence(root, evidence)
+			if (answered) pi.appendEntry(PACE_CONSENT_ENTRY, judgment)
+			return judgment
 		} finally {
 			judging.delete(evidence.id)
 		}
