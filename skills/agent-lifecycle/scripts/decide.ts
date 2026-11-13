@@ -53,7 +53,7 @@ const openItems = (terminal: Terminal): string =>
 const isKept = (terminal: Terminal, policy: Policy): boolean =>
 	Boolean(terminal.labels[policy.labels.keep])
 
-// Closing an owner ends the children that die with it, so a child that still matters holds its owner open.
+// Closing an owner ends the children that die with it, and theirs in turn, so a descendant that still matters holds every ancestor open.
 function needsItsOwner(dependent: Subject, scene: Scene): boolean {
 	const { terminal } = dependent
 	if (terminal.state === null) return terminal.diesWithParent
@@ -65,7 +65,16 @@ function needsItsOwner(dependent: Subject, scene: Scene): boolean {
 	return (
 		isKept(terminal, scene.policy) ||
 		scene.attached.has(terminal.address) ||
-		leaseEndMs(dependent, scene) > scene.nowMs
+		leaseEndMs(dependent, scene) > scene.nowMs ||
+		dependentsNeeding(terminal, scene).length > 0
+	)
+}
+
+function dependentsNeeding(owner: Terminal, scene: Scene): Subject[] {
+	return scene.subjects.filter(
+		candidate =>
+			candidate.owner?.address === owner.address &&
+			needsItsOwner(candidate, scene),
 	)
 }
 
@@ -107,11 +116,7 @@ const unfinished: Guard = subject => {
 }
 
 const needed: Guard = ({ terminal }, scene) => {
-	const dependents = scene.subjects.filter(
-		candidate =>
-			candidate.owner?.address === terminal.address &&
-			needsItsOwner(candidate, scene),
-	)
+	const dependents = dependentsNeeding(terminal, scene)
 	if (!dependents.length) return null
 	const names = dependents.map(dependent => titleOf(dependent.terminal))
 	return {
