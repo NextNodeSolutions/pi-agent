@@ -1,6 +1,4 @@
-import { askChoice, isJevConfigured } from '#lib/jev/client.ts'
-
-import { PACE_TIMEOUT_MS } from './decision.ts'
+import { askClosedChoice } from './closed-choice.ts'
 import { judgedExchange } from './permission.ts'
 
 import type { ChoiceQuestion, ChoiceResult } from '#lib/jev/client.ts'
@@ -26,18 +24,10 @@ export async function classifyStopTarget(
 	exchange: ConsentExchange,
 	thread: string,
 ): Promise<StopDecision> {
-	if (!isJevConfigured()) return { target: 'here' }
-	try {
-		const answer = await askChoice(
-			{ ...judgedExchange(exchange), thisThread: thread },
-			STOP_TARGET_QUESTION,
-			{ timeoutMs: PACE_TIMEOUT_MS },
-		)
-		const isElsewhere =
-			answer.choice === 'elsewhere' &&
-			answer.confidence >= STOP_TARGET_CONFIDENCE
-		return { target: isElsewhere ? 'elsewhere' : 'here', answer }
-	} catch {
-		return { target: 'here' }
-	}
+	const { isPassed, ...answered } = await askClosedChoice(
+		{ ...judgedExchange(exchange), thisThread: thread },
+		STOP_TARGET_QUESTION,
+		{ choice: 'elsewhere', threshold: STOP_TARGET_CONFIDENCE },
+	)
+	return { target: isPassed ? 'elsewhere' : 'here', ...answered }
 }

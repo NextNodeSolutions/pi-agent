@@ -1,6 +1,4 @@
-import { askChoice, isJevConfigured } from '#lib/jev/client.ts'
-
-import { PACE_TIMEOUT_MS } from './decision.ts'
+import { askClosedChoice } from './closed-choice.ts'
 import { redactedPaceText, safePaceText } from './request.ts'
 
 import type { ChoiceQuestion, ChoiceResult } from '#lib/jev/client.ts'
@@ -23,25 +21,15 @@ export async function classifyOperation(
 	exchange: ConsentExchange,
 	operation: string,
 ): Promise<{ allowed: boolean; answer?: ChoiceResult }> {
-	if (!isJevConfigured() || operation.length > MAX_OPERATION_CHARS)
-		return { allowed: false }
-	try {
-		const answer = await askChoice(
-			{
-				agentQuestion: safePaceText(exchange.question),
-				humanReply: safePaceText(exchange.reply),
-				operation: redactedPaceText(operation),
-			},
-			OPERATION_QUESTION,
-			{ timeoutMs: PACE_TIMEOUT_MS },
-		)
-		return {
-			allowed:
-				answer.choice === 'allowed' &&
-				answer.confidence >= OPERATION_CONFIDENCE,
-			answer,
-		}
-	} catch {
-		return { allowed: false }
-	}
+	if (operation.length > MAX_OPERATION_CHARS) return { allowed: false }
+	const { isPassed, ...answered } = await askClosedChoice(
+		{
+			agentQuestion: safePaceText(exchange.question),
+			humanReply: safePaceText(exchange.reply),
+			operation: redactedPaceText(operation),
+		},
+		OPERATION_QUESTION,
+		{ choice: 'allowed', threshold: OPERATION_CONFIDENCE },
+	)
+	return { allowed: isPassed, ...answered }
 }
