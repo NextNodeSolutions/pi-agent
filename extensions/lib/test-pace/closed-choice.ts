@@ -5,10 +5,10 @@ import type { ChoiceQuestion, ChoiceResult } from '#lib/jev/client.ts'
 const JUDGE_TIMEOUT_MS = 4_000
 
 /** A question whose criteria keys are its labels. */
-export type ClosedQuestion<Label extends string> = {
-	instructions: string
-	criteria: Record<Label, string>
-}
+export type ClosedQuestion<Label extends string> = Omit<
+	ChoiceQuestion,
+	'criteria'
+> & { criteria: Record<Label, string> }
 type Passing<Label extends string> = { choice: Label; threshold: number }
 type ClosedChoice = { isPassed: boolean; answer?: ChoiceResult }
 
