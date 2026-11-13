@@ -2,6 +2,12 @@ import { readLabel } from '#lib/ui/herdr-labels.ts'
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
+export type LabelOn = (
+	terminal: string,
+	key: string,
+	shown: string,
+) => Promise<void>
+
 const LEADING_READ = /^hc\s+read\b(?<rest>[^;&|<>\n"'`()]*)(?:$|&&)/u
 const TRAILING_READ =
 	/(?:;|&&|(?<![|\\]\s*)\n)\s*hc\s+read\b(?<rest>[^;&|<>\n"'`()]*)$/u
@@ -46,19 +52,12 @@ function screenRead(
 const isRunningJob = (details: unknown): boolean =>
 	typeof details === 'object' && details !== null && 'jobId' in details
 
-export function registerReadReceipts(pi: ExtensionAPI, reader: string): void {
+export function registerReadReceipts(
+	pi: ExtensionAPI,
+	reader: string,
+	labelOn: LabelOn,
+): void {
 	const startedMs = new Map<string, number>()
-	const stamp = async (terminal: string, atMs: number): Promise<void> => {
-		try {
-			await pi.exec('hc', [
-				'label',
-				terminal,
-				`${readLabel(reader)}=${atMs}`,
-			])
-		} catch {
-			return
-		}
-	}
 	pi.on('tool_call', event => {
 		if (event.toolName === 'bash')
 			startedMs.set(event.toolCallId, Date.now())
@@ -73,7 +72,8 @@ export function registerReadReceipts(pi: ExtensionAPI, reader: string): void {
 			return undefined
 		if (isRunningJob(event.details)) return undefined
 		const read = screenRead(command, startMs, Date.now())
-		if (read !== null) void stamp(read.terminal, read.atMs)
+		if (read !== null)
+			void labelOn(read.terminal, readLabel(reader), String(read.atMs))
 		return undefined
 	})
 }

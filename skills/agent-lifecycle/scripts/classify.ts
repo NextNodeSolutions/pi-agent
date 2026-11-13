@@ -52,7 +52,7 @@ export const ownerReferenceOf = (
 ): string | null =>
 	terminal.parent ?? terminal.labels[policy.labels.owner] ?? null
 
-export function toSubject(
+function toSubject(
 	terminal: Terminal,
 	terminals: readonly Terminal[],
 	policy: Policy,
@@ -70,3 +70,9 @@ export function toSubject(
 		owner: owner ?? null,
 	}
 }
+
+export const subjectsOf = (
+	terminals: readonly Terminal[],
+	policy: Policy,
+): Subject[] =>
+	terminals.map(terminal => toSubject(terminal, terminals, policy))

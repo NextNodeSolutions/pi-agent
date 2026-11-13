@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs'
 
 import { Type } from 'typebox'
-import { Value } from 'typebox/value'
 
 import {
 	GOAL_LABEL,
@@ -9,6 +8,9 @@ import {
 	SESSION_LABEL,
 	WAITING_LABEL,
 } from '#lib/ui/herdr-labels.ts'
+
+import { table } from './page.ts'
+import { parseJson } from './schema.ts'
 
 import type { Static } from 'typebox'
 
@@ -60,9 +62,10 @@ const HEADINGS = [
 ]
 
 export function loadPolicy(file: string | null): Policy {
-	const text = readFileSync(file ?? DEFAULT_POLICY_FILE, 'utf8')
-	const parsed: unknown = JSON.parse(text)
-	return Value.Parse(PolicySchema, parsed)
+	return parseJson(
+		PolicySchema,
+		readFileSync(file ?? DEFAULT_POLICY_FILE, 'utf8'),
+	)
 }
 
 function placeholders(policy: Policy): Record<string, string> {
@@ -90,24 +93,12 @@ function filled(text: string, values: Record<string, string>): string {
 	)
 }
 
-function row(cells: readonly string[]): string {
-	return `| ${cells.join(' | ')} |`
-}
-
 export function renderPolicy(policy: Policy): string {
 	const values = placeholders(policy)
-	const rows = policy.classes.map(entry =>
-		row([
-			entry.id,
-			...COLUMNS.map(column => filled(entry[column], values)),
-		]),
-	)
+	const rows = policy.classes.map(entry => [
+		entry.id,
+		...COLUMNS.map(column => filled(entry[column], values)),
+	])
 	const rules = policy.rules.map(rule => `- ${filled(rule, values)}`)
-	return [
-		row(HEADINGS),
-		row(HEADINGS.map(() => '---')),
-		...rows,
-		'',
-		...rules,
-	].join('\n')
+	return [...table(HEADINGS, rows), '', ...rules].join('\n')
 }

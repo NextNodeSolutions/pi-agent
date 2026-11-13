@@ -7,10 +7,10 @@ import { promisify } from 'node:util'
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
+import { errorText } from '#lib/error-text.ts'
 import { MAGPIE_PROVIDER } from '#lib/magpie.ts'
 
 import { readCheckedJson } from './checked-json.ts'
-import { errorText } from './error-text.ts'
 
 import type { Static } from 'typebox'
 import type { RoutingRule, RoutingSpec } from './spec.ts'

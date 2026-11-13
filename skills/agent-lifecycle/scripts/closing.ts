@@ -1,3 +1,5 @@
+import { errorText } from '#lib/error-text.ts'
+
 import { branchOf, checkoutOf } from './checkout.ts'
 import { ownerReferenceOf } from './classify.ts'
 import { endTerminal, readScreen, terminalAt } from './hc.ts'
@@ -184,11 +186,10 @@ async function endRecorded(
 				as: address,
 			}),
 		)
-		const detail = error instanceof Error ? error.message : String(error)
 		return {
 			closed: events.filter(event => !survivors.includes(event)),
 			refusal: survivors.some(event => event.address === terminal.address)
-				? `ending it failed: ${detail}`
+				? `ending it failed: ${errorText(error)}`
 				: null,
 		}
 	}

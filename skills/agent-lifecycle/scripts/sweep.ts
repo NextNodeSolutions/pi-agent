@@ -1,7 +1,7 @@
 import { attachedTerminals } from './attention.ts'
 import { closeEach, withRefusals } from './batch.ts'
-import { toSubject } from './classify.ts'
-import { decide } from './decide.ts'
+import { subjectsOf } from './classify.ts'
+import { decide, keepInstead } from './decide.ts'
 import { liveTerminals, screenFingerprint } from './hc.ts'
 import { appendEvent } from './journal.ts'
 import { forgetGone, readMemory, writeMemory } from './memory.ts'
@@ -62,13 +62,11 @@ async function settle(verdict: Verdict): Promise<Candidate> {
 	if (recipe !== null || verdict.kind !== 'thread') return { verdict, recipe }
 	return {
 		recipe,
-		verdict: {
-			...verdict,
-			action: 'keep',
-			rule: 'unresumable',
-			reason: 'its program left nothing to resume its conversation from',
-			closesAtMs: null,
-		},
+		verdict: keepInstead(
+			verdict,
+			'unresumable',
+			'its program left nothing to resume its conversation from',
+		),
 	}
 }
 
@@ -86,13 +84,12 @@ async function confirm(
 	const confirmedAtMs = markedMs + world.policy.confirmSeconds * SECOND_MS
 	if (confirmedAtMs <= world.nowMs && earlier?.screen === screen)
 		return { candidate, mark: null }
-	const waiting: Verdict = {
-		...verdict,
-		action: 'keep',
-		rule: 'confirming',
-		reason: `${verdict.reason}; it closes at the next sweep if its screen stays as it is`,
-		closesAtMs: confirmedAtMs,
-	}
+	const waiting = keepInstead(
+		verdict,
+		'confirming',
+		`${verdict.reason}; it closes at the next sweep if its screen stays as it is`,
+		confirmedAtMs,
+	)
 	return {
 		candidate: { ...candidate, verdict: waiting },
 		mark: { screen, atMs: markedMs },
@@ -138,10 +135,10 @@ async function collectWorktrees(
 	world: World,
 	closed: readonly ClosedEvent[],
 ): Promise<{ held: Memory['heldWorktrees']; removed: Removal[] }> {
-	const subjects = world.terminals.map(terminal =>
-		toSubject(terminal, world.terminals, world.policy),
+	const held = await holdOwnedWorktrees(
+		subjectsOf(world.terminals, world.policy),
+		world.memory.heldWorktrees,
 	)
-	const held = await holdOwnedWorktrees(subjects, world.memory.heldWorktrees)
 	const survivors = world.terminals.filter(
 		terminal => !closed.some(event => event.address === terminal.address),
 	)

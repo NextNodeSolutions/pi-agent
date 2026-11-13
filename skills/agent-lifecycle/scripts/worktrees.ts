@@ -3,7 +3,10 @@ import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 
-import { checkoutOf, isInside } from './checkout.ts'
+import { errorText } from '#lib/error-text.ts'
+import { isWithin } from '#lib/runtime/anchor.ts'
+
+import { checkoutOf } from './checkout.ts'
 import { NOT_TRIED } from './memory.ts'
 import { MINUTE_MS } from './policy.ts'
 
@@ -76,8 +79,7 @@ async function tryRemoving(folder: string): Promise<Attempt> {
 				SETTLED.find(word => head.startsWith(`${word} `)) ?? 'skipped',
 		}
 	} catch (error) {
-		const detail = error instanceof Error ? error.message : String(error)
-		return { folder, detail, outcome: 'skipped' }
+		return { folder, detail: errorText(error), outcome: 'skipped' }
 	}
 }
 
@@ -115,7 +117,7 @@ export async function releaseWorktrees(
 	nowMs: number,
 ): Promise<{ held: Held; removed: Removal[] }> {
 	const isFree = (folder: string): boolean =>
-		!terminals.some(terminal => isInside(terminal.cwd, folder))
+		!terminals.some(terminal => isWithin(terminal.cwd, folder))
 	const due = Object.entries(held).filter(
 		([folder, entry]) => isFree(folder) && isDue(entry, policy, nowMs),
 	)

@@ -1,9 +1,8 @@
-import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { Type } from 'typebox'
-import { Value } from 'typebox/value'
 
+import { parseJson } from './schema.ts'
 import { readOrNull, stateDirectory, writeAtomically } from './storage.ts'
 
 import type { Static } from 'typebox'
@@ -42,12 +41,10 @@ const MEMORY_FILE = 'memory.json'
 export function readMemory(): Memory {
 	const text = readOrNull(join(stateDirectory(), MEMORY_FILE))
 	if (text === null) return EMPTY
-	const parsed: unknown = JSON.parse(text)
-	return Value.Parse(MemorySchema, parsed)
+	return parseJson(MemorySchema, text)
 }
 
 export function writeMemory(memory: Memory): void {
-	mkdirSync(stateDirectory(), { recursive: true })
 	writeAtomically(
 		join(stateDirectory(), MEMORY_FILE),
 		`${JSON.stringify(memory, null, '\t')}\n`,

@@ -1,6 +1,6 @@
 import { GOAL_LABEL, WAITING_LABEL } from '#lib/ui/herdr-labels.ts'
 
-import { isRemote, toSubject } from './classify.ts'
+import { isRemote, subjectsOf } from './classify.ts'
 import {
 	hasRead,
 	isOrphan,
@@ -213,10 +213,15 @@ function judge(subject: Subject, scene: Scene): Verdict {
 	}
 }
 
+export const keepInstead = (
+	verdict: Verdict,
+	rule: string,
+	reason: string,
+	closesAtMs: number | null = null,
+): Verdict => ({ ...verdict, action: 'keep', rule, reason, closesAtMs })
+
 export function decide(world: World): Verdict[] {
-	const subjects = world.terminals.map(terminal =>
-		toSubject(terminal, world.terminals, world.policy),
-	)
+	const subjects = subjectsOf(world.terminals, world.policy)
 	const scene: Scene = { ...world, subjects }
 	return subjects.map(subject => judge(subject, scene))
 }

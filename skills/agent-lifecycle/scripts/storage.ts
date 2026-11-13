@@ -1,6 +1,6 @@
-import { readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 const STATE_FOLDER = 'agent-lifecycle'
 
@@ -11,6 +11,7 @@ export function stateDirectory(): string {
 }
 
 export function writeAtomically(path: string, text: string): void {
+	mkdirSync(dirname(path), { recursive: true })
 	const draft = `${path}.${process.pid}.tmp`
 	writeFileSync(draft, text)
 	renameSync(draft, path)

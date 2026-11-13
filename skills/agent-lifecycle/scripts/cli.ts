@@ -1,5 +1,7 @@
 import { parseArgs } from 'node:util'
 
+import { errorText } from '#lib/error-text.ts'
+
 import { writeClosedPage } from './page.ts'
 import { loadPolicy, renderPolicy } from './policy.ts'
 import { keepOpen, reopen } from './reopen.ts'
@@ -87,7 +89,7 @@ async function main(): Promise<void> {
 try {
 	await main()
 } catch (error) {
-	const detail = error instanceof Error ? error.message : String(error)
+	const detail = errorText(error)
 	const isUsage =
 		error instanceof UsageError ||
 		(error instanceof TypeError && 'code' in error)

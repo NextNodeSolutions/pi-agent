@@ -1,4 +1,3 @@
-import { mkdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
 import { readEvents, reopenAfter } from './journal.ts'
@@ -15,15 +14,16 @@ const WHEN = new Intl.DateTimeFormat('en-GB', {
 	timeStyle: 'short',
 })
 
-export const closedPagePath = (): string => join(stateDirectory(), PAGE_FILE)
-
 const cell = (text: string): string =>
 	text.replaceAll('|', '\\|').replaceAll('\n', ' ')
 
 const row = (cells: readonly string[]): string =>
 	`| ${cells.map(cell).join(' | ')} |`
 
-function table(headings: readonly string[], rows: string[][]): string[] {
+export function table(
+	headings: readonly string[],
+	rows: readonly string[][],
+): string[] {
 	return [row(headings), row(headings.map(() => '---')), ...rows.map(row)]
 }
 
@@ -107,8 +107,7 @@ export function closedPage(
 export function writeClosedPage(
 	held: Memory['heldWorktrees'] = readMemory().heldWorktrees,
 ): { path: string; page: string } {
-	mkdirSync(stateDirectory(), { recursive: true })
-	const path = closedPagePath()
+	const path = join(stateDirectory(), PAGE_FILE)
 	const page = closedPage(readEvents(), held)
 	writeAtomically(path, page)
 	return { path, page }

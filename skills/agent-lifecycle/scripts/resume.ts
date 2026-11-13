@@ -3,9 +3,10 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import { Type } from 'typebox'
-import { Value } from 'typebox/value'
 
 import { SESSION_LABEL } from '#lib/ui/herdr-labels.ts'
+
+import { parseJson } from './schema.ts'
 
 import type { Static } from 'typebox'
 import type { Terminal } from './terminal.ts'
@@ -36,8 +37,7 @@ const claudeArguments: RecipeReader = async terminal => {
 			join(CLAUDE_SESSIONS, `${terminal.pid}.json`),
 			'utf8',
 		)
-		const parsed: unknown = JSON.parse(text)
-		const { sessionId } = Value.Parse(ClaudeSessionSchema, parsed)
+		const { sessionId } = parseJson(ClaudeSessionSchema, text)
 		return ['claude', '--resume', sessionId]
 	} catch {
 		return null

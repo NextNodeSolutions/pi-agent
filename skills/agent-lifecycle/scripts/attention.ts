@@ -2,7 +2,10 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
 import { Type } from 'typebox'
-import { Value } from 'typebox/value'
+
+import { errorText } from '#lib/error-text.ts'
+
+import { nullable, parseJson } from './schema.ts'
 
 import type { Static, TSchema } from 'typebox'
 
@@ -12,8 +15,8 @@ const TIMEOUT_MS = 10_000
 export type WindowSource = 'ask' | 'skip'
 
 const StatusSchema = Type.Object({
-	tab: Type.Union([Type.String(), Type.Null()]),
-	agent: Type.Union([Type.String(), Type.Null()]),
+	tab: nullable(Type.String()),
+	agent: nullable(Type.String()),
 })
 
 const SpacesSchema = Type.Object({
@@ -46,12 +49,10 @@ async function ask<Schema extends TSchema>(
 		const { stdout } = await execute('herdr-app', [command], {
 			timeout: TIMEOUT_MS,
 		})
-		const parsed: unknown = JSON.parse(stdout)
-		return Value.Parse(schema, parsed)
+		return parseJson(schema, stdout)
 	} catch (error) {
-		const detail = error instanceof Error ? error.message : String(error)
 		throw refusal(
-			`herdr-app ${command} failed (${detail}). Pass --no-window only for a core no Herdr window shows.`,
+			`herdr-app ${command} failed (${errorText(error)}). Pass --no-window only for a core no Herdr window shows.`,
 			error,
 		)
 	}

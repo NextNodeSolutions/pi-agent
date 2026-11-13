@@ -53,6 +53,7 @@ import type {
 	ExtensionContext,
 } from '@earendil-works/pi-coding-agent'
 import type { TSchema } from 'typebox'
+import type { LabelOn } from './receipt.ts'
 
 /** The event `pi-subagents` answers; its producer owns the payload's version. */
 const ACTIVE_WORK_EVENT = 'pi-subagents:active-work:v1'
@@ -114,24 +115,28 @@ function pendingWork(pi: Pick<ExtensionAPI, 'events'>): string {
 export default function herdrStatus(pi: ExtensionAPI): void {
 	const terminal = process.env.HC_TERMINAL_ID
 	if (!terminal) return
-	const label = async (key: string, shown: string): Promise<void> => {
+	const labelOn: LabelOn = async (target, key, shown) => {
 		try {
-			await pi.exec('hc', ['label', terminal, `${key}=${shown}`])
+			await pi.exec('hc', ['label', target, `${key}=${shown}`])
 		} catch {
 			return
 		}
 	}
+	const label = (key: string, shown: string): Promise<void> =>
+		labelOn(terminal, key, shown)
 	const publishSession = (ctx: ExtensionContext): void => {
-		if (ctx.hasUI)
-			void label(SESSION_LABEL, ctx.sessionManager.getSessionFile() ?? '')
+		void label(SESSION_LABEL, ctx.sessionManager.getSessionFile() ?? '')
 	}
-	pi.on('session_start', (_event, ctx) => publishSession(ctx))
-	pi.on('agent_settled', (_event, ctx) => publishSession(ctx))
-	registerGoalLabel(pi, open => label(GOAL_LABEL, open))
-	registerReadReceipts(pi, terminal)
-	pi.on('agent_settled', (_event, ctx) => {
-		if (ctx.hasUI) void label(WAITING_LABEL, pendingWork(pi))
+	pi.on('session_start', (_event, ctx) => {
+		if (ctx.hasUI) publishSession(ctx)
 	})
+	pi.on('agent_settled', (_event, ctx) => {
+		if (!ctx.hasUI) return
+		publishSession(ctx)
+		void label(WAITING_LABEL, pendingWork(pi))
+	})
+	registerGoalLabel(pi, open => label(GOAL_LABEL, open))
+	registerReadReceipts(pi, terminal, labelOn)
 	registerSessionTitle(pi, title => label(TITLE_LABEL, title))
 	pi.on('session_shutdown', (_event, ctx) => {
 		if (!ctx.hasUI) return

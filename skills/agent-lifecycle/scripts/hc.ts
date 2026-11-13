@@ -3,9 +3,10 @@ import { createHash } from 'node:crypto'
 import { promisify } from 'node:util'
 
 import { Type } from 'typebox'
-import { Value } from 'typebox/value'
 
-import type { Static, TSchema } from 'typebox'
+import { nullable, parseJson } from './schema.ts'
+
+import type { Static } from 'typebox'
 import type { Terminal } from './terminal.ts'
 
 const execute = promisify(execFile)
@@ -15,11 +16,6 @@ const NOT_FOUND_EXIT_CODE = 3
 const FINISHED_EXIT_CODE = 11
 const GONE_EXIT_CODES = [NOT_FOUND_EXIT_CODE, FINISHED_EXIT_CODE]
 const LIVE = 'live'
-
-const nullable = <Schema extends TSchema>(
-	schema: Schema,
-): ReturnType<typeof Type.Union<[Schema, ReturnType<typeof Type.Null>]>> =>
-	Type.Union([schema, Type.Null()])
 
 const ListingSchema = Type.Object({
 	terminals: Type.Array(
@@ -79,14 +75,6 @@ async function core(
 	return stdout
 }
 
-function parse<Schema extends TSchema>(
-	schema: Schema,
-	text: string,
-): Static<Schema> {
-	const parsed: unknown = JSON.parse(text)
-	return Value.Parse(schema, parsed)
-}
-
 function isGone(error: unknown): boolean {
 	if (!(error instanceof Error) || !('code' in error)) return false
 	return GONE_EXIT_CODES.some(code => code === error.code)
@@ -110,7 +98,7 @@ function toTerminal(record: Static<typeof RecordSchema>): Terminal {
 
 export async function terminalAt(address: string): Promise<Terminal | null> {
 	try {
-		const record = parse(
+		const record = parseJson(
 			RecordSchema,
 			await core(['get', address, '--json']),
 		)
@@ -123,7 +111,7 @@ export async function terminalAt(address: string): Promise<Terminal | null> {
 }
 
 export async function liveTerminals(): Promise<Terminal[]> {
-	const listing = parse(ListingSchema, await core(['ls', '--json']))
+	const listing = parseJson(ListingSchema, await core(['ls', '--json']))
 	const live = listing.terminals.filter(listed => listed.state === LIVE)
 	const described = await Promise.all(
 		live.map(listed => terminalAt(listed.address)),
@@ -164,5 +152,5 @@ export async function labelTerminal(
 
 export async function startTerminal(args: string[]): Promise<string> {
 	const started = await core(['run', '--bg', '--json', ...args])
-	return parse(StartedSchema, started).address
+	return parseJson(StartedSchema, started).address
 }

@@ -41,6 +41,3 @@ export async function branchOf(folder: string): Promise<string | null> {
 		return null
 	}
 }
-
-export const isInside = (folder: string, root: string): boolean =>
-	folder === root || folder.startsWith(`${root}/`)

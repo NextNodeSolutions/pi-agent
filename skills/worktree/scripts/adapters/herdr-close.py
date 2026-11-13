@@ -60,11 +60,15 @@ def auxiliary_name(kind, address):
     return f"{kind}-{re.sub(r'[^a-z0-9]', '-', address)}"
 
 
-def auxiliary_owner(terminal, addresses):
+def auxiliary_names(addresses):
+    return {auxiliary_name(kind, address): address
+            for address in addresses for kind in AUXILIARY_KINDS}
+
+
+def auxiliary_owner(terminal, names):
     if tab_id(terminal) or terminal.get("parent"):
         return None
-    return next((address for address in addresses for kind in AUXILIARY_KINDS
-                 if terminal.get("name") == auxiliary_name(kind, address)), None)
+    return names.get(terminal.get("name"))
 
 
 def descendants(all_terminals, members):
@@ -103,7 +107,7 @@ def caller_tab(members, all_terminals):
     by_address = {member["address"]: member for member in members}
     caller = next((terminal for terminal in all_terminals
                    if terminal["address"] == caller_address()), None)
-    address = (caller and auxiliary_owner(caller, set(by_address))) or caller_address()
+    address = (caller and auxiliary_owner(caller, auxiliary_names(by_address))) or caller_address()
     visited = set()
     while address in by_address and address not in visited:
         member = by_address[address]
@@ -131,9 +135,11 @@ def inspect(folder):
     members = descendants(all_terminals, [terminal for terminal in all_terminals
                                         if tab_id(terminal) in tabs])
     member_addresses = {member["address"] for member in members}
+    member_auxiliaries = auxiliary_names(member_addresses)
+    finished_auxiliaries = auxiliary_names(finished)
     auxiliaries = {terminal["address"] for terminal in all_terminals
-                   if auxiliary_owner(terminal, member_addresses)
-                   or (auxiliary_owner(terminal, finished) and matches(terminal, folder))}
+                   if auxiliary_owner(terminal, member_auxiliaries)
+                   or (auxiliary_owner(terminal, finished_auxiliaries) and matches(terminal, folder))}
     if any(terminal["address"] not in member_addresses | auxiliaries for terminal in matching):
         raise Refused("matching terminal has no tab or parent tab", 3)
     for member in members:

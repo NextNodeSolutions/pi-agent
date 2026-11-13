@@ -1,4 +1,7 @@
+import { errorText } from '#lib/error-text.ts'
+
 import { closeTerminal } from './closing.ts'
+import { keepInstead } from './decide.ts'
 
 import type { Candidate, Closing, ClosingScene } from './closing.ts'
 import type { Verdict } from './decide.ts'
@@ -16,8 +19,7 @@ async function closeOne(
 	try {
 		return await closeTerminal(candidate, scene)
 	} catch (error) {
-		const refusal = error instanceof Error ? error.message : String(error)
-		return { closed: [], refusal }
+		return { closed: [], refusal: errorText(error) }
 	}
 }
 
@@ -52,12 +54,10 @@ export function withRefusals(
 	return verdicts.map(verdict => {
 		const refusal = refusals[verdict.terminal.address]
 		if (refusal === undefined) return verdict
-		return {
-			...verdict,
-			action: 'keep',
-			rule: 'refused',
-			reason: `closing it was called off: ${refusal.replace(/\s+/g, ' ').trim()}`,
-			closesAtMs: null,
-		}
+		return keepInstead(
+			verdict,
+			'refused',
+			`closing it was called off: ${refusal.replace(/\s+/g, ' ').trim()}`,
+		)
 	})
 }

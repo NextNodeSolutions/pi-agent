@@ -2,16 +2,16 @@ import { appendFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { Type } from 'typebox'
-import { Value } from 'typebox/value'
 
 import { RecipeSchema } from './resume.ts'
+import { nullable, parseJson } from './schema.ts'
 import { readOrNull, stateDirectory } from './storage.ts'
 
 import type { Static } from 'typebox'
 
 const JOURNAL_FILE = 'closed.jsonl'
 
-const nullableString = Type.Union([Type.String(), Type.Null()])
+const nullableString = nullable(Type.String())
 
 const ClosedSchema = Type.Object({
 	event: Type.Literal('closed'),
@@ -26,7 +26,7 @@ const ClosedSchema = Type.Object({
 	parent: nullableString,
 	owner: nullableString,
 	labels: Type.Record(Type.String(), Type.String()),
-	recipe: Type.Union([RecipeSchema, Type.Null()]),
+	recipe: nullable(RecipeSchema),
 	trace: nullableString,
 })
 
@@ -78,8 +78,7 @@ export function appendEvent(event: JournalEvent): void {
 
 function parsedEvent(line: string): JournalEvent | null {
 	try {
-		const parsed: unknown = JSON.parse(line)
-		return Value.Parse(EventSchema, parsed)
+		return parseJson(EventSchema, line)
 	} catch {
 		return null
 	}
