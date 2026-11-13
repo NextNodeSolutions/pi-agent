@@ -7,7 +7,6 @@ import { isRecord } from './json.ts'
 import { pollDeepseekQuotas } from './quota-deepseek.ts'
 import { parseOpenAIUsage, chatgptAccountIdFromToken } from './quota-openai.ts'
 import { pollXaiQuotas } from './quota-xai.ts'
-import { pollZaiQuotas } from './quota-zai.ts'
 import {
 	fetchJson,
 	fetchJsonWithHeaders,
@@ -170,7 +169,5 @@ export async function pollQuotas(): Promise<QuotaCache> {
 	if (deepseek) cache.deepseek = deepseek
 	const inco = await pollIncoQuotas()
 	if (inco) cache.inco = inco
-	const zai = await pollZaiQuotas()
-	if (zai) cache.zai = zai
 	return cache
 }
