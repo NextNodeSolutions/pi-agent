@@ -130,6 +130,7 @@ function claudeRecords(entries: readonly object[]): SessionRecords {
 		if (field(entry, 'type') === 'assistant')
 			question = messageText(field(entry, 'message')) || question
 		const found = claudeEntryRecords(entry, askIds, id, at, question)
+		if (claudeTyped(entry)) question = ''
 		records.evidence.push(...found.evidence)
 		records.relays.push(...found.relays)
 	}

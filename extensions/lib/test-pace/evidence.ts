@@ -115,6 +115,7 @@ export function sessionRecords(entries: readonly unknown[]): SessionRecords {
 		const request = savedRequest(entry)
 		if (!request) continue
 		const found = requestRecords(request, at, question)
+		question = ''
 		records.evidence.push(...found.evidence)
 		records.relays.push(...found.relays)
 	}
