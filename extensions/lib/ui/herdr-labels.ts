@@ -1,2 +1,2 @@
-/** Herdr terminal label holding a session's title: `ui/herdr-status` writes it, `ui/thread-titles` and the Command Center read it. */
+/** Herdr terminal label holding a session's title; the Command Center mod reads it under this name. */
 export const TITLE_LABEL = 'agent.title'
