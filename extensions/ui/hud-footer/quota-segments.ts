@@ -16,7 +16,6 @@ import { ICONS } from './theme.ts'
 
 import type { MagpieRoute } from './magpie-route.ts'
 import type { IncoQuota } from './quota-inco.ts'
-import type { ZaiQuota } from './quota-zai.ts'
 import type {
 	DeepseekQuota,
 	KimiQuota,
@@ -182,26 +181,4 @@ export function xaiSegment(
 	return bits.length > 0
 		? `${QUIET('xai')} ${bits.join(` ${thinSep()} `)}`
 		: `${QUIET('xai')} ${QUIET('\u2014')}`
-}
-
-/** Z.AI prints the plan badge plus its two credit windows, Kimi-style. */
-export function zaiSegment(
-	quota: ZaiQuota,
-	options: QuotaRenderOptions,
-): string {
-	const { fiveHour, weekly } = quota
-	const head = quota.plan
-		? `${QUIET('zai')} ${fgHex(LATTE.mauve, quota.plan)}`
-		: QUIET('zai')
-	let segment = `${head} ${QUIET('5h')} ${quotaGauge(fiveHour.remaining, fiveHour.limit)}`
-	if (weekly.limit > 0) {
-		segment += ` ${thinSep()} ${QUIET('sem')} ${quotaGauge(weekly.remaining, weekly.limit)}`
-	}
-	const stamps = options.compact
-		? []
-		: [fiveHour.reset, weekly.reset].filter(Boolean)
-	if (stamps.length > 0) {
-		segment += ` ${thinSep()} ${QUIET(resetRun(stamps))}`
-	}
-	return segment
 }
