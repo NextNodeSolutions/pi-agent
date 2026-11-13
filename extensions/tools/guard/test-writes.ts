@@ -24,7 +24,7 @@ import type { Judgment } from '#lib/test-pace/consent.ts'
 import type { PaceRequest } from '#lib/test-pace/request.ts'
 
 const REFUSAL =
-	"Test write refused. For a new bug or logic test, call test_pace with its exact paths and the production bug or requirement it names. Other test edits (existing tests, fixtures, test configuration, end-to-end tests) need the human's consent: ask in chat or with ask_user_question, naming the files or directories and the kind of edit, then retry after their yes; never ask them to type a command. A relayed consent counts only when the human's answer in the sender's Pi session names this terminal's address or the relay quotes it. Report an existing test failure instead of changing its expectation."
+	"Test write refused. For a new bug or logic test, call test_pace with its exact paths and the production bug or requirement it names. Other test edits (existing tests, fixtures, test configuration, end-to-end tests) need the human's consent: ask in chat or with ask_user_question, naming the files or directories and the kind of edit, then retry after their yes; never ask them to type a command. A relayed consent counts only when the human's answer in the sender's Pi session names this terminal by its address or its agent.title label, or the relay quotes it. Report an existing test failure instead of changing its expectation."
 const UNRESOLVED_REFUSAL = `${REFUSAL} This command changes directory or names tests by pattern, so its targets cannot be matched to a permission: use write/edit, or run it from the session directory on exact paths.`
 const GLOB = /[*?[\]{}]/
 

@@ -3,6 +3,7 @@ import { promisify } from 'node:util'
 
 /** Pi publishes its session file under this terminal label, so a relay's receiver can read the sender's records. */
 export const SESSION_LABEL = 'pi.session'
+export const TITLE_LABEL = 'agent.title'
 
 const WRAPPER = /^\s*<hc\b(?<attributes>[^>]*)>(?<body>[\s\S]*?)<\/hc>\s*$/u
 const FROM = /\bfrom="(?<address>[^"\s]+)/u
@@ -21,20 +22,21 @@ export function readRelay(text: string): RelayedText | undefined {
 	}
 }
 
-export async function senderSessionFile(
-	sender: string,
+export async function terminalLabel(
+	address: string,
+	key: string,
 ): Promise<string | undefined> {
 	try {
-		const { stdout } = await run('hc', ['get', sender, '--json'], {
+		const { stdout } = await run('hc', ['get', address, '--json'], {
 			timeout: HC_TIMEOUT_MS,
 		})
 		const labels: unknown = Reflect.get(
 			Object(JSON.parse(stdout)),
 			'labels',
 		)
-		const file: unknown = Reflect.get(Object(labels), SESSION_LABEL)
-		if (typeof file !== 'string' || !file) return undefined
-		return file
+		const label: unknown = Reflect.get(Object(labels), key)
+		if (typeof label !== 'string' || !label) return undefined
+		return label
 	} catch {
 		return undefined
 	}

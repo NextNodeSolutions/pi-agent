@@ -24,7 +24,7 @@
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
-import { SESSION_LABEL } from '#lib/hc-relay.ts'
+import { SESSION_LABEL, TITLE_LABEL } from '#lib/hc-relay.ts'
 import {
 	BASH_JOBS_EVENT,
 	BASH_JOBS_VERSION,
@@ -40,7 +40,6 @@ import type { TSchema } from 'typebox'
 const ACTIVE_WORK_EVENT = 'pi-subagents:active-work:v1'
 const ACTIVE_WORK_VERSION = 1
 const WAITING_LABEL = 'agent.waiting'
-const TITLE_LABEL = 'agent.title'
 
 const ActiveWorkPayloadSchema = Type.Object({
 	version: Type.Literal(ACTIVE_WORK_VERSION),
