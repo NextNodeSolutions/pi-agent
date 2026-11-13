@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 
 import { CONSENT_VERDICTS } from '../extensions/lib/test-pace/permission.ts'
+import { SCOPE_PATH_ROLES } from '../extensions/lib/test-pace/scope-path.ts'
 import { STOP_TARGETS } from '../extensions/lib/test-pace/stop-target.ts'
 
 import type { TestPace } from '../extensions/lib/test-pace/decision.ts'
@@ -24,6 +25,11 @@ type OperationCase = Labelled<(typeof OPERATION_OUTCOMES)[number]> & {
 type StopTargetCase = Labelled<(typeof STOP_TARGETS)[number]> & {
 	question: string
 	thread: string
+}
+/** `path` is written in the exchange of `question` and `request`; `expected` says whether that consent covers it. */
+type ScopePathCase = Labelled<(typeof SCOPE_PATH_ROLES)[number]> & {
+	question: string
+	path: string
 }
 
 function labelled<Label extends string>(
@@ -57,6 +63,14 @@ export const stopTargetCases = labelled(
 	(sample): sample is StopTargetCase =>
 		typeof Reflect.get(sample, 'question') === 'string' &&
 		typeof Reflect.get(sample, 'thread') === 'string',
+)
+export const scopePathCases = labelled(
+	'./test-scope-path-cases.json',
+	SCOPE_PATH_ROLES,
+).filter(
+	(sample): sample is ScopePathCase =>
+		typeof Reflect.get(sample, 'question') === 'string' &&
+		typeof Reflect.get(sample, 'path') === 'string',
 )
 export const paceCases = labelled('./test-pace-cases.json', [
 	'bug',

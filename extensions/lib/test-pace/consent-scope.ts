@@ -18,7 +18,10 @@ const WILDCARD = /[*?{]/u
 const HOME = '~/'
 const ANY_DIRECTORY = '**/'
 
-type Named = { path: string; isDirectory: boolean }
+/** `written` is the path as the exchange spells it, the form the judge reads. */
+type Named = { written: string; path: string; isDirectory: boolean }
+/** Whether the permission covers a written path rather than naming it as context. */
+export type PathJudge = (written: string) => Promise<boolean>
 
 function count(token: string, char: string): number {
 	return token.split(char).length - 1
@@ -67,12 +70,17 @@ function namedPath(token: string): Named | undefined {
 	const isTestFileName =
 		!bare.includes('/') && bare.includes('.') && isTestPath(bare)
 	if (isTestFileName)
-		return { path: `${ANY_DIRECTORY}${bare}`, isDirectory: true }
+		return {
+			written: bare,
+			path: `${ANY_DIRECTORY}${bare}`,
+			isDirectory: true,
+		}
 	if (bare.includes('://') || !bare.includes('/')) return undefined
 	const expanded = bare.startsWith(HOME)
 		? join(homedir(), bare.slice(HOME.length))
 		: bare
 	return {
+		written: bare,
 		path: expanded,
 		isDirectory: WILDCARD.test(expanded) || expanded.endsWith('/'),
 	}
@@ -106,23 +114,37 @@ async function scopeEntry(root: string, named: Named): Promise<string[]> {
 	return counts ? [path] : []
 }
 
-/** The last text naming a path decides; an exchange naming none covers nothing by itself (`consent.ts` gives it the earlier grants' scope). */
-export async function consentScope(
+async function coveredPaths(
 	root: string,
-	texts: readonly string[],
+	isCovered: PathJudge,
+	text: string,
 ): Promise<string[]> {
-	const scopes = await Promise.all(
-		texts.toReversed().map(async text => {
-			const named = text
-				.split(SEPARATORS)
-				.flatMap(token => namedPath(token) ?? [])
-			const entries = await Promise.all(
-				named.map(path => scopeEntry(root, path)),
-			)
-			return Array.from(new Set(entries.flat()))
+	const named = new Map(
+		text
+			.split(SEPARATORS)
+			.flatMap(token => namedPath(token) ?? [])
+			.map(candidate => [candidate.written, candidate]),
+	)
+	const entries = await Promise.all(
+		[...named.values()].map(async candidate => {
+			const paths = await scopeEntry(root, candidate)
+			if (!paths.length) return []
+			return (await isCovered(candidate.written)) ? paths : []
 		}),
 	)
-	return scopes.find(scope => scope.length) ?? []
+	return Array.from(new Set(entries.flat()))
+}
+
+/** The last text naming a covered path decides; an exchange naming none covers nothing by itself (`consent.ts` gives it the earlier grants' scope). */
+export async function consentScope(
+	root: string,
+	isCovered: PathJudge,
+	texts: readonly string[],
+): Promise<string[]> {
+	return texts.toReversed().reduce<Promise<string[]>>(async (found, text) => {
+		const newer = await found
+		return newer.length ? newer : coveredPaths(root, isCovered, text)
+	}, Promise.resolve([]))
 }
 
 export function consentCovers(scope: readonly string[], path: string): boolean {

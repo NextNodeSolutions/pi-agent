@@ -7,6 +7,7 @@ import { after, before, test } from 'node:test'
 import { consentScope } from '#lib/test-pace/consent-scope.ts'
 
 const fixture = { root: '' }
+const everyPath = async (): Promise<boolean> => true
 
 before(async () => {
 	fixture.root = await realpath(
@@ -18,7 +19,7 @@ after(() => rm(fixture.root, { recursive: true, force: true }))
 
 test('covers only the named file when a directory name has parentheses', async () => {
 	assert.deepEqual(
-		await consentScope(fixture.root, [
+		await consentScope(fixture.root, everyPath, [
 			'May I update app/(marketing)/page.test.tsx?',
 			'ok',
 		]),
@@ -28,7 +29,7 @@ test('covers only the named file when a directory name has parentheses', async (
 
 test('covers only the named file when a directory name has square brackets', async () => {
 	assert.deepEqual(
-		await consentScope(fixture.root, [
+		await consentScope(fixture.root, everyPath, [
 			'May I update app/routes/[slug]/page.test.tsx?',
 		]),
 		[join(fixture.root, 'app/routes/[slug]/page.test.tsx')],
@@ -37,7 +38,7 @@ test('covers only the named file when a directory name has square brackets', asy
 
 test('keeps a glob that starts and ends with a double star', async () => {
 	assert.deepEqual(
-		await consentScope(fixture.root, [
+		await consentScope(fixture.root, everyPath, [
 			'Allow edits under **/__snapshots__/** only',
 		]),
 		[join(fixture.root, '**/__snapshots__/**')],
@@ -46,7 +47,7 @@ test('keeps a glob that starts and ends with a double star', async () => {
 
 test('drops the brackets and punctuation wrapped around a path in prose', async () => {
 	assert.deepEqual(
-		await consentScope(fixture.root, [
+		await consentScope(fixture.root, everyPath, [
 			'Fix the import (in tests/cart.test.ts). Also see [tests/user.test.ts:12].',
 		]),
 		[

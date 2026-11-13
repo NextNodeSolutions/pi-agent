@@ -13,6 +13,11 @@ import {
 } from '../extensions/lib/test-pace/permission.ts'
 import { forbidsTestAuthoring } from '../extensions/lib/test-pace/request.ts'
 import {
+	classifyScopePath,
+	SCOPE_PATH_CONFIDENCE,
+	SCOPE_PATH_ROLES,
+} from '../extensions/lib/test-pace/scope-path.ts'
+import {
 	classifyStopTarget,
 	STOP_TARGET_CONFIDENCE,
 	STOP_TARGETS,
@@ -23,6 +28,7 @@ import {
 	operationCases,
 	paceCases,
 	permissionCases,
+	scopePathCases,
 	stopTargetCases,
 } from './test-pace-cases.ts'
 import { classifyOperation, OPERATION_CONFIDENCE } from '../extensions/lib/test-pace/operation.ts'
@@ -143,7 +149,7 @@ async function calibrate<Case extends Sample>(
 process.stdout.write(
 	`${JSON.stringify({
 		provenance:
-			'Pace cases: paraphrased short human requests from local Pi sessions, September-November 2026, client and product names removed. Permission cases: written for this calibration in the phrasing those sessions use, some as a human reply to an agent question; the consent shapes of November 2026 paraphrase the refused live case. Agent-labelled expectations, not human-labelled ground truth. No session message copied verbatim except the human sentence of case c006, quoted in the request for this change. Stop-target cases: written for this calibration around the unnamed stop and the docs pull request examples the coordinator gave in November 2026.',
+			'Pace cases: paraphrased short human requests from local Pi sessions, September-November 2026, client and product names removed. Permission cases: written for this calibration in the phrasing those sessions use, some as a human reply to an agent question; the consent shapes of November 2026 paraphrase the refused live case. Agent-labelled expectations, not human-labelled ground truth. No session message copied verbatim except the human sentence of case c006, quoted in the request for this change. Stop-target cases: written for this calibration around the unnamed stop and the docs pull request examples the coordinator gave in November 2026. Scope-path cases: written for this calibration around the exchanges of the November 2026 live proof and code review where a path named as context became scope.',
 	})}\n`,
 )
 const pace = await calibrate({
@@ -207,4 +213,23 @@ const stopTarget = await calibrate({
 	grantsTooMuch: (expected, actual) =>
 		expected === 'here' && actual === 'elsewhere',
 })
-if (!pace || !permission || !operation || !stopTarget) process.exitCode = 1
+const scopePath = await calibrate({
+	name: 'scope-path',
+	threshold: SCOPE_PATH_CONFIDENCE,
+	labels: SCOPE_PATH_ROLES,
+	cases: scopePathCases,
+	classify: async sample => {
+		const decision = await classifyScopePath(
+			{ question: sample.question, reply: sample.request },
+			sample.path,
+		)
+		return {
+			actual: decision.isCovered ? 'covered' : 'context',
+			answer: decision.answer,
+		}
+	},
+	grantsTooMuch: (expected, actual) =>
+		expected === 'context' && actual === 'covered',
+})
+if (!pace || !permission || !operation || !stopTarget || !scopePath)
+	process.exitCode = 1

@@ -7,6 +7,7 @@ import { after, before, test } from 'node:test'
 import { consentScope } from '#lib/test-pace/consent-scope.ts'
 
 const fixture = { root: '' }
+const everyPath = async (): Promise<boolean> => true
 
 before(async () => {
 	fixture.root = await realpath(
@@ -21,7 +22,7 @@ after(() => rm(fixture.root, { recursive: true, force: true }))
 
 test('covers a named test file and a named new directory', async () => {
 	assert.deepEqual(
-		await consentScope(fixture.root, [
+		await consentScope(fixture.root, everyPath, [
 			'May I edit `tests/cart.test.ts` and move files into src/api/?',
 		]),
 		[
@@ -33,7 +34,7 @@ test('covers a named test file and a named new directory', async () => {
 
 test('covers an existing directory named without a trailing slash', async () => {
 	assert.deepEqual(
-		await consentScope(fixture.root, [
+		await consentScope(fixture.root, everyPath, [
 			'Allow test moves under packages/api',
 		]),
 		[join(fixture.root, 'packages/api')],
@@ -42,7 +43,7 @@ test('covers an existing directory named without a trailing slash', async () => 
 
 test('reads the scope from the reply as well as the question', async () => {
 	assert.deepEqual(
-		await consentScope(fixture.root, [
+		await consentScope(fixture.root, everyPath, [
 			'May I change the tests?',
 			'yes, only tests/unit/',
 		]),
@@ -52,14 +53,16 @@ test('reads the scope from the reply as well as the question', async () => {
 
 test('covers nothing by itself when no path is named', async () => {
 	assert.deepEqual(
-		await consentScope(fixture.root, ['ok, add tests for the reducer']),
+		await consentScope(fixture.root, everyPath, [
+			'ok, add tests for the reducer',
+		]),
 		[],
 	)
 })
 
 test('scopes a bare test filename to files of that name anywhere under the root', async () => {
 	assert.deepEqual(
-		await consentScope(fixture.root, [
+		await consentScope(fixture.root, everyPath, [
 			'Add a test for src/cart.ts in cart.test.ts?',
 		]),
 		[join(fixture.root, '**/cart.test.ts')],
@@ -68,7 +71,7 @@ test('scopes a bare test filename to files of that name anywhere under the root'
 
 test('ignores URLs and outside paths that are not tests', async () => {
 	assert.deepEqual(
-		await consentScope(fixture.root, [
+		await consentScope(fixture.root, everyPath, [
 			'See https://example.com/tests/x.test.ts and /var/log/notes.md',
 		]),
 		[],
@@ -77,7 +80,7 @@ test('ignores URLs and outside paths that are not tests', async () => {
 
 test('keeps a named test path outside the working directory', async () => {
 	assert.deepEqual(
-		await consentScope(fixture.root, [
+		await consentScope(fixture.root, everyPath, [
 			'May I edit /elsewhere/tests/a.test.ts:42?',
 		]),
 		['/elsewhere/tests/a.test.ts'],
@@ -86,7 +89,9 @@ test('keeps a named test path outside the working directory', async () => {
 
 test('preserves the named glob without broadening to its parent directory', async () => {
 	assert.deepEqual(
-		await consentScope(fixture.root, ['Move src/**/*.test.ts into tests/']),
+		await consentScope(fixture.root, everyPath, [
+			'Move src/**/*.test.ts into tests/',
+		]),
 		[join(fixture.root, 'src/**/*.test.ts'), join(fixture.root, 'tests')],
 	)
 })
