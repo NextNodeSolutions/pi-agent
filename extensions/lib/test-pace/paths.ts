@@ -127,11 +127,11 @@ export async function ineligibleTarget(
 ): Promise<string | undefined> {
 	const local = relative(root, path)
 	if (!TEST_CASE.test(local) || RESTRICTED_SETUP.test(local))
-		return 'Only new test cases qualify. Test setup, helpers and fixtures need explicit human authorization.'
+		return 'Only new test cases qualify. Test setup, helpers and fixtures need consent from the human.'
 	if (END_TO_END_PATH.test(local))
-		return 'End-to-end tests require explicit human authorization.'
+		return "End-to-end tests need the human's consent."
 	if (!createdPaths.includes(path) && (await runtimeFor(path).exists(path)))
-		return 'An existing test requires explicit human authorization to change.'
+		return "Changing an existing test needs the human's consent."
 	if (!(await packageRunner(path)))
 		return 'The target package has no recognized existing test runner.'
 	return undefined

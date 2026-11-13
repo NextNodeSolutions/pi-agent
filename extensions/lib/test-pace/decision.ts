@@ -24,7 +24,7 @@ export const PACE_QUESTION: ChoiceQuestion = {
 	criteria: {
 		bug: 'Fixes a concrete defect in existing behaviour, described with a reproduction and wrong observable output: wrong result, crash, wrong state or regression. A test through the public interface could catch that defect.',
 		logic: 'Creates a new unit whose behaviour branches on input or state: pure function, reducer, validation, permissions, money rule, hook or component with state transitions. The requirement names an observable output. Repairing existing broken behaviour is bug instead.',
-		none: 'Presentation, spacing, colour, alignment, wording, wiring to an existing query and loader, configuration, dependencies, builds, renames, behaviour-preserving refactors, prototypes, one-off scripts, documentation, questions or investigation without a concrete reproduction. End-to-end test work and rewriting existing tests need explicit authorization instead.',
+		none: 'Presentation, spacing, colour, alignment, wording, wiring to an existing query and loader, configuration, dependencies, builds, renames, behaviour-preserving refactors, prototypes, one-off scripts, documentation, questions or investigation without a concrete reproduction. End-to-end test work and rewriting existing tests need consent from the human instead.',
 	},
 }
 
