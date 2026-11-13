@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 
+import { TEST_PACES } from '../extensions/lib/test-pace/decision.ts'
 import { OPERATION_OUTCOMES } from '../extensions/lib/test-pace/operation.ts'
 import { CONSENT_VERDICTS } from '../extensions/lib/test-pace/permission.ts'
 import { SCOPE_PATH_ROLES } from '../extensions/lib/test-pace/scope-path.ts'
@@ -71,11 +72,7 @@ export const scopePathCases = labelled(
 		typeof Reflect.get(sample, 'question') === 'string' &&
 		typeof Reflect.get(sample, 'path') === 'string',
 )
-export const paceCases = labelled('./test-pace-cases.json', [
-	'bug',
-	'logic',
-	'none',
-]).filter(
+export const paceCases = labelled('./test-pace-cases.json', TEST_PACES).filter(
 	(sample): sample is PaceCase =>
 		typeof Reflect.get(sample, 'intent') === 'string',
 )

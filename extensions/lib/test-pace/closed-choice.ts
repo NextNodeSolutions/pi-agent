@@ -4,7 +4,7 @@ import type { ChoiceQuestion, ChoiceResult } from '#lib/jev/client.ts'
 
 const JUDGE_TIMEOUT_MS = 4_000
 
-/** A two-way question whose criteria keys are its labels. */
+/** A question whose criteria keys are its labels. */
 export type ClosedQuestion<Label extends string> = {
 	instructions: string
 	criteria: Record<Label, string>

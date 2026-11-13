@@ -7,6 +7,7 @@ import { mapConcurrently } from '../extensions/lib/test-pace/concurrently.ts'
 import {
 	classifyTestPace,
 	PACE_CONFIDENCE,
+	TEST_PACES,
 } from '../extensions/lib/test-pace/decision.ts'
 import {
 	classifyOperation,
@@ -152,7 +153,7 @@ process.stdout.write(
 const pace = await calibrate({
 	name: 'pace',
 	threshold: PACE_CONFIDENCE,
-	labels: ['bug', 'logic', 'none'],
+	labels: TEST_PACES,
 	cases: paceCases,
 	classify: async sample => {
 		const decision = await classifyTestPace({
