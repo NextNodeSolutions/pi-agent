@@ -43,14 +43,9 @@ function decideConsent(
 
 export async function classifyConsent(
 	exchange: ConsentExchange,
-	signal?: AbortSignal,
 ): Promise<ConsentDecision> {
 	if (!exchange.reply.trim()) return { verdict: 'none' }
-	const answer = await judgeAnswer(
-		judgedExchange(exchange),
-		CONSENT_QUESTION,
-		signal,
-	)
+	const answer = await judgeAnswer(judgedExchange(exchange), CONSENT_QUESTION)
 	if (!answer) return { verdict: UNREAD_VERDICT }
 	return { verdict: decideConsent(answer), answer }
 }

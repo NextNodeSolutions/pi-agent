@@ -24,7 +24,7 @@ const ANY_DIRECTORY = '**/'
 /** `written` is the path as the exchange spells it, the form the judge reads. */
 type Named = { written: string; path: string; isDirectory: boolean }
 /** Whether the permission covers a written path rather than naming it as context. */
-export type PathJudge = (written: string) => Promise<boolean>
+type PathJudge = (written: string) => Promise<boolean>
 /** `answered`: Jev read every path it was asked about. */
 type Scoped = { scope: string[]; answered: boolean }
 
