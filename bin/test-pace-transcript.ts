@@ -19,6 +19,8 @@ import type {
 const HARNESS_TEXT =
 	/^\s*<(?:command-(?:name|message|args)|local-command-|task-notification|system-reminder)/
 
+const ASK_TOOL = 'AskUserQuestion'
+
 function field(value: unknown, key: string): unknown {
 	return Reflect.get(Object(value), key)
 }
@@ -41,27 +43,74 @@ function claudeTyped(entry: object): string {
 	return HARNESS_TEXT.test(text) ? '' : text
 }
 
+function contentParts(entry: object): unknown[] {
+	const content = field(field(entry, 'message'), 'content')
+	return Array.isArray(content) ? content : []
+}
+
+/** Only Claude Code's own questionnaire carries the human's answers; another tool's `answers` field is tool output. */
+function askToolIds(entries: readonly object[]): Set<string> {
+	return new Set(
+		entries.flatMap(entry =>
+			contentParts(entry)
+				.filter(
+					part =>
+						field(part, 'type') === 'tool_use' &&
+						field(part, 'name') === ASK_TOOL,
+				)
+				.map(part => String(field(part, 'id'))),
+		),
+	)
+}
+
+function answersAsk(entry: object, askIds: ReadonlySet<string>): boolean {
+	return contentParts(entry).some(
+		part =>
+			field(part, 'type') === 'tool_result' &&
+			askIds.has(String(field(part, 'tool_use_id'))),
+	)
+}
+
+function optionLabels(questions: unknown, prompt: string): string {
+	const asked = Array.isArray(questions)
+		? questions.find(question => field(question, 'question') === prompt)
+		: undefined
+	const options = field(asked, 'options')
+	return Array.isArray(options)
+		? options.map(option => String(field(option, 'label'))).join('; ')
+		: ''
+}
+
 /** Claude Code stores an AskUserQuestion result as `toolUseResult.answers`: question text to chosen label. */
 function askAnswers(entry: object, id: string, at: string): Evidence[] {
 	const result = field(entry, 'toolUseResult')
 	const answers = field(result, 'answers')
-	const questions = field(result, 'questions')
 	if (!answers || typeof answers !== 'object') return []
 	return Object.entries(answers).flatMap(([prompt, reply], index) => {
 		if (typeof reply !== 'string' || !reply) return []
-		const asked = Array.isArray(questions)
-			? questions.find(question => field(question, 'question') === prompt)
-			: undefined
-		const options = field(asked, 'options')
-		const labels = Array.isArray(options)
-			? options.map(option => String(field(option, 'label'))).join('; ')
-			: ''
+		const labels = optionLabels(field(result, 'questions'), prompt)
 		const question = `${prompt}\nOptions: ${labels}`
 		return [{ id: `${id}:${index}`, at, question, reply }]
 	})
 }
 
+function typedRecords(
+	entry: object,
+	id: string,
+	at: string,
+	question: string,
+): SessionRecords {
+	const typed = claudeTyped(entry)
+	if (!typed) return { evidence: [], relays: [] }
+	return requestRecords(
+		{ id, text: safePaceText(typed), origin: typedOrigin(typed) },
+		at,
+		question,
+	)
+}
+
 function claudeRecords(entries: readonly object[]): SessionRecords {
+	const askIds = askToolIds(entries)
 	const records: SessionRecords = { evidence: [], relays: [] }
 	let question = ''
 	for (const entry of entries.filter(item => !field(item, 'isSidechain'))) {
@@ -69,14 +118,9 @@ function claudeRecords(entries: readonly object[]): SessionRecords {
 		const id = String(field(entry, 'uuid') ?? '')
 		if (field(entry, 'type') === 'assistant')
 			question = messageText(field(entry, 'message')) || question
-		records.evidence.push(...askAnswers(entry, id, at))
-		const typed = claudeTyped(entry)
-		if (!typed) continue
-		const found = requestRecords(
-			{ id, text: safePaceText(typed), origin: typedOrigin(typed) },
-			at,
-			question,
-		)
+		if (answersAsk(entry, askIds))
+			records.evidence.push(...askAnswers(entry, id, at))
+		const found = typedRecords(entry, id, at, question)
 		records.evidence.push(...found.evidence)
 		records.relays.push(...found.relays)
 	}
