@@ -103,6 +103,16 @@ def caller_tab(members):
     return None
 
 
+def caller_address():
+    return os.environ.get("HC_TERMINAL_ID")
+
+
+# The caller can be one of the auxiliaries, so membership in the tab is not the only way to belong to the selection.
+def is_caller(address, members, auxiliaries):
+    return address == caller_address() and (
+        address in {member["address"] for member in members} or address in auxiliaries)
+
+
 def inspect(folder):
     all_terminals, finished = terminals()
     matching = [terminal for terminal in all_terminals if matches(terminal, folder)]
@@ -123,14 +133,21 @@ def inspect(folder):
     return {"status": "ready", "tabs": ordered_tabs,
             "terminals": sorted(member["address"] for member in members),
             "auxiliaries": sorted(auxiliaries),
-            "caller": any(member["address"] == caller for member in members)}
+            "caller": is_caller(caller, members, auxiliaries)}
 
 
+def end_auxiliary(address):
+    run("herdr-core", "kill", address, "--json")
+    run("herdr-core", "rm", address, "--json")
+
+
+# The caller's own auxiliary ends last, after every tab, since ending it can terminate this invocation.
 def close(folder):
     plan = inspect(folder)
+    caller = caller_address()
     for address in plan["auxiliaries"]:
-        run("herdr-core", "kill", address, "--json")
-        run("herdr-core", "rm", address, "--json")
+        if address != caller:
+            end_auxiliary(address)
     for tab in plan["tabs"]:
         current = inspect(folder)
         if tab not in current["tabs"]:
@@ -138,6 +155,8 @@ def close(folder):
         response = run("herdr-app", "do", "tab.close", "--id", tab, "--confirmed", "true")
         if response.get("ok") is not True:
             raise Refused(f"tab {tab} could not be closed: {response}")
+    if caller in plan["auxiliaries"]:
+        end_auxiliary(caller)
     return {**plan, "status": "closed" if plan["tabs"] or plan["auxiliaries"] else "absent"}
 
 
