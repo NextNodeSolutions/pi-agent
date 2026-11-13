@@ -74,11 +74,7 @@ async function senderEvidence(
 		})
 }
 
-/**
- * A relay grants nothing by its own text: it points at the sender's Pi session,
- * whose human answers count when they name this terminal by address or title
- * or the relay quotes them, and were given before the sender's latest relay here.
- */
+/** A relay grants nothing by its own text: only the human answers in the sender's Pi session can. */
 export async function relayedEvidence(
 	relays: readonly Relay[],
 ): Promise<Evidence[]> {

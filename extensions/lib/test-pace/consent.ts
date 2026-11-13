@@ -75,7 +75,6 @@ async function judgeAll(
 	return judgments
 }
 
-/** Grants accumulate in time order; a withdrawal clears every grant before it. */
 function activeConsents(judgments: readonly Judgment[]): Judgment[] {
 	const ordered = judgments.toSorted((a, b) => a.at.localeCompare(b.at))
 	const withdrawn = ordered.findLastIndex(
@@ -86,7 +85,6 @@ function activeConsents(judgments: readonly Judgment[]): Judgment[] {
 		.filter(judgment => isGrant(judgment.verdict))
 }
 
-/** A session's consents in force: its human answers, and the sender answers its relays are bound to. */
 export async function sessionConsents(
 	records: SessionRecords,
 	judge: Judge,
@@ -97,7 +95,6 @@ export async function sessionConsents(
 	)
 }
 
-/** The consents covering `path` that allow an edit of this kind; `existing` includes `new`. */
 export function consentsAllowing(
 	consents: readonly Judgment[],
 	path: string,

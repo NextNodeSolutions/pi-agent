@@ -46,7 +46,6 @@ async function canonical(path: string): Promise<string | undefined> {
 	}
 }
 
-/** Inside the root a test path or a directory counts; outside it only a test path. */
 async function scopeEntry(root: string, named: Named): Promise<string[]> {
 	const path = await canonical(resolve(root, named.path))
 	if (!path) return []
@@ -60,7 +59,6 @@ async function scopeEntry(root: string, named: Named): Promise<string[]> {
 	return counts ? [path] : []
 }
 
-/** The canonical files and directories a consent names; a consent naming none covers the root. */
 export async function consentScope(
 	root: string,
 	texts: readonly string[],

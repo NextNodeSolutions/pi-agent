@@ -17,7 +17,6 @@ import type { Evidence } from '#lib/test-pace/evidence.ts'
 
 export type ConsentReader = (ctx: ExtensionContext) => Promise<Judgment[]>
 
-/** Judges each human answer once per branch; Jev's verdicts are recorded so later writes reread them. */
 export function consentReader(pi: ExtensionAPI): ConsentReader {
 	const judging = new Map<string, Promise<Judgment>>()
 	async function judgeOnce(

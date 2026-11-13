@@ -5,14 +5,13 @@ import type { PaceRequest } from './request.ts'
 
 const ASK_TOOL = 'ask_user_question'
 
-/** A human's words and the agent text they answer; `at` is an ISO timestamp. */
+/** `at` is an ISO timestamp: consents are ordered by comparing it as text. */
 export type Evidence = ConsentExchange & {
 	id: string
 	at: string
 	mayGrant?: boolean
 }
 export type Relay = { sender: string; at: string; text: string }
-/** Human words in one session, and the relays other terminals typed into it. */
 export type SessionRecords = { evidence: Evidence[]; relays: Relay[] }
 
 export function field(record: unknown, key: string): unknown {
@@ -77,7 +76,6 @@ function questionnaireEvidence(message: unknown, at: string): Evidence[] {
 	})
 }
 
-/** A typed prompt answers the agent text before it; a relay carries no human words. */
 export function requestRecords(
 	request: PaceRequest,
 	at: string,
@@ -127,7 +125,6 @@ export function parseEntries(content: string): object[] {
 	})
 }
 
-/** The current branch of a Pi session file: from its last entry up through parent ids. */
 export function sessionBranch(entries: readonly object[]): object[] {
 	const byId = new Map(entries.map(entry => [field(entry, 'id'), entry]))
 	const branch = new Set<object>()
