@@ -16,7 +16,6 @@ import type { Candidate } from './closing.ts'
 import type { Verdict, World } from './decide.ts'
 import type { ClosedEvent } from './journal.ts'
 import type { Memory } from './memory.ts'
-import type { Policy } from './policy.ts'
 import type { Terminal } from './terminal.ts'
 import type { Removal } from './worktrees.ts'
 
@@ -55,9 +54,9 @@ function witnessed(
 	}
 }
 
-async function settle(verdict: Verdict, policy: Policy): Promise<Candidate> {
+async function settle(verdict: Verdict): Promise<Candidate> {
 	if (verdict.action === 'keep') return { verdict, recipe: null }
-	const recipe = await resumeRecipe(verdict.terminal, policy)
+	const recipe = await resumeRecipe(verdict.terminal)
 	if (recipe !== null || verdict.kind !== 'thread') return { verdict, recipe }
 	return {
 		recipe,
@@ -215,7 +214,7 @@ export async function sweep(options: SweepOptions): Promise<SweepReport> {
 	const memory = witnessed(readMemory(), attached, live, nowMs)
 	const world: World = { terminals, attached, memory, policy, nowMs }
 	const settled = await Promise.all(
-		decide(world).map(verdict => settle(verdict, policy)),
+		decide(world).map(verdict => settle(verdict)),
 	)
 	if (options.mode === 'apply') return apply(settled, world, options)
 	return {

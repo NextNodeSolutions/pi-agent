@@ -7,15 +7,11 @@ import { Value } from 'typebox/value'
 
 import { SESSION_LABEL } from '#lib/ui/herdr-labels.ts'
 
-import type { Policy } from './policy.ts'
 import type { Terminal } from './terminal.ts'
 
 export type Recipe = { cwd: string; argv: string[] }
 
-type RecipeReader = (
-	terminal: Terminal,
-	policy: Policy,
-) => Promise<string[] | null>
+type RecipeReader = (terminal: Terminal) => Promise<string[] | null>
 
 const CLAUDE_SESSIONS = join(homedir(), '.claude', 'sessions')
 const ClaudeSessionSchema = Type.Object({ sessionId: Type.String() })
@@ -46,12 +42,9 @@ const READERS: Readonly<Record<string, RecipeReader>> = {
 	'claude-code': claudeArguments,
 }
 
-export async function resumeRecipe(
-	terminal: Terminal,
-	policy: Policy,
-): Promise<Recipe | null> {
+export async function resumeRecipe(terminal: Terminal): Promise<Recipe | null> {
 	const reader = READERS[terminal.app ?? '']
-	const argv = reader ? await reader(terminal, policy) : null
+	const argv = reader ? await reader(terminal) : null
 	if (!argv) return null
 	return { cwd: terminal.cwd, argv }
 }
