@@ -20,6 +20,7 @@ export default defineConfig({
 		'frontend-check/**',
 		'packages/**',
 		'skills/tailnet-links/scripts/viewer/marked.esm.js',
+		'skills/nextnode-design/arc/**',
 		'**/*.md',
 		'auth.json',
 		'mcp.json',

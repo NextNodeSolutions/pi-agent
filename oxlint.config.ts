@@ -16,6 +16,8 @@ export default defineConfig({
 		'backups/**',
 		// Vendored third-party skill, not our codebase: never lint it.
 		'skills/impeccable/**',
+		// Vendored Arc components, kept close to upstream for diffs (see its SOURCE.md): never lint them.
+		'skills/nextnode-design/arc/**',
 		// Vendored Markdown parser (see its SOURCE.md): never lint it.
 		'skills/tailnet-links/scripts/viewer/marked.esm.js',
 		// Disabled code kept for reference: frozen, not maintained here.
