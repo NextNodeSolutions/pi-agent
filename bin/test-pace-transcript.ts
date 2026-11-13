@@ -1,6 +1,6 @@
-import { readRelay } from '../extensions/lib/hc-relay.ts'
 import {
 	messageText,
+	requestRecords,
 	sessionBranch,
 	sessionRecords,
 } from '../extensions/lib/test-pace/evidence.ts'
@@ -8,6 +8,7 @@ import {
 	PACE_REQUEST_ENTRY,
 	readPaceRequest,
 	safePaceText,
+	typedOrigin,
 } from '../extensions/lib/test-pace/request.ts'
 
 import type { Evidence } from '../extensions/lib/test-pace/consent.ts'
@@ -68,11 +69,14 @@ function claudeRecords(entries: readonly object[]): SessionRecords {
 			question = messageText(field(entry, 'message')) || question
 		records.evidence.push(...askAnswers(entry, id, at))
 		const typed = claudeTyped(entry)
-		const relay = readRelay(typed)
-		if (relay?.sender)
-			records.relays.push({ sender: relay.sender, at, text: relay.text })
-		if (typed && !relay)
-			records.evidence.push({ id, at, question, reply: safePaceText(typed) })
+		if (!typed) continue
+		const found = requestRecords(
+			{ id, text: safePaceText(typed), origin: typedOrigin(typed) },
+			at,
+			question,
+		)
+		records.evidence.push(...found.evidence)
+		records.relays.push(...found.relays)
 	}
 	return records
 }

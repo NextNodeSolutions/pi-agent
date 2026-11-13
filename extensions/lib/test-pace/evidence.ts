@@ -62,7 +62,8 @@ function questionnaireEvidence(message: unknown, at: string): Evidence[] {
 	})
 }
 
-function requestRecords(
+/** A typed prompt answers the agent text before it; a relay carries no human words. */
+export function requestRecords(
 	request: PaceRequest,
 	at: string,
 	question: string,
@@ -77,7 +78,6 @@ function requestRecords(
 	}
 }
 
-/** Reads Pi session entries: typed requests answer the agent text before them; relays carry no human words. */
 export function sessionRecords(entries: readonly unknown[]): SessionRecords {
 	const records: SessionRecords = { evidence: [], relays: [] }
 	let question = ''

@@ -44,8 +44,11 @@ function recordedOrigin(
 	const delegated: unknown = Reflect.get(Object(candidate), 'delegated')
 	if (typeof delegated !== 'boolean' || typeof text !== 'string')
 		return undefined
-	if (delegated) return { kind: 'delegated' }
-	const relay = readRelay(text)
+	return delegated ? { kind: 'delegated' } : typedOrigin(text)
+}
+
+export function typedOrigin(typed: string): RequestOrigin {
+	const relay = readRelay(typed)
 	return relay ? { kind: 'relay', sender: relay.sender } : { kind: 'human' }
 }
 
