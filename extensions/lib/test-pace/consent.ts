@@ -131,7 +131,7 @@ function activeConsents(judgments: readonly Judgment[]): Judgment[] {
 		ordered
 			.slice(withdrawn + 1)
 			.filter(judgment => isGrant(judgment.verdict)),
-	)
+	).filter(grant => grant.scope.length)
 }
 
 export async function sessionConsents(
