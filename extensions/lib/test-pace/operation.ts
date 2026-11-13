@@ -45,10 +45,3 @@ export async function classifyOperation(
 		return { allowed: false }
 	}
 }
-
-export async function permitsOperation(
-	exchange: ConsentExchange,
-	operation: string,
-): Promise<boolean> {
-	return (await classifyOperation(exchange, operation)).allowed
-}

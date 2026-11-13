@@ -13,7 +13,7 @@ import {
 	targetPaths,
 } from '../extensions/lib/test-pace/paths.ts'
 import { physicalPath } from '../extensions/lib/test-pace/physical-path.ts'
-import { permitsOperation } from '../extensions/lib/test-pace/operation.ts'
+import { classifyOperation } from '../extensions/lib/test-pace/operation.ts'
 import { safePaceText } from '../extensions/lib/test-pace/request.ts'
 
 import { lastHumanRequest, transcriptRecords } from './test-pace-transcript.ts'
@@ -62,9 +62,10 @@ const [decision, consents] = await Promise.all([
 		async evidence => (await judgeEvidence(root, evidence)).judgment,
 	),
 ])
-const applicable = (await Promise.all(consents.map(async consent =>
-	(await permitsOperation(consent, values.intent ?? '')) ? [consent] : [],
-))).flat()
+const operations = await Promise.all(
+	consents.map(consent => classifyOperation(consent, values.intent ?? '')),
+)
+const applicable = consents.filter((_consent, index) => operations[index]?.allowed)
 const kinds = paths.map(path => consentKind(applicable, path))
 const permission = WEAKEST_FIRST.find(kind => kinds.includes(kind)) ?? 'none'
 process.stdout.write(

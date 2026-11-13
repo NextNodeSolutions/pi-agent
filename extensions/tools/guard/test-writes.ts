@@ -2,7 +2,7 @@ import { basename, resolve } from 'node:path'
 
 import { runtimeFor } from '#lib/runtime/runtime.ts'
 import { consentsAllowing } from '#lib/test-pace/consent.ts'
-import { permitsOperation } from '#lib/test-pace/operation.ts'
+import { classifyOperation } from '#lib/test-pace/operation.ts'
 import { isTestPathWithin, packageRunner } from '#lib/test-pace/paths.ts'
 import { physicalPath } from '#lib/test-pace/physical-path.ts'
 import {
@@ -142,11 +142,10 @@ async function admits(check: Check, target: Target): Promise<boolean> {
 		target.path,
 		target.setup || !present ? 'new' : 'existing',
 	)
-	return (
-		await Promise.all(
-			allowing.map(consent => permitsOperation(consent, check.operation)),
-		)
-	).some(Boolean)
+	const decisions = await Promise.all(
+		allowing.map(consent => classifyOperation(consent, check.operation)),
+	)
+	return decisions.some(decision => decision.allowed)
 }
 
 async function newPaths(targets: readonly Target[]): Promise<string[]> {
