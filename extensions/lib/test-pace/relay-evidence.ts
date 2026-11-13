@@ -60,27 +60,18 @@ async function senderEvidence(
 	const relayed = normalized(relays.map(relay => relay.text).join('\n'))
 	return sessionRecords(sessionBranch(parseEntries(content)))
 		.evidence.filter(evidence => evidence.at <= cutoff)
-		.map(evidence =>
-			prefixedEvidence(
-				file,
-				evidence,
-				isBound(evidence, receivers, relayed) ? 'bound' : 'withdrawal',
-			),
-		)
-}
-
-function prefixedEvidence(
-	file: string,
-	{ id, at, question, reply }: Evidence,
-	binding: 'bound' | 'withdrawal',
-): Evidence {
-	return {
-		id: `${file}#${binding}#${id}`,
-		mayGrant: binding === 'bound',
-		at,
-		question,
-		reply,
-	}
+		.map(evidence => {
+			const mayGrant = isBound(evidence, receivers, relayed)
+			const binding = mayGrant ? 'bound' : 'withdrawal'
+			const { id, at, question, reply } = evidence
+			return {
+				id: `${file}#${binding}#${id}`,
+				mayGrant,
+				at,
+				question,
+				reply,
+			}
+		})
 }
 
 /**
