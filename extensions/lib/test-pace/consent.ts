@@ -1,13 +1,14 @@
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
-import { consentCovers, consentScope } from './consent-scope.ts'
+import { consentCovers, consentPaths } from './consent-scope.ts'
 import { classifyConsent, CONSENT_VERDICTS, isGrant } from './permission.ts'
 import { relayedEvidence } from './relay-evidence.ts'
 import { classifyScopePath } from './scope-path.ts'
 import { classifyStopTarget } from './stop-target.ts'
 
 import type { Static } from 'typebox'
+import type { ConsentPaths } from './consent-scope.ts'
 import type { Evidence, SessionRecords } from './evidence.ts'
 import type { ConsentDecision, ConsentVerdict } from './permission.ts'
 
@@ -21,6 +22,7 @@ const JUDGMENT_SCHEMA = Type.Object({
 	at: Type.String(),
 	verdict: Type.Enum(CONSENT_VERDICTS),
 	scope: Type.Array(Type.String()),
+	excluded: Type.Optional(Type.Array(Type.String())),
 	question: Type.String(),
 	reply: Type.String(),
 })
@@ -32,7 +34,7 @@ export type ConsentKind = EditKind | 'none'
 /** `answered`: Jev decided, so the judgment can be recorded instead of asked again. */
 type Judged = { judgment: Judgment; answered: boolean }
 type Decided = { verdict: ConsentVerdict; answered: boolean }
-type Scoped = { scope: string[]; answered: boolean }
+type Scoped = ConsentPaths & { answered: boolean }
 type Judge = (evidence: Evidence) => Promise<Judgment>
 
 async function stopVerdict(
@@ -60,12 +62,12 @@ async function decide(evidence: Evidence): Promise<Decided> {
 	}
 }
 
-const UNSCOPED: Scoped = { scope: [], answered: true }
+const UNSCOPED: Scoped = { scope: [], excluded: [], answered: true }
 
 /** A path Jev did not read leaves the exchange granting nothing and its judgment unrecorded, so it is read again. */
 async function grantScope(root: string, evidence: Evidence): Promise<Scoped> {
 	let isEveryPathRead = true
-	const scope = await consentScope(
+	const paths = await consentPaths(
 		root,
 		async written => {
 			const decision = await classifyScopePath(evidence, written)
@@ -75,7 +77,7 @@ async function grantScope(root: string, evidence: Evidence): Promise<Scoped> {
 		[evidence.scopeText ?? evidence.question, evidence.reply],
 	)
 	return isEveryPathRead
-		? { scope, answered: true }
+		? { ...paths, answered: true }
 		: { ...UNSCOPED, answered: false }
 }
 
@@ -95,6 +97,7 @@ export async function judgeEvidence(
 			reply: evidence.reply,
 			verdict: granted.answered ? verdict : 'none',
 			scope: granted.scope,
+			excluded: granted.excluded,
 		},
 		answered: answered && granted.answered,
 	}
@@ -117,15 +120,21 @@ async function judgeAll(
 	return judgments
 }
 
-/** A grant naming no path covers what the active grants before it allowing its edit kind cover, never the whole repository. */
+/** A grant naming no path covers what the active grants before it allowing its edit kind cover, minus what either excludes, never the whole repository. */
 function inheritedScopes(grants: readonly Judgment[]): Judgment[] {
 	return grants.map((grant, index) => {
 		if (grant.scope.length) return grant
-		const earlier = grants
+		const lenders = grants
 			.slice(0, index)
 			.filter(before => allowsKind(before.verdict, grant.verdict))
-			.flatMap(before => before.scope)
-		return { ...grant, scope: Array.from(new Set(earlier)) }
+		const excluded = [grant, ...lenders].flatMap(
+			each => each.excluded ?? [],
+		)
+		return {
+			...grant,
+			scope: Array.from(new Set(lenders.flatMap(before => before.scope))),
+			excluded: Array.from(new Set(excluded)),
+		}
 	})
 }
 
@@ -158,8 +167,7 @@ export function consentsAllowing(
 ): Judgment[] {
 	return consents.filter(
 		consent =>
-			consentCovers(consent.scope, path) &&
-			allowsKind(consent.verdict, kind),
+			consentCovers(consent, path) && allowsKind(consent.verdict, kind),
 	)
 }
 

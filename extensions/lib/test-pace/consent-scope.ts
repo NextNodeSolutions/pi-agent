@@ -20,6 +20,7 @@ const ANY_DIRECTORY = '**/'
 
 type Named = { written: string; path: string; isDirectory: boolean }
 type PathJudge = (written: string) => Promise<boolean>
+export type ConsentPaths = { scope: string[]; excluded: string[] }
 
 function count(token: string, char: string): number {
 	return token.split(char).length - 1
@@ -112,11 +113,11 @@ async function scopeEntry(root: string, named: Named): Promise<string[]> {
 	return counts ? [path] : []
 }
 
-async function coveredPaths(
+async function judgedPaths(
 	root: string,
 	isCovered: PathJudge,
 	text: string,
-): Promise<string[]> {
+): Promise<{ covered: string[]; context: string[] }> {
 	const named = new Map(
 		text
 			.split(SEPARATORS)
@@ -126,35 +127,79 @@ async function coveredPaths(
 	const entries = await Promise.all(
 		[...named.values()].map(async candidate => {
 			const paths = await scopeEntry(root, candidate)
-			if (!paths.length) return []
-			return (await isCovered(candidate.written)) ? paths : []
+			return {
+				paths,
+				isCovered:
+					paths.length > 0 && (await isCovered(candidate.written)),
+			}
 		}),
 	)
-	return Array.from(new Set(entries.flat()))
+	const covered = entries.filter(entry => entry.isCovered)
+	const context = entries.filter(entry => !entry.isCovered)
+	return {
+		covered: Array.from(new Set(covered.flatMap(entry => entry.paths))),
+		context: Array.from(new Set(context.flatMap(entry => entry.paths))),
+	}
 }
 
-/** The last text naming a covered path decides; an exchange naming none covers nothing by itself (`consent.ts` gives it the earlier grants' scope). */
-export async function consentScope(
+/** The last text naming a covered path decides the scope; an exchange naming none covers nothing by itself (`consent.ts` gives it the earlier grants' scope). */
+export async function consentPaths(
 	root: string,
 	isCovered: PathJudge,
 	texts: readonly string[],
-): Promise<string[]> {
+): Promise<ConsentPaths> {
 	const judged = new Map<string, Promise<boolean>>()
 	const judgeOnce: PathJudge = written => {
 		const pending = judged.get(written) ?? isCovered(written)
 		judged.set(written, pending)
 		return pending
 	}
-	return texts.toReversed().reduce<Promise<string[]>>(async (found, text) => {
-		const newer = await found
-		return newer.length ? newer : coveredPaths(root, judgeOnce, text)
-	}, Promise.resolve([]))
+	return texts.toReversed().reduce<Promise<ConsentPaths>>(
+		async (found, text) => {
+			const newer = await found
+			if (newer.scope.length) return newer
+			const { covered, context } = await judgedPaths(
+				root,
+				judgeOnce,
+				text,
+			)
+			return {
+				scope: covered,
+				excluded: Array.from(new Set([...newer.excluded, ...context])),
+			}
+		},
+		Promise.resolve({ scope: [], excluded: [] }),
+	)
 }
 
-export function consentCovers(scope: readonly string[], path: string): boolean {
-	return scope.some(named =>
-		WILDCARD.test(named)
-			? matchesGlob(path, named)
-			: coversPath(named, path),
+export async function consentScope(
+	root: string,
+	isCovered: PathJudge,
+	texts: readonly string[],
+): Promise<string[]> {
+	return (await consentPaths(root, isCovered, texts)).scope
+}
+
+function specificity(named: readonly string[], path: string): number {
+	return Math.max(
+		-1,
+		...named
+			.filter(entry =>
+				WILDCARD.test(entry)
+					? matchesGlob(path, entry)
+					: coversPath(entry, path),
+			)
+			.map(entry => entry.length),
+	)
+}
+
+/** The most specific named path decides: a context path inside the scope carves it out, a broader one does not. */
+export function consentCovers(
+	consent: { scope: readonly string[]; excluded?: readonly string[] },
+	path: string,
+): boolean {
+	return (
+		specificity(consent.scope, path) >
+		specificity(consent.excluded ?? [], path)
 	)
 }
