@@ -115,20 +115,11 @@ async function judgeAll(
 
 /** A grant naming no path covers what the active grants before it cover, never the whole repository. */
 function inheritedScopes(grants: readonly Judgment[]): Judgment[] {
-	return grants.map((grant, index) =>
-		grant.scope.length
-			? grant
-			: {
-					...grant,
-					scope: [
-						...new Set(
-							grants
-								.slice(0, index)
-								.flatMap(earlier => earlier.scope),
-						),
-					],
-				},
-	)
+	return grants.map((grant, index) => {
+		if (grant.scope.length) return grant
+		const earlier = grants.slice(0, index).flatMap(before => before.scope)
+		return { ...grant, scope: Array.from(new Set(earlier)) }
+	})
 }
 
 function activeConsents(judgments: readonly Judgment[]): Judgment[] {
