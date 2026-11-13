@@ -62,17 +62,17 @@ async function decide(evidence: Evidence): Promise<Decided> {
 
 /** A path Jev did not read stays out of the grant and keeps the judgment unrecorded, so it is read again. */
 async function grantScope(root: string, evidence: Evidence): Promise<Scoped> {
-	const reads: boolean[] = []
+	let isEveryPathRead = true
 	const scope = await consentScope(
 		root,
 		async written => {
 			const decision = await classifyScopePath(evidence, written)
-			reads.push(Boolean(decision.answer))
+			isEveryPathRead &&= Boolean(decision.answer)
 			return decision.role === 'covered'
 		},
 		[evidence.scopeText ?? evidence.question, evidence.reply],
 	)
-	return { scope, answered: reads.every(Boolean) }
+	return { scope, answered: isEveryPathRead }
 }
 
 export async function judgeEvidence(
