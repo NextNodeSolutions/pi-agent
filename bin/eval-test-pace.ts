@@ -39,7 +39,12 @@ const PERMISSION_RANK: readonly string[] = [
 ] satisfies readonly ConsentVerdict[]
 
 type Sample = { id: string; request: string; expected: string }
-type Verdict = { actual: string; answer: ChoiceResult | undefined }
+/** `vetoed`: the classifier refused without asking Jev. */
+type Verdict = {
+	actual: string
+	answer: ChoiceResult | undefined
+	vetoed?: boolean
+}
 type Measurement = Omit<Sample, 'request'> & {
 	actual: string
 	raw: string
@@ -64,14 +69,12 @@ async function measure<Case extends Sample>(
 	async function measureNext(): Promise<void> {
 		const sample = pending.shift()
 		if (!sample) return
-		const { actual, answer } = await calibration.classify(sample)
+		const { actual, answer, vetoed } = await calibration.classify(sample)
 		measurements.push({
 			id: sample.id,
 			expected: sample.expected,
 			actual,
-			raw:
-				answer?.choice ??
-				(forbidsTestAuthoring(sample.request) ? 'vetoed' : 'unavailable'),
+			raw: answer?.choice ?? (vetoed ? 'vetoed' : 'unavailable'),
 			confidence: answer?.confidence ?? 0,
 			latencyMs: answer?.latencyMs ?? 0,
 			inputTokens: answer?.inputTokens ?? 0,
@@ -148,7 +151,11 @@ const pace = await calibrate({
 			intent: sample.intent,
 			paths: ['src/feature.test.ts'],
 		})
-		return { actual: decision.pace, answer: decision.answer }
+		return {
+			actual: decision.pace,
+			answer: decision.answer,
+			vetoed: forbidsTestAuthoring(sample.request),
+		}
 	},
 	grantsTooMuch: (expected, actual) =>
 		expected === 'none' && actual !== 'none',
