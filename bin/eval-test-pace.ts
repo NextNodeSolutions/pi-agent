@@ -24,14 +24,17 @@ import {
 } from '../extensions/lib/test-pace/stop-target.ts'
 
 import {
-	OPERATION_OUTCOMES,
 	operationCases,
 	paceCases,
 	permissionCases,
 	scopePathCases,
 	stopTargetCases,
 } from './test-pace-cases.ts'
-import { classifyOperation, OPERATION_CONFIDENCE } from '../extensions/lib/test-pace/operation.ts'
+import {
+	classifyOperation,
+	OPERATION_CONFIDENCE,
+	OPERATION_OUTCOMES,
+} from '../extensions/lib/test-pace/operation.ts'
 
 import type { ChoiceResult } from '../extensions/lib/jev/client.ts'
 import type { ConsentVerdict } from '../extensions/lib/test-pace/permission.ts'
@@ -223,10 +226,7 @@ const scopePath = await calibrate({
 			{ question: sample.question, reply: sample.request },
 			sample.path,
 		)
-		return {
-			actual: decision.isCovered ? 'covered' : 'context',
-			answer: decision.answer,
-		}
+		return { actual: decision.role, answer: decision.answer }
 	},
 	grantsTooMuch: (expected, actual) =>
 		expected === 'context' && actual === 'covered',

@@ -68,7 +68,7 @@ async function grantScope(root: string, evidence: Evidence): Promise<Scoped> {
 		async written => {
 			const decision = await classifyScopePath(evidence, written)
 			reads.push(Boolean(decision.answer))
-			return decision.isCovered
+			return decision.role === 'covered'
 		},
 		[evidence.scopeText ?? evidence.question, evidence.reply],
 	)
