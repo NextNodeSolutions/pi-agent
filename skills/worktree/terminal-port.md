@@ -42,9 +42,9 @@ stdout is one JSON line:
 <adapter> close --folder <absolute-dir> [--check]
 ```
 
-Find tabs by their recorded worktree key or a terminal cwd inside the folder, including nested directories. Inspect every live terminal in those tabs and their child terminals. Refuse the whole operation when any member is working, awaiting background work, outside the folder, or cannot report an idle status. A bare shell is safe to close. Inspection failure must refuse deletion even when no matching tab was found.
+Find tabs by their recorded worktree key or a terminal cwd inside the folder, including nested directories. Inspect every live terminal in those tabs and their child terminals. Refuse the whole operation when any member is working, awaiting background work, outside the folder, or cannot report an idle status. A bare shell is safe to close. Inspection failure must refuse deletion even when no matching tab was found. Auxiliaries, the terminals a companion tool opened beside a member outside any tab, go with it uninspected: they hold no work of their own.
 
-`--check` performs inspection only. It returns one JSON line with `status: "ready"`, ordered `tabs`, sorted `terminals`, and `caller`, which says whether the caller belongs to the selection. Normal invocation rechecks status before closing each tab, closes the caller's tab last, and returns the same fields with `status: "closed"` or `"absent"`. Closing the caller's tab may terminate the invocation before it returns. Close is also available to callers outside the terminal app.
+`--check` performs inspection only. It returns one JSON line with `status: "ready"`, ordered `tabs`, sorted `terminals`, sorted `auxiliaries`, and `caller`, which says whether the caller belongs to the selection. Normal invocation ends the auxiliaries, rechecks status before closing each tab, closes the caller's tab last, and returns the same fields with `status: "closed"` or `"absent"`. Closing the caller's tab may terminate the invocation before it returns. Close is also available to callers outside the terminal app.
 
 ## herdr adapter
 
@@ -56,4 +56,4 @@ Herdr's CLI omits the explicit-name flag. Pin an existing space with `space.rena
 
 The `worktree.key` label identifies reusable terminals. Scan live terminals through `hc ls` and `hc get` in the chosen space and, for terminals whose shell cwd matches the target folder, the caller's space. Reused terminals keep their existing space, title and processes. Pin their space only when its first terminal belongs to the target repository.
 
-`close` delegates to `scripts/adapters/herdr-close.py`. It inspects live terminals and their descendants through `herdr-core ls/get`, then closes eligible tabs with `herdr-app do tab.close --confirmed true`. The cleanup caller snapshots this port into an OS-temp directory before removal so it can still close its own tab after its checkout disappears.
+`close` delegates to `scripts/adapters/herdr-close.py`. It inspects live terminals and their descendants through `herdr-core ls/get`, then closes eligible tabs with `herdr-app do tab.close --confirmed true`. An auxiliary is a live terminal with no tab and no parent, named `<kind>-<address>` after a member, as the Command Center names a thread's monitor, shell and editor; one named after a finished terminal counts when it sits in the folder. `hc kill` and `hc rm` end each before the tabs close. The cleanup caller snapshots this port into an OS-temp directory before removal so it can still close its own tab after its checkout disappears.

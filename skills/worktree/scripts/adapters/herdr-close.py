@@ -42,13 +42,21 @@ def matches(terminal, folder):
 
 
 def terminals():
-    listing = run("herdr-core", "ls", "--json")
-    return [run("herdr-core", "get", item["address"], "--json")
-            for item in listing["terminals"] if item["state"] == "live"]
+    listing = run("herdr-core", "ls", "--all", "--json")["terminals"]
+    live = [run("herdr-core", "get", item["address"], "--json")
+            for item in listing if item["state"] == "live"]
+    return live, {item["address"] for item in listing if item["state"] != "live"}
 
 
 def tab_id(terminal):
     return (terminal.get("labels") or {}).get("herdr.tab")
+
+
+def auxiliary_owner(terminal):
+    name = terminal.get("name") or ""
+    if tab_id(terminal) or terminal.get("parent") or "-" not in name:
+        return None
+    return name.rsplit("-", 1)[1]
 
 
 def descendants(all_terminals, members):
@@ -96,13 +104,16 @@ def caller_tab(members):
 
 
 def inspect(folder):
-    all_terminals = terminals()
+    all_terminals, finished = terminals()
     matching = [terminal for terminal in all_terminals if matches(terminal, folder)]
     tabs = {tab_id(terminal) for terminal in matching if tab_id(terminal)}
     members = descendants(all_terminals, [terminal for terminal in all_terminals
                                         if tab_id(terminal) in tabs])
     member_addresses = {member["address"] for member in members}
-    if any(terminal["address"] not in member_addresses for terminal in matching):
+    auxiliaries = {terminal["address"] for terminal in all_terminals
+                   if auxiliary_owner(terminal) in member_addresses
+                   or (auxiliary_owner(terminal) in finished and matches(terminal, folder))}
+    if any(terminal["address"] not in member_addresses | auxiliaries for terminal in matching):
         raise Refused("matching terminal has no tab or parent tab", 3)
     for member in members:
         verify(member, folder)
@@ -111,11 +122,15 @@ def inspect(folder):
     ordered_tabs = sorted(tabs, key=lambda tab: (tab == own_tab, tab))
     return {"status": "ready", "tabs": ordered_tabs,
             "terminals": sorted(member["address"] for member in members),
+            "auxiliaries": sorted(auxiliaries),
             "caller": any(member["address"] == caller for member in members)}
 
 
 def close(folder):
     plan = inspect(folder)
+    for address in plan["auxiliaries"]:
+        run("herdr-core", "kill", address, "--json")
+        run("herdr-core", "rm", address, "--json")
     for tab in plan["tabs"]:
         current = inspect(folder)
         if tab not in current["tabs"]:
@@ -123,7 +138,7 @@ def close(folder):
         response = run("herdr-app", "do", "tab.close", "--id", tab, "--confirmed", "true")
         if response.get("ok") is not True:
             raise Refused(f"tab {tab} could not be closed: {response}")
-    return {**plan, "status": "closed" if plan["tabs"] else "absent"}
+    return {**plan, "status": "closed" if plan["tabs"] or plan["auxiliaries"] else "absent"}
 
 
 def main():
