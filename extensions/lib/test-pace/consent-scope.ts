@@ -18,10 +18,8 @@ const WILDCARD = /[*?{]/u
 const HOME = '~/'
 const ANY_DIRECTORY = '**/'
 
-/** `written` is the path as the exchange spells it, the form the judge reads. */
 type Named = { written: string; path: string; isDirectory: boolean }
-/** Whether the permission covers a written path rather than naming it as context. */
-export type PathJudge = (written: string) => Promise<boolean>
+type PathJudge = (written: string) => Promise<boolean>
 
 function count(token: string, char: string): number {
 	return token.split(char).length - 1
