@@ -3,6 +3,7 @@ import {
 	isJevConfigured,
 	JEV_MODEL,
 } from '../extensions/lib/jev/client.ts'
+import { mapConcurrently } from '../extensions/lib/test-pace/concurrently.ts'
 import {
 	classifyTestPace,
 	PACE_CONFIDENCE,
@@ -79,13 +80,9 @@ type Calibration<Case extends Sample> = {
 async function measure<Case extends Sample>(
 	calibration: Calibration<Case>,
 ): Promise<Measurement[]> {
-	const pending = [...calibration.cases]
-	const measurements: Measurement[] = []
-	async function measureNext(): Promise<void> {
-		const sample = pending.shift()
-		if (!sample) return
+	return mapConcurrently(calibration.cases, CONCURRENCY, async sample => {
 		const { actual, answer, vetoed } = await calibration.classify(sample)
-		measurements.push({
+		return {
 			id: sample.id,
 			expected: sample.expected,
 			actual,
@@ -93,11 +90,8 @@ async function measure<Case extends Sample>(
 			confidence: answer?.confidence ?? 0,
 			latencyMs: answer?.latencyMs ?? 0,
 			inputTokens: answer?.inputTokens ?? 0,
-		})
-		await measureNext()
-	}
-	await Promise.all(Array.from({ length: CONCURRENCY }, () => measureNext()))
-	return measurements
+		}
+	})
 }
 
 async function calibrate<Case extends Sample>(

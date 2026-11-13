@@ -1,6 +1,7 @@
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
+import { mapConcurrently } from './concurrently.ts'
 import { consentCovers, grantScope, inheritedScopes } from './consent-scope.ts'
 import { classifyConsent, CONSENT_VERDICTS, isGrant } from './permission.ts'
 import { relayedEvidence } from './relay-evidence.ts'
@@ -79,23 +80,6 @@ export async function judgeEvidence(
 	}
 }
 
-async function judgeAll(
-	evidence: readonly Evidence[],
-	judge: Judge,
-): Promise<Judgment[]> {
-	const queue = [...evidence.entries()]
-	const judgments: Judgment[] = []
-	async function next(): Promise<void> {
-		const task = queue.shift()
-		if (!task) return
-		const [index, subject] = task
-		judgments[index] = await judge(subject)
-		await next()
-	}
-	await Promise.all(Array.from({ length: JUDGE_CONCURRENCY }, next))
-	return judgments
-}
-
 function activeConsents(judgments: readonly Judgment[]): Judgment[] {
 	const ordered = judgments.toSorted((a, b) => a.at.localeCompare(b.at))
 	const withdrawn = ordered.findLastIndex(
@@ -114,7 +98,11 @@ export async function sessionConsents(
 ): Promise<Judgment[]> {
 	const relayed = await relayedEvidence(records.relays)
 	return activeConsents(
-		await judgeAll([...records.evidence, ...relayed], judge),
+		await mapConcurrently(
+			[...records.evidence, ...relayed],
+			JUDGE_CONCURRENCY,
+			judge,
+		),
 	)
 }
 
