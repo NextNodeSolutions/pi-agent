@@ -2,33 +2,50 @@ import { readLabel } from '#lib/ui/herdr-labels.ts'
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
-const READ = /^hc\s+read\b(?<rest>[^;&|<>\n]*)(?:$|&&)/u
+const LEADING_READ = /^hc\s+read\b(?<rest>[^;&|<>\n"'`()]*)(?:$|&&)/u
+const TRAILING_READ =
+	/(?:;|&&|(?<![|\\]\s*)\n)\s*hc\s+read\b(?<rest>[^;&|<>\n"'`()]*)$/u
 const VALUE_FLAGS = new Set(['--lines'])
 const TERMINAL = /^[\w./-]+$/u
-const QUOTES = /^["']|["']$/gu
+
+type ScreenRead = { terminal: string; atMs: number }
 
 function terminalIn(readArguments: string): string | null {
 	const words = readArguments.trim().split(/\s+/u)
-	const positional = words.find(
+	const terminal = words.find(
 		(word, index) =>
 			!word.startsWith('-') && !VALUE_FLAGS.has(words[index - 1] ?? ''),
 	)
-	const terminal = positional?.replace(QUOTES, '')
 	if (!terminal || !TERMINAL.test(terminal)) return null
 	return terminal
 }
 
-// Only a read whose own failure fails the command proves it ran: an earlier command may skip it, a redirect may stop it, and `||`, `;` or `|` hide its exit.
-function screenRead(command: string): string | null {
-	const found = READ.exec(command.trim())
+function readAt(
+	found: RegExpExecArray | null,
+	atMs: number,
+): ScreenRead | null {
 	if (!found) return null
-	return terminalIn(found.groups?.['rest'] ?? '')
+	const terminal = terminalIn(found.groups?.['rest'] ?? '')
+	if (terminal === null) return null
+	return { terminal, atMs }
+}
+
+// Only a read whose failure fails the whole command proves it ran. One that opens the command ran at its start, one that closes it ran just before its end: a terminal that finished during the commands before it counts as read after it finished.
+function screenRead(
+	command: string,
+	startMs: number,
+	endMs: number,
+): ScreenRead | null {
+	const trimmed = command.trim()
+	return (
+		readAt(LEADING_READ.exec(trimmed), startMs) ??
+		readAt(TRAILING_READ.exec(trimmed), endMs)
+	)
 }
 
 const isRunningJob = (details: unknown): boolean =>
 	typeof details === 'object' && details !== null && 'jobId' in details
 
-// The receipt carries the command's start, so a terminal that finished while the command ran never counts as read after it finished.
 export function registerReadReceipts(pi: ExtensionAPI, reader: string): void {
 	const startedMs = new Map<string, number>()
 	const stamp = async (terminal: string, atMs: number): Promise<void> => {
@@ -55,8 +72,8 @@ export function registerReadReceipts(pi: ExtensionAPI, reader: string): void {
 		if (event.isError || !ctx.hasUI || typeof command !== 'string')
 			return undefined
 		if (isRunningJob(event.details)) return undefined
-		const terminal = screenRead(command)
-		if (terminal !== null) void stamp(terminal, startMs)
+		const read = screenRead(command, startMs, Date.now())
+		if (read !== null) void stamp(read.terminal, read.atMs)
 		return undefined
 	})
 }
