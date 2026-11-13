@@ -51,7 +51,10 @@ export async function judgeEvidence(
 			reply: evidence.reply,
 			verdict,
 			scope: isGrant(verdict)
-				? await consentScope(root, [evidence.question, evidence.reply])
+				? await consentScope(root, [
+						evidence.scopeText ?? evidence.question,
+						evidence.reply,
+					])
 				: [],
 		},
 		answered: Boolean(decision.answer),

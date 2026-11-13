@@ -86,8 +86,9 @@ function askAnswers(entry: object, id: string, at: string): Evidence[] {
 	return Object.entries(answers).flatMap(([prompt, reply], index) => {
 		if (typeof reply !== 'string' || !reply) return []
 		const labels = optionLabels(field(result, 'questions'), prompt)
-		const question = questionWithOptions(prompt, labels)
-		return [{ id: `${id}:${index}`, at, question, reply }]
+		return [
+			{ id: `${id}:${index}`, at, ...questionWithOptions(prompt, labels), reply },
+		]
 	})
 }
 

@@ -5,12 +5,14 @@ import type { PaceRequest } from './request.ts'
 
 const ASK_TOOL = 'ask_user_question'
 
-/** `at` is an ISO timestamp: consents are ordered by comparing it as text. */
+/** `at` is an ISO timestamp: consents are ordered by comparing it as text. `scopeText` replaces `question` as the source of a grant's paths. */
 export type Evidence = ConsentExchange & {
 	id: string
 	at: string
 	mayGrant?: boolean
+	scopeText?: string
 }
+type AskedQuestion = Pick<Evidence, 'question' | 'scopeText'>
 export type Relay = { sender: string; at: string; text: string }
 export type SessionRecords = { evidence: Evidence[]; relays: Relay[] }
 
@@ -32,14 +34,18 @@ export function messageText(message: unknown): string {
 		.trim()
 }
 
+/** The human chose one option, so only the prompt names the paths a grant covers. */
 export function questionWithOptions(
 	heading: string,
 	labels: readonly string[],
-): string {
-	return `${heading}\nOptions: ${labels.join('; ')}`
+): AskedQuestion {
+	return {
+		question: `${heading}\nOptions: ${labels.join('; ')}`,
+		scopeText: heading,
+	}
 }
 
-function questionText(question: unknown): string {
+function askedQuestion(question: unknown): AskedQuestion {
 	const options = field(question, 'options')
 	return questionWithOptions(
 		`${text(field(question, 'id'))}: ${text(field(question, 'prompt'))}`,
@@ -69,7 +75,7 @@ function questionnaireEvidence(message: unknown, at: string): Evidence[] {
 			{
 				id: `${text(field(message, 'toolCallId'))}:${id}`,
 				at,
-				question: questionText(question),
+				...askedQuestion(question),
 				reply,
 			},
 		]
