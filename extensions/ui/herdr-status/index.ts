@@ -14,33 +14,56 @@
  * answer crosses a boundary, so it is parsed against its schema and an answer
  * that does not match counts as no answer.
  *
+ * `agent.goal`: the open items of the session's goal checklist (`goal.ts`),
+ * empty once every item is ticked; the lifecycle sweeper
+ * (`skills/agent-lifecycle`) keeps a terminal open while it is set.
+ *
  * `agent.title`: the session's name, generated from its first human prompt
  * by `title.ts`; the Herdr `agent-naming` mod names the tab after it.
  *
+ * `agent.read.<this terminal>`, set on another terminal: when this session
+ * read that terminal's screen with `hc read` (`receipt.ts`); the lifecycle
+ * sweeper takes a read after a helper finished as its result received.
+ *
  * `pi.session` (`SESSION_LABEL`): the interactive session's file, so a
  * terminal this session relays to with `hc send` can read the human answers
- * behind the relay (`#lib/test-pace/relay-evidence.ts`).
+ * behind the relay (`#lib/test-pace/relay-evidence.ts`), and the lifecycle
+ * sweeper can reopen the conversation after it closes the terminal.
+ *
+ * A subagent inherits this terminal's environment, so only the interactive
+ * session publishes: a child's counts and shutdown would overwrite the
+ * parent's labels.
  */
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
-import { ownTerminal, SESSION_LABEL } from '#lib/hc-relay.ts'
+import { ownTerminal } from '#lib/hc-relay.ts'
 import {
 	BASH_JOBS_EVENT,
 	BASH_JOBS_VERSION,
 	BashJobsPayloadSchema,
 } from '#lib/tools/bash-jobs-event.ts'
-import { TITLE_LABEL } from '#lib/ui/herdr-labels.ts'
+import {
+	GOAL_LABEL,
+	SESSION_LABEL,
+	TITLE_LABEL,
+	WAITING_LABEL,
+} from '#lib/ui/herdr-labels.ts'
 
+import { registerGoalLabel } from './goal.ts'
+import { registerReadReceipts } from './receipt.ts'
 import { registerSessionTitle } from './title.ts'
 
-import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from '@earendil-works/pi-coding-agent'
 import type { TSchema } from 'typebox'
+import type { LabelOn } from './receipt.ts'
 
 /** The event `pi-subagents` answers; its producer owns the payload's version. */
 const ACTIVE_WORK_EVENT = 'pi-subagents:active-work:v1'
 const ACTIVE_WORK_VERSION = 1
-const WAITING_LABEL = 'agent.waiting'
 
 const ActiveWorkPayloadSchema = Type.Object({
 	version: Type.Literal(ACTIVE_WORK_VERSION),
@@ -98,24 +121,33 @@ function pendingWork(pi: Pick<ExtensionAPI, 'events'>): string {
 export default function herdrStatus(pi: ExtensionAPI): void {
 	const terminal = ownTerminal()
 	if (!terminal) return
-	const label = async (key: string, shown: string): Promise<void> => {
+	const labelOn: LabelOn = async (target, key, shown) => {
 		try {
-			await pi.exec('hc', ['label', terminal, `${key}=${shown}`])
+			await pi.exec('hc', ['label', target, `${key}=${shown}`])
 		} catch {
 			return
 		}
 	}
-	pi.on('agent_settled', () => {
+	const label = (key: string, shown: string): Promise<void> =>
+		labelOn(terminal, key, shown)
+	const publishSession = (ctx: ExtensionContext): void => {
+		void label(SESSION_LABEL, ctx.sessionManager.getSessionFile() ?? '')
+	}
+	pi.on('session_start', (_event, ctx) => {
+		if (ctx.hasUI) publishSession(ctx)
+	})
+	pi.on('agent_settled', (_event, ctx) => {
+		if (!ctx.hasUI) return
+		publishSession(ctx)
 		void label(WAITING_LABEL, pendingWork(pi))
 	})
+	registerGoalLabel(pi, open => label(GOAL_LABEL, open))
+	registerReadReceipts(pi, terminal, labelOn)
 	registerSessionTitle(pi, title => label(TITLE_LABEL, title))
-	pi.on('session_start', (_event, ctx) => {
-		if (ctx.hasUI)
-			void label(SESSION_LABEL, ctx.sessionManager.getSessionFile() ?? '')
-	})
 	pi.on('session_shutdown', (_event, ctx) => {
+		if (!ctx.hasUI) return
 		void label(WAITING_LABEL, '')
 		void label(TITLE_LABEL, '')
-		if (ctx.hasUI) void label(SESSION_LABEL, '')
+		void label(SESSION_LABEL, '')
 	})
 }

@@ -2,10 +2,13 @@ import argparse
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 
 COMMAND_TIMEOUT = 15
+LIFECYCLE_POLICY = Path(__file__).resolve().parents[3] / "agent-lifecycle" / "policy.json"
+AUXILIARY_KINDS = json.loads(LIFECYCLE_POLICY.read_text())["auxiliaryKinds"]
 SHELLS = {"bash", "zsh", "sh", "fish"}
 SHELL_FLAGS = {"-l", "--login", "-i", "--interactive"}
 
@@ -42,13 +45,30 @@ def matches(terminal, folder):
 
 
 def terminals():
-    listing = run("herdr-core", "ls", "--json")
-    return [run("herdr-core", "get", item["address"], "--json")
-            for item in listing["terminals"] if item["state"] == "live"]
+    listing = run("herdr-core", "ls", "--all", "--json")["terminals"]
+    live = [run("herdr-core", "get", item["address"], "--json")
+            for item in listing if item["state"] == "live"]
+    return live, {item["address"] for item in listing if item["state"] != "live"}
 
 
 def tab_id(terminal):
     return (terminal.get("labels") or {}).get("herdr.tab")
+
+
+# The Command Center's own naming rule (threads.js `auxiliaryNames`).
+def auxiliary_name(kind, address):
+    return f"{kind}-{re.sub(r'[^a-z0-9]', '-', address)}"
+
+
+def auxiliary_names(addresses):
+    return {auxiliary_name(kind, address): address
+            for address in addresses for kind in AUXILIARY_KINDS}
+
+
+def auxiliary_owner(terminal, names):
+    if tab_id(terminal) or terminal.get("parent"):
+        return None
+    return names.get(terminal.get("name"))
 
 
 def descendants(all_terminals, members):
@@ -82,9 +102,12 @@ def verify(member, folder):
     raise Refused(f"terminal {address} cannot report an idle agent status", 3)
 
 
-def caller_tab(members):
+# An auxiliary caller belongs to its owner thread's tab: the Command Center ends it once that tab closes.
+def caller_tab(members, all_terminals):
     by_address = {member["address"]: member for member in members}
-    address = os.environ.get("HC_TERMINAL_ID")
+    caller = next((terminal for terminal in all_terminals
+                   if terminal["address"] == caller_address()), None)
+    address = (caller and auxiliary_owner(caller, auxiliary_names(by_address))) or caller_address()
     visited = set()
     while address in by_address and address not in visited:
         member = by_address[address]
@@ -95,27 +118,46 @@ def caller_tab(members):
     return None
 
 
+def caller_address():
+    return os.environ.get("HC_TERMINAL_ID")
+
+
 def inspect(folder):
-    all_terminals = terminals()
+    all_terminals, finished = terminals()
     matching = [terminal for terminal in all_terminals if matches(terminal, folder)]
     tabs = {tab_id(terminal) for terminal in matching if tab_id(terminal)}
     members = descendants(all_terminals, [terminal for terminal in all_terminals
                                         if tab_id(terminal) in tabs])
     member_addresses = {member["address"] for member in members}
-    if any(terminal["address"] not in member_addresses for terminal in matching):
+    member_auxiliaries = auxiliary_names(member_addresses)
+    finished_auxiliaries = auxiliary_names(finished)
+    auxiliaries = {terminal["address"] for terminal in all_terminals
+                   if auxiliary_owner(terminal, member_auxiliaries)
+                   or (auxiliary_owner(terminal, finished_auxiliaries) and matches(terminal, folder))}
+    if any(terminal["address"] not in member_addresses | auxiliaries for terminal in matching):
         raise Refused("matching terminal has no tab or parent tab", 3)
     for member in members:
         verify(member, folder)
-    caller = os.environ.get("HC_TERMINAL_ID")
-    own_tab = caller_tab(members)
+    own_tab = caller_tab(members, all_terminals)
     ordered_tabs = sorted(tabs, key=lambda tab: (tab == own_tab, tab))
     return {"status": "ready", "tabs": ordered_tabs,
             "terminals": sorted(member["address"] for member in members),
-            "caller": any(member["address"] == caller for member in members)}
+            "auxiliaries": sorted(auxiliaries),
+            "caller": caller_address() in member_addresses | auxiliaries}
 
 
+def end_auxiliary(address):
+    run("herdr-core", "kill", address, "--json")
+    run("herdr-core", "rm", address, "--json")
+
+
+# The caller's own auxiliary ends last, after every tab, since ending it can terminate this invocation.
 def close(folder):
     plan = inspect(folder)
+    caller = caller_address()
+    for address in plan["auxiliaries"]:
+        if address != caller:
+            end_auxiliary(address)
     for tab in plan["tabs"]:
         current = inspect(folder)
         if tab not in current["tabs"]:
@@ -123,7 +165,9 @@ def close(folder):
         response = run("herdr-app", "do", "tab.close", "--id", tab, "--confirmed", "true")
         if response.get("ok") is not True:
             raise Refused(f"tab {tab} could not be closed: {response}")
-    return {**plan, "status": "closed" if plan["tabs"] else "absent"}
+    if caller in plan["auxiliaries"]:
+        end_auxiliary(caller)
+    return {**plan, "status": "closed" if plan["tabs"] or plan["auxiliaries"] else "absent"}
 
 
 def main():

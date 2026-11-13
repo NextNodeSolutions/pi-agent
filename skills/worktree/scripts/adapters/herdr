@@ -2,6 +2,7 @@
 set -euo pipefail
 
 READY_WAIT_SECONDS=60
+LIFECYCLE_POLICY="$(dirname "${BASH_SOURCE[0]}")/../../../agent-lifecycle/policy.json"
 
 usage() {
   echo "usage: herdr open --folder <dir> --title <title> [--key <key>] -- <argv...> | close --folder <dir> [--check]" >&2
@@ -76,11 +77,13 @@ reuse_tab() {
 }
 
 create_tab() {
-  local folder="$1" title="$2" key="$3" space="$4" tab terminal app
-  shift 4
+  local folder="$1" title="$2" key="$3" space="$4" owner="$5" owner_label tab terminal app
+  shift 5
+  owner_label="$(jq -er '.labels.owner' "$LIFECYCLE_POLICY")" || fail 1 "no owner label in $LIFECYCLE_POLICY"
   tab="tb$(uuidgen | tr -d '-' | tr '[:upper:]' '[:lower:]')"
   terminal="$(herdr-core run --bg --json --no-parent --keep --cwd "$folder" \
-    --label "herdr.space=$space" --label "herdr.tab=$tab" --label "worktree.key=$key" -- zsh -lc 'exec "$0" "$@"' "$@" | jq -er '.address')" \
+    --label "herdr.space=$space" --label "herdr.tab=$tab" --label "worktree.key=$key" --label "$owner_label=$owner" \
+    -- zsh -lc 'exec "$0" "$@"' "$@" | jq -er '.address')" \
     || fail 1 "hc run failed for: $*"
   herdr-core wait "$terminal" --timeout "$READY_WAIT_SECONDS" --json >/dev/null || true
   app="$(herdr-core get "$terminal" --json | jq -r 'select(.state == "live") | .status.app // empty')"
@@ -107,8 +110,10 @@ open_tab() {
   folder="$(cd "$folder" && pwd -P)"
   key="${key:-$folder}"
   caller
-  local caller_space space hit
-  caller_space="$(herdr-core get "$HC_TERMINAL_ID" --json | jq -er '.labels["herdr.space"] // empty')" \
+  local caller_record caller_space space hit
+  caller_record="$(herdr-core get "$HC_TERMINAL_ID" --json)" \
+    || fail 2 "caller terminal $HC_TERMINAL_ID is not a herdr terminal"
+  caller_space="$(jq -er '.labels["herdr.space"] // empty' <<<"$caller_record")" \
     || fail 2 "caller terminal $HC_TERMINAL_ID has no herdr.space label"
   space="$(project_space "$folder" "$caller_space")"
   if hit="$(reuse_tab "$folder" "$key" "$space" "$caller_space")"; then
@@ -120,7 +125,7 @@ open_tab() {
     return
   fi
 
-  create_tab "$folder" "$title" "$key" "$space" "$@"
+  create_tab "$folder" "$title" "$key" "$space" "$(jq -r '.name // .address' <<<"$caller_record")" "$@"
 }
 
 command="${1:-}"

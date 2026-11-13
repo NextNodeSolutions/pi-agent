@@ -10,12 +10,19 @@ import sys
 import tempfile
 
 SCRIPTS = Path(__file__).resolve().parent
+SKILLS = SCRIPTS.parents[1]
+LIFECYCLE_POLICY = SKILLS / "agent-lifecycle" / "policy.json"
 CONFIG = Path.home() / ".pi/agent/extensions/subagent/config.json"
 COMMAND_TIMEOUT = 60
 PR_LIMIT = 1000
+HELPER_MODE = "--helper"
 
 
 class Skipped(Exception):
+    pass
+
+
+class Left(Exception):
     pass
 
 
@@ -91,7 +98,7 @@ def clean_checkout(main, entry):
         raise Skipped("uncommitted or untracked changes")
     if git(main, "-C", folder, "rev-parse", "HEAD") != entry["HEAD"]:
         raise Skipped("checkout HEAD changed during cleanup")
-    if git(main, "rev-parse", entry["branch"]) != entry["HEAD"]:
+    if "branch" in entry and git(main, "rev-parse", entry["branch"]) != entry["HEAD"]:
         raise Skipped("branch tip differs from checkout HEAD")
 
 
@@ -100,7 +107,7 @@ def terminal(main, folder, *options, scripts=SCRIPTS):
                           *options, cwd=main))
 
 
-def eligible(main, base, entry):
+def removable_folder(main, base, entry):
     folder = Path(entry["worktree"]).resolve()
     if folder == main:
         raise Skipped("main checkout")
@@ -108,6 +115,11 @@ def eligible(main, base, entry):
         raise Skipped("outside worktreeBaseDir")
     if "locked" in entry or "prunable" in entry:
         raise Skipped("locked or missing checkout")
+    return folder
+
+
+def eligible(main, base, entry):
+    folder = removable_folder(main, base, entry)
     if not entry.get("branch", "").startswith("refs/heads/"):
         raise Skipped("detached HEAD")
     branch = entry["branch"].removeprefix("refs/heads/")
@@ -116,6 +128,11 @@ def eligible(main, base, entry):
     pull = published_head(main, branch, entry["HEAD"], pulls)
     plan = terminal(main, str(folder), "--check")
     return Cleanup(checkout=entry, branch=branch, pull=pull, terminals=plan)
+
+
+def removed(folder, pull, branch):
+    print(f"removed {folder}: PR #{pull['number']} {pull['state']}, local branch {branch}",
+          flush=True)
 
 
 def remove(main, cleanup):
@@ -129,21 +146,59 @@ def remove(main, cleanup):
     current = terminal(main, folder, "--check")
     if current != plan:
         raise Skipped("terminal membership changed during cleanup")
+    if not plan["caller"]:
+        terminal(main, folder)
+        drop(main, entry)
+        removed(folder, pull, branch)
+        return
+    # The snapshot keeps the skills layout: the adapters read the lifecycle policy beside their own skill.
     with tempfile.TemporaryDirectory(prefix="worktree-close-") as snapshot:
-        scripts = Path(snapshot) / "scripts"
+        scripts = Path(snapshot) / SCRIPTS.relative_to(SKILLS)
         shutil.copytree(SCRIPTS, scripts)
-        shutil.copyfile(SCRIPTS.parent / "terminal.conf", Path(snapshot) / "terminal.conf")
-        if not plan["caller"]:
-            terminal(main, folder)
-        git(main, "worktree", "remove", "--", folder)
+        shutil.copyfile(SCRIPTS.parent / "terminal.conf", scripts.parent / "terminal.conf")
+        policy = Path(snapshot) / LIFECYCLE_POLICY.relative_to(SKILLS)
+        policy.parent.mkdir()
+        shutil.copyfile(LIFECYCLE_POLICY, policy)
+        drop(main, entry)
+        removed(folder, pull, branch)
+        terminal(main, folder, scripts=scripts)
+
+
+def drop(main, entry):
+    git(main, "worktree", "remove", "--", entry["worktree"])
+    if "branch" in entry:
+        branch = entry["branch"].removeprefix("refs/heads/")
         git(main, "update-ref", "-d", entry["branch"], entry["HEAD"])
         subprocess.run(["git", "config", "--local", "--remove-section", f"branch.{branch}"],
                        cwd=main, capture_output=True, check=False)
-        git(main, "worktree", "prune")
-        print(f"removed {folder}: PR #{pull['number']} {pull['state']}, local branch {branch}",
-              flush=True)
-        if plan["caller"]:
-            terminal(main, folder, scripts=scripts)
+    git(main, "worktree", "prune")
+
+
+def other_branches(main, entry):
+    refs = git(main, "for-each-ref", "--format=%(refname)", "--contains", entry["HEAD"],
+               "refs/heads").splitlines()
+    return [ref.removeprefix("refs/heads/") for ref in refs if ref != entry.get("branch")]
+
+
+def remove_helper(main, base, folder):
+    entry = next((entry for entry in worktrees(main)
+                  if Path(entry["worktree"]).resolve() == folder), None)
+    if entry is None:
+        raise Skipped("not a worktree of this repository")
+    removable_folder(main, base, entry)
+    clean_checkout(main, entry)
+    if "branch" in entry and pull_requests(main, entry["branch"].removeprefix("refs/heads/")):
+        raise Left("its branch has a pull request, which decides when it goes")
+    holders = other_branches(main, entry)
+    if not holders:
+        raise Skipped("its commits are on no other local branch")
+    plan = terminal(main, str(folder), "--check")
+    if plan["terminals"] or plan["auxiliaries"]:
+        raise Skipped("a terminal is open in it")
+    checked_out = git(main, "branch", "--show-current")
+    holder = checked_out if checked_out in holders else holders[0]
+    drop(main, entry)
+    print(f"removed {folder}: branch {holder} holds its commits", flush=True)
 
 
 def report_skip(entry, error):
@@ -170,9 +225,11 @@ def sweep(main, base):
 
 
 def main():
-    if len(sys.argv) > 2:
-        sys.exit("usage: cleanup [<repo-or-checkout>]")
-    repository = Path(sys.argv[1] if len(sys.argv) == 2 else os.getcwd()).resolve()
+    arguments = sys.argv[1:]
+    helper = arguments[:1] == [HELPER_MODE]
+    if len(arguments) != 2 if helper else len(arguments) > 1:
+        sys.exit(f"usage: cleanup [<repo-or-checkout>] | cleanup {HELPER_MODE} <worktree>")
+    repository = Path(arguments[-1] if arguments else os.getcwd()).resolve()
     entries = worktrees(repository)
     main_checkout = Path(entries[0]["worktree"]).resolve()
     os.chdir(main_checkout)
@@ -186,7 +243,15 @@ def main():
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise Skipped("another cleanup is running") from None
-        sweep(main_checkout, base)
+        if not helper:
+            sweep(main_checkout, base)
+            return
+        try:
+            remove_helper(main_checkout, base, repository)
+        except Left as error:
+            print(f"left {repository}: {error}", flush=True)
+        except (Skipped, OSError, ValueError, subprocess.TimeoutExpired) as error:
+            report_skip({"worktree": str(repository)}, error)
 
 
 if __name__ == "__main__":

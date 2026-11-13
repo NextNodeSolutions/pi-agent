@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SOURCE="${BASH_SOURCE[0]}"
+while [[ -L "$SOURCE" ]]; do
+  LINK="$(readlink "$SOURCE")"
+  [[ "$LINK" == /* ]] && SOURCE="$LINK" || SOURCE="$(dirname "$SOURCE")/$LINK"
+done
+exec node --no-warnings "$(cd "$(dirname "$SOURCE")" && pwd -P)/cli.ts" "$@"

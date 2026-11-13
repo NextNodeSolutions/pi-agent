@@ -2,11 +2,11 @@ import { getAgentDir } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
+import { errorText } from '#lib/error-text.ts'
 import { typedPromptText } from '#lib/human-prompt.ts'
 import { GROUP_PREFIX } from '#lib/magpie.ts'
 
 import { applyRoutingSpec } from './apply.ts'
-import { errorText } from './error-text.ts'
 import { pinnedGroup } from './pin.ts'
 import { loadRoutingSpec, SPEC_FILE } from './spec.ts'
 import { APPLY, describeRouting, RELEASE, routeCompletions } from './summary.ts'
