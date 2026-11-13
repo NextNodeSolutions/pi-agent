@@ -227,7 +227,7 @@ def sweep(main, base):
 def main():
     arguments = sys.argv[1:]
     helper = arguments[:1] == [HELPER_MODE]
-    if len(arguments) > 1 + helper or (helper and len(arguments) != 2):
+    if len(arguments) != 2 if helper else len(arguments) > 1:
         sys.exit(f"usage: cleanup [<repo-or-checkout>] | cleanup {HELPER_MODE} <worktree>")
     repository = Path(arguments[-1] if arguments else os.getcwd()).resolve()
     entries = worktrees(repository)

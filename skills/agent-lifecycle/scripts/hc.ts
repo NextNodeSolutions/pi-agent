@@ -129,8 +129,7 @@ export async function screenFingerprint(address: string): Promise<string> {
 		.digest('hex')
 }
 
-// A kill made as nobody types an exit note into the owner and starts a turn there; made as the owner, it types none.
-// `hc kill` without `hc rm` keeps the finished record, so `hc read` still prints the last screen.
+// A kill made as the owner types no exit note into it, and no `hc rm` keeps the finished record for `hc read`.
 export async function endTerminal(
 	address: string,
 	owner: string | null,

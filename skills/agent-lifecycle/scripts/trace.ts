@@ -12,7 +12,7 @@ const SLUG_LENGTH = 48
 const SCREEN_INDENT = '    '
 const STAMP_LENGTH = 'YYYYMMDDTHHMMSS'.length
 
-export type TraceInput = {
+type TraceInput = {
 	terminal: Terminal
 	reason: string
 	screen: string

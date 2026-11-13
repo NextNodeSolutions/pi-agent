@@ -11,7 +11,6 @@ import { parseJson } from './schema.ts'
 import type { Static } from 'typebox'
 import type { Terminal } from './terminal.ts'
 
-/** What reopening a closed conversation needs; the closed journal stores exactly this. */
 export const RecipeSchema = Type.Object({
 	cwd: Type.String(),
 	argv: Type.Array(Type.String()),

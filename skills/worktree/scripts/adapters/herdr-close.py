@@ -122,12 +122,6 @@ def caller_address():
     return os.environ.get("HC_TERMINAL_ID")
 
 
-# The caller can be one of the auxiliaries, so membership in the tab is not the only way to belong to the selection.
-def is_caller(address, members, auxiliaries):
-    return address == caller_address() and (
-        address in {member["address"] for member in members} or address in auxiliaries)
-
-
 def inspect(folder):
     all_terminals, finished = terminals()
     matching = [terminal for terminal in all_terminals if matches(terminal, folder)]
@@ -149,7 +143,7 @@ def inspect(folder):
     return {"status": "ready", "tabs": ordered_tabs,
             "terminals": sorted(member["address"] for member in members),
             "auxiliaries": sorted(auxiliaries),
-            "caller": is_caller(caller_address(), members, auxiliaries)}
+            "caller": caller_address() in member_addresses | auxiliaries}
 
 
 def end_auxiliary(address):

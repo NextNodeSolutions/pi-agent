@@ -51,22 +51,21 @@ const EventSchema = Type.Union([
 ])
 
 export type ClosedEvent = Static<typeof ClosedSchema>
-export type ReopenedEvent = Static<typeof ReopenedSchema>
+type ReopenedEvent = Static<typeof ReopenedSchema>
 export type JournalEvent = Static<typeof EventSchema>
 
-/** The last reopen of the conversation a close ended, or null while it was never reopened. */
 export function reopenAfter(
 	events: readonly JournalEvent[],
 	closed: ClosedEvent,
 ): ReopenedEvent | null {
-	const reopened = events.findLast(
-		event =>
-			event.event === 'reopened' &&
-			event.address === closed.address &&
-			event.atMs >= closed.atMs,
+	return (
+		events.findLast(
+			(event): event is ReopenedEvent =>
+				event.event === 'reopened' &&
+				event.address === closed.address &&
+				event.atMs >= closed.atMs,
+		) ?? null
 	)
-	if (reopened?.event !== 'reopened') return null
-	return reopened
 }
 
 const journalPath = (): string => join(stateDirectory(), JOURNAL_FILE)

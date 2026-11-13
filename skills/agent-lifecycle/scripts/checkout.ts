@@ -4,7 +4,7 @@ import { promisify } from 'node:util'
 const execute = promisify(execFile)
 const TIMEOUT_MS = 10_000
 
-export type Checkout = {
+type Checkout = {
 	root: string
 	isLinked: boolean
 }

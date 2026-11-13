@@ -25,7 +25,7 @@ export function leaseMs(subject: Subject, policy: Policy): number {
 	return granted * MINUTE_MS
 }
 
-export function quietSinceMs(terminal: Terminal, memory: Memory): number {
+function quietSinceMs(terminal: Terminal, memory: Memory): number {
 	return Math.max(terminal.statusMs, memory.attachedMs[terminal.address] ?? 0)
 }
 

@@ -25,13 +25,13 @@ function lastClosed(
 ): ClosedEvent {
 	const wanted = reference.toLowerCase()
 	const closed = events.findLast(
-		event =>
+		(event): event is ClosedEvent =>
 			event.event === 'closed' &&
 			[event.address, event.name, event.title].some(
 				known => known?.toLowerCase() === wanted,
 			),
 	)
-	if (closed?.event !== 'closed')
+	if (!closed)
 		throw new Error(
 			`No closed terminal is called ${reference}. \`agent-lifecycle closed\` lists them with their address.`,
 		)
@@ -67,15 +67,11 @@ async function ownerArguments(closed: ClosedEvent): Promise<string[]> {
 }
 
 async function nameTab(tab: string, title: string): Promise<void> {
-	try {
-		await execute(
-			'herdr-app',
-			['do', 'tab.rename', '--id', tab, '--name', title],
-			{ timeout: RENAME_TIMEOUT_MS },
-		)
-	} catch {
-		return
-	}
+	await execute(
+		'herdr-app',
+		['do', 'tab.rename', '--id', tab, '--name', title],
+		{ timeout: RENAME_TIMEOUT_MS },
+	).catch(() => undefined)
 }
 
 // One conversation, one process: a second reopen returns the terminal the first one started.
