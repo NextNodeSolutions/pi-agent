@@ -1,5 +1,3 @@
-import { readRelay } from '#lib/hc-relay.ts'
-
 import { redactSecrets } from '../../../security/secret-redact.ts'
 
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
@@ -28,25 +26,10 @@ function readOrigin(candidate: unknown): RequestOrigin | undefined {
 export function readPaceRequest(candidate: unknown): PaceRequest | undefined {
 	const id: unknown = Reflect.get(Object(candidate), 'id')
 	const text: unknown = Reflect.get(Object(candidate), 'text')
-	const origin =
-		readOrigin(Reflect.get(Object(candidate), 'origin')) ??
-		recordedOrigin(candidate, text)
+	const origin = readOrigin(Reflect.get(Object(candidate), 'origin'))
 	if (typeof id !== 'string' || typeof text !== 'string' || !origin)
 		return undefined
 	return { id, text, origin }
-}
-
-/** Sessions that loaded the extension before `origin` existed keep writing `delegated` until they reload. */
-function recordedOrigin(
-	candidate: unknown,
-	text: unknown,
-): RequestOrigin | undefined {
-	const delegated: unknown = Reflect.get(Object(candidate), 'delegated')
-	if (typeof delegated !== 'boolean' || typeof text !== 'string')
-		return undefined
-	if (delegated) return { kind: 'delegated' }
-	const relay = readRelay(text)
-	return relay ? { kind: 'relay', sender: relay.sender } : { kind: 'human' }
 }
 
 export function currentPaceRequest(
