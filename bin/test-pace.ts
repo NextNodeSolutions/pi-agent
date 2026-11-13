@@ -46,24 +46,25 @@ const { values, positionals } = parseArgs({
 	options: { session: { type: 'string' }, intent: { type: 'string' } },
 	allowPositionals: true,
 })
-if (!values.session || !values.intent || !positionals.length) {
+const { session, intent } = values
+if (!session || !intent || !positionals.length) {
 	throw new Error(
 		'Usage: node --experimental-transform-types bin/test-pace.ts --session <Pi or Claude JSONL transcript> --intent <named bug or requirement> <test paths...>',
 	)
 }
 const root = await physicalPath(process.cwd())
 const paths = await targetPaths(process.cwd(), positionals)
-const entries = parseEntries(readFileSync(values.session, 'utf8'))
+const entries = parseEntries(readFileSync(session, 'utf8'))
 const request = safePaceText(lastHumanRequest(entries))
 const [decision, consents] = await Promise.all([
-	paceFor(root, request, values.intent, paths),
+	paceFor(root, request, intent, paths),
 	sessionConsents(
 		transcriptRecords(entries),
 		async evidence => (await judgeEvidence(root, evidence)).judgment,
 	),
 ])
 const operations = await Promise.all(
-	consents.map(consent => classifyOperation(consent, values.intent ?? '')),
+	consents.map(consent => classifyOperation(consent, intent)),
 )
 const applicable = consents.filter((_consent, index) => operations[index]?.allowed)
 const kinds = paths.map(path => consentKind(applicable, path))
