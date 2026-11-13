@@ -86,17 +86,22 @@ export function grantedTestPaths(
 	return recordedPaths(entries, PACE_GRANT_ENTRY, requestId)
 }
 
+const SECRET_ASSIGNMENT =
+	/\b(?:password|token|secret|api[_ -]?key|mot de passe)\s*[:=]\s*\S+/gi
+
+export function redactedPaceText(text: string): string {
+	return redactSecrets(text).replace(SECRET_ASSIGNMENT, '[REDACTED]')
+}
+
 export function safePaceText(text: string): string {
-	return redactSecrets(text)
-		.replace(
-			/<file\b[^>]*>[\s\S]*?(?:<\/file>|$)/gi,
-			'[Attached file omitted]',
-		)
-		.replace(/```[\s\S]*?(?:```|$)/g, '[Code omitted]')
-		.replace(
-			/\b(?:password|token|secret|api[_ -]?key|mot de passe)\s*[:=]\s*\S+/gi,
-			'[REDACTED]',
-		)
+	return redactedPaceText(
+		text
+			.replace(
+				/<file\b[^>]*>[\s\S]*?(?:<\/file>|$)/gi,
+				'[Attached file omitted]',
+			)
+			.replace(/```[\s\S]*?(?:```|$)/g, '[Code omitted]'),
+	)
 }
 
 export function forbidsTestAuthoring(text: string): boolean {

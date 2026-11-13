@@ -1,7 +1,7 @@
 import { askChoice, isJevConfigured } from '#lib/jev/client.ts'
 
 import { PACE_TIMEOUT_MS } from './decision.ts'
-import { safePaceText } from './request.ts'
+import { redactedPaceText, safePaceText } from './request.ts'
 
 import type { ChoiceQuestion, ChoiceResult } from '#lib/jev/client.ts'
 import type { ConsentExchange } from './permission.ts'
@@ -30,7 +30,7 @@ export async function classifyOperation(
 			{
 				agentQuestion: safePaceText(exchange.question),
 				humanReply: safePaceText(exchange.reply),
-				operation: safePaceText(operation),
+				operation: redactedPaceText(operation),
 			},
 			OPERATION_QUESTION,
 			{ timeoutMs: PACE_TIMEOUT_MS },
