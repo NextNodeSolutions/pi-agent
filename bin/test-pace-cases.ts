@@ -1,13 +1,12 @@
 import { readFileSync } from 'node:fs'
 
+import { OPERATION_OUTCOMES } from '../extensions/lib/test-pace/operation.ts'
 import { CONSENT_VERDICTS } from '../extensions/lib/test-pace/permission.ts'
 import { SCOPE_PATH_ROLES } from '../extensions/lib/test-pace/scope-path.ts'
 import { STOP_TARGETS } from '../extensions/lib/test-pace/stop-target.ts'
 
 import type { TestPace } from '../extensions/lib/test-pace/decision.ts'
 import type { ConsentVerdict } from '../extensions/lib/test-pace/permission.ts'
-
-export const OPERATION_OUTCOMES = ['allowed', 'refused'] as const
 
 type Labelled<Label extends string> = {
 	id: string
