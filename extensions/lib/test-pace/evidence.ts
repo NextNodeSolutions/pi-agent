@@ -15,7 +15,7 @@ export type Relay = { sender: string; at: string; text: string }
 /** Human words in one session, and the relays other terminals typed into it. */
 export type SessionRecords = { evidence: Evidence[]; relays: Relay[] }
 
-function field(record: unknown, key: string): unknown {
+export function field(record: unknown, key: string): unknown {
 	return Reflect.get(Object(record), key)
 }
 
@@ -33,12 +33,21 @@ export function messageText(message: unknown): string {
 		.trim()
 }
 
+export function questionWithOptions(
+	heading: string,
+	labels: readonly string[],
+): string {
+	return `${heading}\nOptions: ${labels.join('; ')}`
+}
+
 function questionText(question: unknown): string {
 	const options = field(question, 'options')
-	const labels = Array.isArray(options)
-		? options.map(option => text(field(option, 'label'))).join('; ')
-		: ''
-	return `${text(field(question, 'id'))}: ${text(field(question, 'prompt'))}\nOptions: ${labels}`
+	return questionWithOptions(
+		`${text(field(question, 'id'))}: ${text(field(question, 'prompt'))}`,
+		Array.isArray(options)
+			? options.map(option => text(field(option, 'label')))
+			: [],
+	)
 }
 
 function questionnaireEvidence(message: unknown, at: string): Evidence[] {
@@ -84,7 +93,7 @@ export function requestRecords(
 	}
 }
 
-function savedRequest(entry: unknown): PaceRequest | undefined {
+export function savedRequest(entry: unknown): PaceRequest | undefined {
 	if (field(entry, 'customType') !== PACE_REQUEST_ENTRY) return undefined
 	return readPaceRequest(field(entry, 'data'))
 }
