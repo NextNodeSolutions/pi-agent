@@ -201,7 +201,7 @@ export function registerSessionTitle(
 		if (!ctx.sessionManager.getSessionName()) settle(ctx)
 		pendingPrompt = undefined
 	})
-	pi.on('session_info_changed', event => {
-		void publish(event.name ?? '')
+	pi.on('session_info_changed', (event, ctx) => {
+		if (ctx.hasUI) void publish(event.name ?? '')
 	})
 }

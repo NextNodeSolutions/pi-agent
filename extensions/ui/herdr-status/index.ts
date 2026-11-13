@@ -24,6 +24,10 @@
  * `agent.read.<this terminal>`, set on another terminal: when this session
  * read that terminal's screen with `hc read` (`receipt.ts`); the lifecycle
  * sweeper takes a read after a helper finished as its result received.
+ *
+ * A subagent inherits this terminal's environment, so only the interactive
+ * session publishes: a child's counts and shutdown would overwrite the
+ * parent's labels.
  */
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
@@ -125,11 +129,12 @@ export default function herdrStatus(pi: ExtensionAPI): void {
 	pi.on('agent_settled', (_event, ctx) => publishSession(ctx))
 	registerGoalLabel(pi, open => label(GOAL_LABEL, open))
 	registerReadReceipts(pi, terminal)
-	pi.on('agent_settled', () => {
-		void label(WAITING_LABEL, pendingWork(pi))
+	pi.on('agent_settled', (_event, ctx) => {
+		if (ctx.hasUI) void label(WAITING_LABEL, pendingWork(pi))
 	})
 	registerSessionTitle(pi, title => label(TITLE_LABEL, title))
-	pi.on('session_shutdown', () => {
+	pi.on('session_shutdown', (_event, ctx) => {
+		if (!ctx.hasUI) return
 		void label(WAITING_LABEL, '')
 		void label(TITLE_LABEL, '')
 	})
