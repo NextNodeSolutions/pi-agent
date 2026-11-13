@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
+import { RecipeSchema } from './resume.ts'
 import { readOrNull, stateDirectory } from './storage.ts'
 
 import type { Static } from 'typebox'
@@ -25,10 +26,7 @@ const ClosedSchema = Type.Object({
 	parent: nullableString,
 	owner: nullableString,
 	labels: Type.Record(Type.String(), Type.String()),
-	recipe: Type.Union([
-		Type.Object({ cwd: Type.String(), argv: Type.Array(Type.String()) }),
-		Type.Null(),
-	]),
+	recipe: Type.Union([RecipeSchema, Type.Null()]),
 	trace: nullableString,
 })
 

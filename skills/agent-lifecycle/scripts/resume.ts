@@ -7,9 +7,16 @@ import { Value } from 'typebox/value'
 
 import { SESSION_LABEL } from '#lib/ui/herdr-labels.ts'
 
+import type { Static } from 'typebox'
 import type { Terminal } from './terminal.ts'
 
-export type Recipe = { cwd: string; argv: string[] }
+/** What reopening a closed conversation needs; the closed journal stores exactly this. */
+export const RecipeSchema = Type.Object({
+	cwd: Type.String(),
+	argv: Type.Array(Type.String()),
+})
+
+export type Recipe = Static<typeof RecipeSchema>
 
 type RecipeReader = (terminal: Terminal) => Promise<string[] | null>
 
