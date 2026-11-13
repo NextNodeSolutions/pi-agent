@@ -48,40 +48,54 @@ function labelled<Label extends string>(
 	return samples
 }
 
-export const operationCases = labelled(
+function cases<Label extends string, Case extends Labelled<Label>>(
+	file: string,
+	labels: readonly Label[],
+	isCase: (sample: Labelled<Label>) => sample is Case,
+): Case[] {
+	const samples = labelled(file, labels)
+	if (!samples.every(isCase))
+		throw new Error(`Expected every case in ${file} to carry its fields.`)
+	return samples
+}
+
+export const operationCases = cases(
 	'./test-operation-cases.json',
 	OPERATION_OUTCOMES,
-).filter(
 	(sample): sample is OperationCase =>
 		typeof Reflect.get(sample, 'question') === 'string' &&
 		typeof Reflect.get(sample, 'operation') === 'string',
 )
-export const stopTargetCases = labelled(
+export const stopTargetCases = cases(
 	'./test-stop-target-cases.json',
 	STOP_TARGETS,
-).filter(
 	(sample): sample is StopTargetCase =>
 		typeof Reflect.get(sample, 'question') === 'string' &&
 		typeof Reflect.get(sample, 'thread') === 'string',
 )
-export const scopePathCases = labelled(
+export const scopePathCases = cases(
 	'./test-scope-path-cases.json',
 	SCOPE_PATH_ROLES,
-).filter(
 	(sample): sample is ScopePathCase =>
 		typeof Reflect.get(sample, 'question') === 'string' &&
 		typeof Reflect.get(sample, 'path') === 'string',
 )
-export const paceCases = labelled('./test-pace-cases.json', TEST_PACES).filter(
+export const paceCases = cases(
+	'./test-pace-cases.json',
+	TEST_PACES,
 	(sample): sample is PaceCase =>
 		typeof Reflect.get(sample, 'intent') === 'string',
 )
-export const permissionCases = labelled(
+export const permissionCases = cases(
 	'./test-permission-cases.json',
 	CONSENT_VERDICTS,
-).flatMap((sample): PermissionCase[] => {
-	const question: unknown = Reflect.get(sample, 'question') ?? ''
-	if (typeof question !== 'string') return []
-	const { id, request, expected } = sample
-	return [{ id, question, request, expected }]
-})
+	(sample): sample is Labelled<ConsentVerdict> & { question?: string } =>
+		['string', 'undefined'].includes(typeof Reflect.get(sample, 'question')),
+).map(
+	({ id, question, request, expected }): PermissionCase => ({
+		id,
+		question: question ?? '',
+		request,
+		expected,
+	}),
+)
