@@ -59,22 +59,19 @@ async function senderEvidence(
 			.at(-1) ?? ''
 	const relayed = normalized(relays.map(relay => relay.text).join('\n'))
 	return sessionRecords(sessionBranch(parseEntries(content)))
-		.evidence.filter(evidence => evidence.at <= cutoff)
+		.evidence.filter(evidence => isBound(evidence, receivers, relayed))
 		.map(evidence => {
-			const mayGrant = isBound(evidence, receivers, relayed)
-			const binding = mayGrant ? 'bound' : 'withdrawal'
-			const { id, at, question, reply } = evidence
+			const mayGrant = evidence.at <= cutoff
+			const binding = mayGrant ? 'bound' : 'late'
 			return {
-				id: `${file}#${binding}#${id}`,
+				...evidence,
+				id: `${file}#${binding}#${evidence.id}`,
 				mayGrant,
-				at,
-				question,
-				reply,
 			}
 		})
 }
 
-/** A relay grants nothing by its own text: only the human answers in the sender's Pi session can. */
+/** A relay carries no consent: the sender's human exchanges that name this terminal or that a relay quotes count, and grant only up to the sender's latest relay here. */
 export async function relayedEvidence(
 	relays: readonly Relay[],
 ): Promise<Evidence[]> {
