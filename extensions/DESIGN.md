@@ -40,6 +40,7 @@ those remain separate migrations below. Do not claim the entire TUI is migrated.
 - [x] Editor decorator composition: `lib/ui/editor-decorator.ts` chains on pi's `getEditorComponent` exactly once per session.
 - [x] Base editor: `lib/ui/editor-decorator.ts` also exports `createDefaultEditor` (pi's `CustomEditor` with `embedWorkingStatus: true`), the base every decorator chains onto.
 - [x] Renderer adapter: `ui/renderers/install-renderers.ts` binds the running CLI's classes; version drift is warned by a widget (`lib/ui/renderer-drift.ts`), never a refused load. No duplicate `registerTool` ownership and no execution passthroughs.
+- [x] Agent references: `ui/thread-titles/index.ts` uses Pi's public Markdown transformer for assistant prose, with the `agent` role in `theme.ts`. It reads live `agent.title` labels through hc's terminal API at session startup and on a timer, outside rendering. Titles observed by this process remain recognizable after their thread ends; a restart rebuilds from live titles. The entry file also works alone with `--no-extensions --extension`. Questionnaire prompts and the goal bar use separate text renderers and are not covered.
 - [x] Shared activity layout: `lib/ui/activity-line.ts` / `lib/ui/activity-details.ts`; semantic colors come from `lib/ui/design-system`.
 
 ## 2. Activity design contract
