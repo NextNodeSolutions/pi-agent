@@ -1,10 +1,16 @@
 import { PACE_REQUEST_ENTRY, readPaceRequest } from './request.ts'
 
-import type { Evidence } from './consent.ts'
+import type { ConsentExchange } from './permission.ts'
 import type { PaceRequest } from './request.ts'
 
 const ASK_TOOL = 'ask_user_question'
 
+/** A human's words and the agent text they answer; `at` is an ISO timestamp. */
+export type Evidence = ConsentExchange & {
+	id: string
+	at: string
+	mayGrant?: boolean
+}
 export type Relay = { sender: string; at: string; text: string }
 /** Human words in one session, and the relays other terminals typed into it. */
 export type SessionRecords = { evidence: Evidence[]; relays: Relay[] }

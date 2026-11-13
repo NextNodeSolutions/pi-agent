@@ -4,7 +4,7 @@ import { PACE_TIMEOUT_MS } from './decision.ts'
 import { safePaceText } from './request.ts'
 
 import type { ChoiceQuestion, ChoiceResult } from '#lib/jev/client.ts'
-import type { Evidence } from './consent.ts'
+import type { ConsentExchange } from './permission.ts'
 
 export const OPERATION_CONFIDENCE = 0.6
 const MAX_OPERATION_CHARS = 24_000
@@ -20,7 +20,7 @@ const OPERATION_QUESTION: ChoiceQuestion = {
 }
 
 export async function classifyOperation(
-	exchange: Pick<Evidence, 'question' | 'reply'>,
+	exchange: ConsentExchange,
 	operation: string,
 ): Promise<{ allowed: boolean; answer?: ChoiceResult }> {
 	if (!isJevConfigured() || operation.length > MAX_OPERATION_CHARS)
@@ -47,7 +47,7 @@ export async function classifyOperation(
 }
 
 export async function permitsOperation(
-	exchange: Pick<Evidence, 'question' | 'reply'>,
+	exchange: ConsentExchange,
 	operation: string,
 ): Promise<boolean> {
 	return (await classifyOperation(exchange, operation)).allowed

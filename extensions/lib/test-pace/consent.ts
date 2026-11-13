@@ -2,21 +2,13 @@ import { consentCovers, consentScope } from './consent-scope.ts'
 import { classifyConsent, isConsentVerdict, isGrant } from './permission.ts'
 import { relayedEvidence } from './relay-evidence.ts'
 
-import type { SessionRecords } from './evidence.ts'
+import type { Evidence, SessionRecords } from './evidence.ts'
 import type { ConsentDecision, ConsentVerdict } from './permission.ts'
 
 export const PACE_CONSENT_ENTRY = 'test-pace-consent-v1'
 const JUDGE_CONCURRENCY = 6
 const TEST_TOPIC = /test|spec|fixture|suite|e2e|tdd/iu
 
-/** A human's words and the agent text they answer; `at` is an ISO timestamp. */
-export type Evidence = {
-	id: string
-	at: string
-	question: string
-	reply: string
-	mayGrant?: boolean
-}
 export type Judgment = {
 	evidenceId: string
 	at: string

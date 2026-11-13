@@ -11,8 +11,10 @@ import {
 	typedOrigin,
 } from '../extensions/lib/test-pace/request.ts'
 
-import type { Evidence } from '../extensions/lib/test-pace/consent.ts'
-import type { SessionRecords } from '../extensions/lib/test-pace/evidence.ts'
+import type {
+	Evidence,
+	SessionRecords,
+} from '../extensions/lib/test-pace/evidence.ts'
 
 const HARNESS_TEXT =
 	/^\s*<(?:command-(?:name|message|args)|local-command-|task-notification|system-reminder)/

@@ -12,7 +12,8 @@ import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from '@earendil-works/pi-coding-agent'
-import type { Evidence, Judgment } from '#lib/test-pace/consent.ts'
+import type { Judgment } from '#lib/test-pace/consent.ts'
+import type { Evidence } from '#lib/test-pace/evidence.ts'
 
 export type ConsentReader = (ctx: ExtensionContext) => Promise<Judgment[]>
 

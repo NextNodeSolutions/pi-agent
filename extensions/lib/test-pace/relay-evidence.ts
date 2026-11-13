@@ -4,8 +4,7 @@ import { ownTerminal, senderSessionFile } from '#lib/hc-relay.ts'
 
 import { parseEntries, sessionBranch, sessionRecords } from './evidence.ts'
 
-import type { Evidence } from './consent.ts'
-import type { Relay } from './evidence.ts'
+import type { Evidence, Relay } from './evidence.ts'
 
 /** Shorter replies ("ok", "oui") are too common to prove which answer a relay quotes. */
 const MIN_QUOTE_CHARS = 12
