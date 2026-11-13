@@ -6,8 +6,13 @@ import { runtimeFor } from '#lib/runtime/runtime.ts'
 import { coversPath, isTestPath } from './paths.ts'
 import { physicalPath } from './physical-path.ts'
 
-const SEPARATORS = /[\s`'"()[\]<>,;|]+/u
-const BOLD = /^\*\*(.+)\*\*$/u
+const SEPARATORS = /[\s`'"<>,;|]+|\]\(/u
+/** Bold text, not a glob such as `**\/__snapshots__/**`. */
+const BOLD = /^\*\*([^/*].*)\*\*$/u
+const BRACKETS = [
+	['(', ')'],
+	['[', ']'],
+] as const
 const TRAILING = /(?::\d+)*[.,:;!?]*$/u
 const WILDCARD = /[*?{]/u
 const HOME = '~/'
@@ -15,8 +20,50 @@ const ANY_DIRECTORY = '**/'
 
 type Named = { path: string; isDirectory: boolean }
 
+function count(token: string, char: string): number {
+	return token.split(char).length - 1
+}
+
+function closingIndex(
+	chars: readonly string[],
+	open: string,
+	close: string,
+): number {
+	let depth = 0
+	for (const [index, char] of chars.entries()) {
+		depth += Number(char === open) - Number(char === close)
+		if (depth === 0) return index
+	}
+	return -1
+}
+
+/** Brackets inside a path, as in `app/(marketing)/` or `[slug]/`, belong to it; only those wrapping it in prose go. */
+function unwrapped(
+	token: string,
+	open: string,
+	close: string,
+): string | undefined {
+	const chars = Array.from(token)
+	if (chars[0] === open) {
+		const end = closingIndex(chars, open, close)
+		if (end === -1) return token.slice(1)
+		if (end === chars.length - 1) return token.slice(1, -1)
+	}
+	const isUnmatched = count(token, close) > count(token, open)
+	if (!token.endsWith(close) || !isUnmatched) return undefined
+	return token.slice(0, -1)
+}
+
+function trimmed(token: string): string {
+	const bare = token.replace(TRAILING, '')
+	const inner = BRACKETS.map(([open, close]) =>
+		unwrapped(bare, open, close),
+	).find(found => found)
+	return inner ? trimmed(inner) : bare
+}
+
 function namedPath(token: string): Named | undefined {
-	const bare = token.replace(BOLD, '$1').replace(TRAILING, '')
+	const bare = trimmed(token.replace(BOLD, '$1'))
 	const isTestFileName =
 		!bare.includes('/') && bare.includes('.') && isTestPath(bare)
 	if (isTestFileName)
