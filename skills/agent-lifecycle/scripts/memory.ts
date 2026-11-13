@@ -1,0 +1,105 @@
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+
+import { Type } from 'typebox'
+import { Value } from 'typebox/value'
+
+import type { Static } from 'typebox'
+
+const MemorySchema = Type.Object({
+	attachedMs: Type.Record(Type.String(), Type.Number()),
+	received: Type.Record(
+		Type.String(),
+		Type.Object({ finishedMs: Type.Number(), atMs: Type.Number() }),
+	),
+	marks: Type.Record(
+		Type.String(),
+		Type.Object({ screen: Type.String(), atMs: Type.Number() }),
+	),
+	heldWorktrees: Type.Record(
+		Type.String(),
+		Type.Object({
+			owner: Type.String(),
+			reason: Type.String(),
+			triedMs: Type.Number(),
+		}),
+	),
+})
+
+export type Memory = Static<typeof MemorySchema>
+
+const EMPTY: Memory = {
+	attachedMs: {},
+	received: {},
+	marks: {},
+	heldWorktrees: {},
+}
+export const NOT_TRIED = 0
+const MEMORY_FILE = 'memory.json'
+const STATE_FOLDER = 'agent-lifecycle'
+
+export function stateDirectory(): string {
+	const base =
+		process.env['XDG_STATE_HOME'] ?? join(homedir(), '.local', 'state')
+	return join(base, STATE_FOLDER)
+}
+
+export function writeAtomically(path: string, text: string): void {
+	const draft = `${path}.${process.pid}.tmp`
+	writeFileSync(draft, text)
+	renameSync(draft, path)
+}
+
+export function readOrNull(path: string): string | null {
+	try {
+		return readFileSync(path, 'utf8')
+	} catch (error) {
+		if (
+			error instanceof Error &&
+			'code' in error &&
+			error.code === 'ENOENT'
+		)
+			return null
+		throw error
+	}
+}
+
+export function readMemory(): Memory {
+	const text = readOrNull(join(stateDirectory(), MEMORY_FILE))
+	if (text === null) return EMPTY
+	const parsed: unknown = JSON.parse(text)
+	return Value.Parse(MemorySchema, parsed)
+}
+
+export function writeMemory(memory: Memory): void {
+	mkdirSync(stateDirectory(), { recursive: true })
+	writeAtomically(
+		join(stateDirectory(), MEMORY_FILE),
+		`${JSON.stringify(memory, null, '\t')}\n`,
+	)
+}
+
+function only<Entry>(
+	entries: Record<string, Entry>,
+	addresses: ReadonlySet<string>,
+): Record<string, Entry> {
+	return Object.fromEntries(
+		Object.entries(entries).filter(([address]) => addresses.has(address)),
+	)
+}
+
+export const triedWorktrees = (
+	held: Memory['heldWorktrees'],
+): [string, Memory['heldWorktrees'][string]][] =>
+	Object.entries(held).filter(([, entry]) => entry.triedMs !== NOT_TRIED)
+
+// Held worktrees outlive the terminal that worked in them: they are kept until their removal succeeds.
+export function forgetGone(memory: Memory, live: ReadonlySet<string>): Memory {
+	return {
+		attachedMs: only(memory.attachedMs, live),
+		received: only(memory.received, live),
+		marks: only(memory.marks, live),
+		heldWorktrees: memory.heldWorktrees,
+	}
+}

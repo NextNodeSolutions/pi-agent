@@ -1,0 +1,84 @@
+{
+	"principalName": "principal-chat",
+	"restingStates": ["done", "idle"],
+	"labels": {
+		"keep": "lifecycle.keep",
+		"owner": "agent.owner",
+		"seen": "herdr.seen"
+	},
+	"leaseMinutes": {
+		"helper": 15,
+		"reusedHelper": 120,
+		"thread": 240
+	},
+	"confirmSeconds": 45,
+	"worktreeRetryMinutes": 10,
+	"traceScreenLines": 120,
+	"classes": [
+		{
+			"id": "principal",
+			"is": "The terminal named {principalName}.",
+			"closes": "Never.",
+			"trace": "None.",
+			"resume": "The Command Center starts it again on its latest session.",
+			"practice": "Garbage-collection root",
+			"why": "Every result ends there, so nothing may collect it."
+		},
+		{
+			"id": "auxiliary",
+			"is": "A monitor, shell or editor the Command Center opened beside a thread: in no tab, with no parent, named `<kind>-<thread address>`.",
+			"closes": "With its thread: the Command Center ends it once that thread is gone, and the worktree cleanup ends it with the thread of a merged or closed pull request.",
+			"trace": "None: it holds no result.",
+			"resume": "Opening the thread's monitor, shell or editor starts a new one.",
+			"practice": "Owner reference with cascading deletion",
+			"why": "It exists only to look at one thread."
+		},
+		{
+			"id": "unreported",
+			"is": "A terminal that reports no agent status, or one on another machine.",
+			"closes": "Never by this policy. One that is the child of an agent ends with that agent, as hc does for every child.",
+			"trace": "None.",
+			"resume": "Not applicable.",
+			"practice": "A collector reaps only what it can identify",
+			"why": "Without a status, an idle shell and a running build look the same."
+		},
+		{
+			"id": "helper",
+			"is": "An agent another terminal started as its hc child (`hc run` from inside that terminal).",
+			"closes": "{helper} min after its owner received the result of its only turn; {reusedHelper} min once its owner has sent it back to work; at once when its owner is gone. Received means its owner read its screen after it finished (pi stamps each `hc read` in the {read} label) or started or ended a turn after it finished. Without a recorded read, a helper stays while its owner is working, blocked or in error, however long: an owner in the middle of a turn can still read its screen.",
+			"trace": "A line in the closed index. Its result sits in its owner's context, and `hc read <terminal>` still prints its last screen.",
+			"resume": "`agent-lifecycle reopen <terminal>` restarts its conversation under the same name and owner, for Claude Code and for a pi session that published its {session} label.",
+			"practice": "Time-to-live after completion, on a lease each use renews",
+			"why": "A helper has one job, and nobody but its owner reads the result."
+		},
+		{
+			"id": "thread",
+			"is": "An agent in a tab of its own, with no parent. Its {owner} label names the terminal that opened the tab, when one did.",
+			"closes": "{thread} min after its last result was received, and only if its conversation can be resumed. Received means the terminal its {owner} label names read its screen or started or ended a turn after the thread finished, or the person looked at it. A thread of a repository also closes with its worktree when its pull request is merged or closed.",
+			"trace": "A trace file written before the close: last screen, folder, branch and the reopen command, listed in the closed index. A merged or closed pull request is the trace of its thread.",
+			"resume": "`agent-lifecycle reopen <terminal>` opens a tab in the same folder and space on the same conversation.",
+			"practice": "Scale to zero: the session file is the durable state, the terminal a process that can restart cold",
+			"why": "The person may come back to a task, and never needs its idle process."
+		},
+		{
+			"id": "worktree",
+			"is": "A linked worktree a helper or an owned thread worked in, other than its owner's own.",
+			"closes": "Removed with its branch once no terminal is open in it, nothing in it is uncommitted or untracked, and another local branch holds its commits. Tried again every {worktreeRetry} min until then. One whose branch has a pull request is left to that pull request.",
+			"trace": "A line in the closed index when removed; listed there with the reason while it stays.",
+			"resume": "`git worktree add` from the branch that holds its commits.",
+			"practice": "Collection by reachability",
+			"why": "Work reachable from another branch is safe to drop, and only that work."
+		}
+	],
+	"rules": [
+		"A terminal stays open while it is working, blocked or in error.",
+		"It stays open while its {waiting} label names work that will wake it: pi publishes it from its subagents, wait subscriptions and awaited shell jobs, Claude Code from its background tasks and scheduled wakeups (`~/.claude/hooks/herdr-waiting.sh`, on every turn end).",
+		"It stays open while its {unfinished} label reports open items of its task: pi publishes it from the session's goal checklist, so an agent that ended its turn on a question stays until the answer lets it finish. An orphan helper is the exception: nobody is left to answer it.",
+		"It stays open while the person is on it: the focused agent, the tab on screen, or a terminal the Command Center shows.",
+		"It stays open while a terminal it started still works, and while a child that would end with it is unreported, kept, watched or finished less than its own lease ago.",
+		"It stays open while its {keep} label is set: `agent-lifecycle keep <terminal>`.",
+		"A lease starts when the sweeper first sees the result received, and restarts with every new turn and every look by the person.",
+		"A terminal closes on the second sweep that finds it eligible, at least {confirm} s after the first, with its screen unchanged in between.",
+		"Closing ends the program and keeps the record: `hc read <terminal>` prints its last screen until someone removes it."
+	]
+}
