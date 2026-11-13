@@ -2,39 +2,34 @@ import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
 import { consentCovers, consentScope } from './consent-scope.ts'
-import { classifyConsent, isConsentVerdict, isGrant } from './permission.ts'
+import { classifyConsent, CONSENT_VERDICTS, isGrant } from './permission.ts'
 import { relayedEvidence } from './relay-evidence.ts'
 
+import type { Static } from 'typebox'
 import type { Evidence, SessionRecords } from './evidence.ts'
-import type { ConsentDecision, ConsentVerdict } from './permission.ts'
+import type { ConsentDecision } from './permission.ts'
 
 export const PACE_CONSENT_ENTRY = 'test-pace-consent-v1'
 const JUDGE_CONCURRENCY = 6
-const TEST_TOPIC = /test|spec|fixture|suite|e2e|tdd/iu
+const TEST_TOPIC =
+	/test|spec|fixture|suite|e2e|tdd|snapshot|mock|jest|cypress|playwright/iu
 
 const JUDGMENT_SCHEMA = Type.Object({
 	evidenceId: Type.String(),
 	at: Type.String(),
-	verdict: Type.String(),
+	verdict: Type.Enum(CONSENT_VERDICTS),
 	scope: Type.Array(Type.String()),
 	question: Type.String(),
 	reply: Type.String(),
 })
 
-export type Judgment = {
-	evidenceId: string
-	at: string
-	verdict: ConsentVerdict
-	scope: string[]
-	question: string
-	reply: string
-}
+export type Judgment = Static<typeof JUDGMENT_SCHEMA>
 
-export type EditKind = 'new' | 'existing'
+type EditKind = 'new' | 'existing'
 export type ConsentKind = EditKind | 'none'
 /** `answered`: Jev decided, so the judgment can be recorded instead of asked again. */
-export type Judged = { judgment: Judgment; answered: boolean }
-export type Judge = (evidence: Evidence) => Promise<Judgment>
+type Judged = { judgment: Judgment; answered: boolean }
+type Judge = (evidence: Evidence) => Promise<Judgment>
 
 export async function judgeEvidence(
 	root: string,
@@ -57,7 +52,10 @@ export async function judgeEvidence(
 			reply: evidence.reply,
 			verdict,
 			scope: isGrant(verdict)
-				? await consentScope(root, [evidence.question, evidence.reply])
+				? await consentScope(root, [
+						evidence.scopeText ?? evidence.question,
+						evidence.reply,
+					])
 				: [],
 		},
 		answered: Boolean(decision.answer),
@@ -68,21 +66,19 @@ async function judgeAll(
 	evidence: readonly Evidence[],
 	judge: Judge,
 ): Promise<Judgment[]> {
-	const queue = evidence.map((subject, index) => ({ subject, index }))
-	const settled: { index: number; judgment: Judgment }[] = []
+	const queue = [...evidence.entries()]
+	const judgments: Judgment[] = []
 	async function next(): Promise<void> {
 		const task = queue.shift()
 		if (!task) return
-		settled.push({ index: task.index, judgment: await judge(task.subject) })
+		const [index, subject] = task
+		judgments[index] = await judge(subject)
 		await next()
 	}
 	await Promise.all(Array.from({ length: JUDGE_CONCURRENCY }, next))
-	return settled
-		.toSorted((a, b) => a.index - b.index)
-		.map(({ judgment }) => judgment)
+	return judgments
 }
 
-/** Grants accumulate in time order; a withdrawal clears every grant before it. */
 function activeConsents(judgments: readonly Judgment[]): Judgment[] {
 	const ordered = judgments.toSorted((a, b) => a.at.localeCompare(b.at))
 	const withdrawn = ordered.findLastIndex(
@@ -93,7 +89,6 @@ function activeConsents(judgments: readonly Judgment[]): Judgment[] {
 		.filter(judgment => isGrant(judgment.verdict))
 }
 
-/** A session's consents in force: its human answers, and the sender answers its relays are bound to. */
 export async function sessionConsents(
 	records: SessionRecords,
 	judge: Judge,
@@ -104,7 +99,6 @@ export async function sessionConsents(
 	)
 }
 
-/** The consents covering `path` that allow an edit of this kind; `existing` includes `new`. */
 export function consentsAllowing(
 	consents: readonly Judgment[],
 	path: string,
@@ -126,13 +120,6 @@ export function consentKind(
 	return consentsAllowing(consents, path, 'new').length ? 'new' : 'none'
 }
 
-function readJudgment(saved: unknown): Judgment | undefined {
-	if (!Value.Check(JUDGMENT_SCHEMA, saved)) return undefined
-	const { evidenceId, at, verdict, scope, question, reply } = saved
-	if (!isConsentVerdict(verdict)) return undefined
-	return { evidenceId, at, verdict, scope, question, reply }
-}
-
 export function recordedJudgments(
 	entries: readonly unknown[],
 ): Map<string, Judgment> {
@@ -140,8 +127,10 @@ export function recordedJudgments(
 		entries.flatMap(entry => {
 			if (Reflect.get(Object(entry), 'customType') !== PACE_CONSENT_ENTRY)
 				return []
-			const judgment = readJudgment(Reflect.get(Object(entry), 'data'))
-			return judgment ? [[judgment.evidenceId, judgment] as const] : []
+			const saved: unknown = Reflect.get(Object(entry), 'data')
+			return Value.Check(JUDGMENT_SCHEMA, saved)
+				? [[saved.evidenceId, saved] as const]
+				: []
 		}),
 	)
 }

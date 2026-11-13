@@ -59,40 +59,24 @@ async function senderEvidence(
 			.at(-1) ?? ''
 	const relayed = normalized(relays.map(relay => relay.text).join('\n'))
 	return sessionRecords(sessionBranch(parseEntries(content)))
-		.evidence.filter(evidence => evidence.at <= cutoff)
-		.map(evidence =>
-			prefixedEvidence(
-				file,
-				evidence,
-				isBound(evidence, receivers, relayed) ? 'bound' : 'withdrawal',
-			),
-		)
+		.evidence.filter(evidence => isBound(evidence, receivers, relayed))
+		.map(evidence => {
+			const mayGrant = evidence.at <= cutoff
+			const binding = mayGrant ? 'bound' : 'late'
+			return {
+				...evidence,
+				id: `${file}#${binding}#${evidence.id}`,
+				mayGrant,
+			}
+		})
 }
 
-function prefixedEvidence(
-	file: string,
-	{ id, at, question, reply }: Evidence,
-	binding: 'bound' | 'withdrawal',
-): Evidence {
-	return {
-		id: `${file}#${binding}#${id}`,
-		mayGrant: binding === 'bound',
-		at,
-		question,
-		reply,
-	}
-}
-
-/**
- * A relay grants nothing by its own text: it points at the sender's Pi session,
- * whose human answers count when they name this terminal by address or title
- * or the relay quotes them, and were given before the sender's latest relay here.
- */
+/** A relay carries no consent: the sender's human exchanges that name this terminal or that a relay quotes count, and grant only up to the sender's latest relay here. */
 export async function relayedEvidence(
 	relays: readonly Relay[],
 ): Promise<Evidence[]> {
 	const address = ownTerminal()
-	if (!address) return []
+	if (!address || !relays.length) return []
 	const receivers = await receiverNames(address)
 	const senders = [...new Set(relays.map(relay => relay.sender))]
 	const evidence = await Promise.all(

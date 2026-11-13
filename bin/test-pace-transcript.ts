@@ -1,12 +1,13 @@
 import {
+	field,
 	messageText,
+	questionWithOptions,
 	requestRecords,
+	savedRequest,
 	sessionBranch,
 	sessionRecords,
 } from '../extensions/lib/test-pace/evidence.ts'
 import {
-	PACE_REQUEST_ENTRY,
-	readPaceRequest,
 	safePaceText,
 	typedOrigin,
 } from '../extensions/lib/test-pace/request.ts'
@@ -20,10 +21,6 @@ const HARNESS_TEXT =
 	/^\s*<(?:command-(?:name|message|args)|local-command-|task-notification|system-reminder)/
 
 const ASK_TOOL = 'AskUserQuestion'
-
-function field(value: unknown, key: string): unknown {
-	return Reflect.get(Object(value), key)
-}
 
 function typedText(entry: object): string {
 	if (field(entry, 'isMeta') || field(entry, 'isCompactSummary')) return ''
@@ -71,14 +68,14 @@ function answersAsk(entry: object, askIds: ReadonlySet<string>): boolean {
 	)
 }
 
-function optionLabels(questions: unknown, prompt: string): string {
+function optionLabels(questions: unknown, prompt: string): string[] {
 	const asked = Array.isArray(questions)
 		? questions.find(question => field(question, 'question') === prompt)
 		: undefined
 	const options = field(asked, 'options')
 	return Array.isArray(options)
-		? options.map(option => String(field(option, 'label'))).join('; ')
-		: ''
+		? options.map(option => String(field(option, 'label')))
+		: []
 }
 
 /** Claude Code stores an AskUserQuestion result as `toolUseResult.answers`: question text to chosen label. */
@@ -89,8 +86,9 @@ function askAnswers(entry: object, id: string, at: string): Evidence[] {
 	return Object.entries(answers).flatMap(([prompt, reply], index) => {
 		if (typeof reply !== 'string' || !reply) return []
 		const labels = optionLabels(field(result, 'questions'), prompt)
-		const question = `${prompt}\nOptions: ${labels}`
-		return [{ id: `${id}:${index}`, at, question, reply }]
+		return [
+			{ id: `${id}:${index}`, at, ...questionWithOptions(prompt, labels), reply },
+		]
 	})
 }
 
@@ -149,12 +147,7 @@ export function transcriptRecords(entries: readonly object[]): SessionRecords {
 }
 
 function requestText(entry: object): string {
-	if (
-		field(entry, 'type') === 'custom' &&
-		field(entry, 'customType') === PACE_REQUEST_ENTRY
-	)
-		return readPaceRequest(field(entry, 'data'))?.text ?? ''
-	return claudeTyped(entry)
+	return savedRequest(entry)?.text ?? claudeTyped(entry)
 }
 
 export function lastHumanRequest(entries: readonly object[]): string {

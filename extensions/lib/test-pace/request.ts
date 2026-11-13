@@ -28,25 +28,20 @@ const REQUEST_SCHEMA = Type.Object({
 	origin: ORIGIN_SCHEMA,
 })
 
-export type RequestOrigin = Static<typeof ORIGIN_SCHEMA>
+type RequestOrigin = Static<typeof ORIGIN_SCHEMA>
 export type PaceRequest = Static<typeof REQUEST_SCHEMA>
-
-export function relayOrigin(sender: string | undefined): RequestOrigin {
-	return sender ? { kind: 'relay', sender } : { kind: 'relay' }
-}
 
 export function readPaceRequest(candidate: unknown): PaceRequest | undefined {
 	if (!Value.Check(REQUEST_SCHEMA, candidate)) return undefined
-	const origin =
-		candidate.origin.kind === 'relay'
-			? relayOrigin(candidate.origin.sender)
-			: { kind: candidate.origin.kind }
-	return { id: candidate.id, text: candidate.text, origin }
+	return candidate
 }
 
 export function typedOrigin(typed: string): RequestOrigin {
 	const relay = readRelay(typed)
-	return relay ? relayOrigin(relay.sender) : { kind: 'human' }
+	if (!relay) return { kind: 'human' }
+	return relay.sender
+		? { kind: 'relay', sender: relay.sender }
+		: { kind: 'relay' }
 }
 
 export function currentPaceRequest(
@@ -91,17 +86,22 @@ export function grantedTestPaths(
 	return recordedPaths(entries, PACE_GRANT_ENTRY, requestId)
 }
 
+const SECRET_ASSIGNMENT =
+	/\b(?:password|token|secret|api[_ -]?key|mot de passe)\s*[:=]\s*\S+/gi
+
+export function redactedPaceText(text: string): string {
+	return redactSecrets(text).replace(SECRET_ASSIGNMENT, '[REDACTED]')
+}
+
 export function safePaceText(text: string): string {
-	return redactSecrets(text)
-		.replace(
-			/<file\b[^>]*>[\s\S]*?(?:<\/file>|$)/gi,
-			'[Attached file omitted]',
-		)
-		.replace(/```[\s\S]*?(?:```|$)/g, '[Code omitted]')
-		.replace(
-			/\b(?:password|token|secret|api[_ -]?key|mot de passe)\s*[:=]\s*\S+/gi,
-			'[REDACTED]',
-		)
+	return redactedPaceText(
+		text
+			.replace(
+				/<file\b[^>]*>[\s\S]*?(?:<\/file>|$)/gi,
+				'[Attached file omitted]',
+			)
+			.replace(/```[\s\S]*?(?:```|$)/g, '[Code omitted]'),
+	)
 }
 
 export function forbidsTestAuthoring(text: string): boolean {

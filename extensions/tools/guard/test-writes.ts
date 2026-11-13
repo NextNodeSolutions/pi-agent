@@ -170,9 +170,9 @@ export function registerTestWriteGuard(pi: ExtensionAPI): void {
 		if (write === 'unresolved')
 			return { block: true, reason: UNRESOLVED_REFUSAL }
 		const request = currentPaceRequest(ctx.sessionManager.getBranch())
-		const reading: { consents?: Promise<Judgment[]> } = {}
+		let reading: Promise<Judgment[]> | undefined
 		const consents = (): Promise<Judgment[]> =>
-			(reading.consents ??= readConsents(ctx))
+			(reading ??= readConsents(ctx))
 		const created = await newPaths(write)
 		const operation = JSON.stringify({
 			tool: event.toolName,

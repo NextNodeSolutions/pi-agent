@@ -1,77 +1,63 @@
 import { readFileSync } from 'node:fs'
 
-import {
-	CONSENT_VERDICTS,
-	isConsentVerdict,
-} from '../extensions/lib/test-pace/permission.ts'
+import { CONSENT_VERDICTS } from '../extensions/lib/test-pace/permission.ts'
 
 import type { TestPace } from '../extensions/lib/test-pace/decision.ts'
 import type { ConsentVerdict } from '../extensions/lib/test-pace/permission.ts'
 
-type PaceCase = {
+export const OPERATION_OUTCOMES = ['allowed', 'refused'] as const
+
+type Labelled<Label extends string> = {
 	id: string
 	request: string
-	intent: string
-	expected: TestPace
+	expected: Label
 }
+type PaceCase = Labelled<TestPace> & { intent: string }
 /** `request` is the human's reply; `question` the agent text it answers, empty when it stands alone. */
-type PermissionCase = {
-	id: string
+type PermissionCase = Labelled<ConsentVerdict> & { question: string }
+type OperationCase = Labelled<(typeof OPERATION_OUTCOMES)[number]> & {
 	question: string
-	request: string
-	expected: ConsentVerdict
+	operation: string
 }
 
-function labelled(file: string, labels: readonly string[]): unknown[] {
+function labelled<Label extends string>(
+	file: string,
+	labels: readonly Label[],
+): Labelled<Label>[] {
 	const samples: unknown = JSON.parse(
 		readFileSync(new URL(file, import.meta.url), 'utf8'),
 	)
-	const valid =
-		Array.isArray(samples) &&
-		samples.every(
-			sample =>
-				typeof Reflect.get(Object(sample), 'id') === 'string' &&
-				typeof Reflect.get(Object(sample), 'request') === 'string' &&
-				labels.includes(Reflect.get(Object(sample), 'expected')),
-		)
-	if (!valid) throw new Error(`Expected labelled cases in ${file}.`)
+	const isLabelled = (sample: unknown): sample is Labelled<Label> =>
+		typeof Reflect.get(Object(sample), 'id') === 'string' &&
+		typeof Reflect.get(Object(sample), 'request') === 'string' &&
+		labels.some(label => label === Reflect.get(Object(sample), 'expected'))
+	if (!Array.isArray(samples) || !samples.every(isLabelled))
+		throw new Error(`Expected labelled cases in ${file}.`)
 	return samples
 }
 
-function isPaceCase(candidate: unknown): candidate is PaceCase {
-	return typeof Reflect.get(Object(candidate), 'intent') === 'string'
-}
-
-function permissionCase(candidate: unknown): PermissionCase[] {
-	const id: unknown = Reflect.get(Object(candidate), 'id')
-	const request: unknown = Reflect.get(Object(candidate), 'request')
-	const question: unknown = Reflect.get(Object(candidate), 'question') ?? ''
-	const expected: unknown = Reflect.get(Object(candidate), 'expected')
-	const valid =
-		typeof id === 'string' &&
-		typeof request === 'string' &&
-		typeof question === 'string' &&
-		isConsentVerdict(expected)
-	return valid ? [{ id, question, request, expected }] : []
-}
-
-type OperationCase = Pick<PermissionCase, 'id' | 'question' | 'request'> & {
-	operation: string
-	expected: 'allowed' | 'refused'
-}
-
-export const operationCases = labelled('./test-operation-cases.json', ['allowed', 'refused'])
-	.filter((candidate): candidate is OperationCase =>
-		typeof Reflect.get(Object(candidate), 'question') === 'string' &&
-		typeof Reflect.get(Object(candidate), 'operation') === 'string',
-	)
-
-export const paceCases: PaceCase[] = labelled('./test-pace-cases.json', [
+export const operationCases = labelled(
+	'./test-operation-cases.json',
+	OPERATION_OUTCOMES,
+).filter(
+	(sample): sample is OperationCase =>
+		typeof Reflect.get(sample, 'question') === 'string' &&
+		typeof Reflect.get(sample, 'operation') === 'string',
+)
+export const paceCases = labelled('./test-pace-cases.json', [
 	'bug',
 	'logic',
 	'none',
-]).filter(isPaceCase)
-export const permissionCases: PermissionCase[] = labelled(
+]).filter(
+	(sample): sample is PaceCase =>
+		typeof Reflect.get(sample, 'intent') === 'string',
+)
+export const permissionCases = labelled(
 	'./test-permission-cases.json',
 	CONSENT_VERDICTS,
-).flatMap(permissionCase)
+).flatMap((sample): PermissionCase[] => {
+	const question: unknown = Reflect.get(sample, 'question') ?? ''
+	if (typeof question !== 'string') return []
+	const { id, request, expected } = sample
+	return [{ id, question, request, expected }]
+})

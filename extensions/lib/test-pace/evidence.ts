@@ -5,17 +5,18 @@ import type { PaceRequest } from './request.ts'
 
 const ASK_TOOL = 'ask_user_question'
 
-/** A human's words and the agent text they answer; `at` is an ISO timestamp. */
+/** `at` is an ISO timestamp: consents are ordered by comparing it as text. `scopeText` replaces `question` as the source of a grant's paths. */
 export type Evidence = ConsentExchange & {
 	id: string
 	at: string
 	mayGrant?: boolean
+	scopeText?: string
 }
+type AskedQuestion = Pick<Evidence, 'question' | 'scopeText'>
 export type Relay = { sender: string; at: string; text: string }
-/** Human words in one session, and the relays other terminals typed into it. */
 export type SessionRecords = { evidence: Evidence[]; relays: Relay[] }
 
-function field(record: unknown, key: string): unknown {
+export function field(record: unknown, key: string): unknown {
 	return Reflect.get(Object(record), key)
 }
 
@@ -33,12 +34,25 @@ export function messageText(message: unknown): string {
 		.trim()
 }
 
-function questionText(question: unknown): string {
+/** The human chose one option, so only the prompt names the paths a grant covers. */
+export function questionWithOptions(
+	heading: string,
+	labels: readonly string[],
+): AskedQuestion {
+	return {
+		question: `${heading}\nOptions: ${labels.join('; ')}`,
+		scopeText: heading,
+	}
+}
+
+function askedQuestion(question: unknown): AskedQuestion {
 	const options = field(question, 'options')
-	const labels = Array.isArray(options)
-		? options.map(option => text(field(option, 'label'))).join('; ')
-		: ''
-	return `${text(field(question, 'id'))}: ${text(field(question, 'prompt'))}\nOptions: ${labels}`
+	return questionWithOptions(
+		`${text(field(question, 'id'))}: ${text(field(question, 'prompt'))}`,
+		Array.isArray(options)
+			? options.map(option => text(field(option, 'label')))
+			: [],
+	)
 }
 
 function questionnaireEvidence(message: unknown, at: string): Evidence[] {
@@ -61,14 +75,13 @@ function questionnaireEvidence(message: unknown, at: string): Evidence[] {
 			{
 				id: `${text(field(message, 'toolCallId'))}:${id}`,
 				at,
-				question: questionText(question),
+				...askedQuestion(question),
 				reply,
 			},
 		]
 	})
 }
 
-/** A typed prompt answers the agent text before it; a relay carries no human words. */
 export function requestRecords(
 	request: PaceRequest,
 	at: string,
@@ -84,7 +97,7 @@ export function requestRecords(
 	}
 }
 
-function savedRequest(entry: unknown): PaceRequest | undefined {
+export function savedRequest(entry: unknown): PaceRequest | undefined {
 	if (field(entry, 'customType') !== PACE_REQUEST_ENTRY) return undefined
 	return readPaceRequest(field(entry, 'data'))
 }
@@ -118,16 +131,15 @@ export function parseEntries(content: string): object[] {
 	})
 }
 
-/** The current branch of a Pi session file: from its last entry up through parent ids. */
 export function sessionBranch(entries: readonly object[]): object[] {
 	const byId = new Map(entries.map(entry => [field(entry, 'id'), entry]))
-	const branch: object[] = []
+	const branch = new Set<object>()
 	let current = entries.findLast(
 		entry => typeof field(entry, 'id') === 'string',
 	)
-	while (current && !branch.includes(current)) {
-		branch.push(current)
+	while (current && !branch.has(current)) {
+		branch.add(current)
 		current = byId.get(field(current, 'parentId'))
 	}
-	return branch.toReversed()
+	return [...branch].toReversed()
 }

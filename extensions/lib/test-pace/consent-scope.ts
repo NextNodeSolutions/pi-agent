@@ -17,20 +17,18 @@ type Named = { path: string; isDirectory: boolean }
 
 function namedPath(token: string): Named | undefined {
 	const bare = token.replace(BOLD, '$1').replace(TRAILING, '')
-	if (
-		bare.includes('://') ||
-		(!bare.includes('/') && !(bare.includes('.') && isTestPath(bare)))
-	)
-		return undefined
-	if (!bare.includes('/'))
+	const isTestFileName =
+		!bare.includes('/') && bare.includes('.') && isTestPath(bare)
+	if (isTestFileName)
 		return { path: `${ANY_DIRECTORY}${bare}`, isDirectory: true }
+	if (bare.includes('://') || !bare.includes('/')) return undefined
 	const expanded = bare.startsWith(HOME)
 		? join(homedir(), bare.slice(HOME.length))
 		: bare
-	const wildcard = expanded.search(WILDCARD)
-	if (wildcard < 0)
-		return { path: expanded, isDirectory: expanded.endsWith('/') }
-	return { path: expanded, isDirectory: true }
+	return {
+		path: expanded,
+		isDirectory: WILDCARD.test(expanded) || expanded.endsWith('/'),
+	}
 }
 
 async function isExistingDirectory(path: string): Promise<boolean> {
@@ -48,7 +46,6 @@ async function canonical(path: string): Promise<string | undefined> {
 	}
 }
 
-/** Inside the root a test path or a directory counts; outside it only a test path. */
 async function scopeEntry(root: string, named: Named): Promise<string[]> {
 	const path = await canonical(resolve(root, named.path))
 	if (!path) return []
@@ -62,7 +59,6 @@ async function scopeEntry(root: string, named: Named): Promise<string[]> {
 	return counts ? [path] : []
 }
 
-/** The canonical files and directories a consent names; a consent naming none covers the root. */
 export async function consentScope(
 	root: string,
 	texts: readonly string[],
@@ -85,6 +81,6 @@ export function consentCovers(scope: readonly string[], path: string): boolean {
 	return scope.some(named =>
 		WILDCARD.test(named)
 			? matchesGlob(path, named)
-			: coversPath([named], path),
+			: coversPath(named, path),
 	)
 }

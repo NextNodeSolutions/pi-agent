@@ -112,9 +112,9 @@ export default function herdrStatus(pi: ExtensionAPI): void {
 		if (ctx.hasUI)
 			void label(SESSION_LABEL, ctx.sessionManager.getSessionFile() ?? '')
 	})
-	pi.on('session_shutdown', () => {
+	pi.on('session_shutdown', (_event, ctx) => {
 		void label(WAITING_LABEL, '')
 		void label(TITLE_LABEL, '')
-		void label(SESSION_LABEL, '')
+		if (ctx.hasUI) void label(SESSION_LABEL, '')
 	})
 }
