@@ -10,7 +10,7 @@ const FROM = /\bfrom="(?<address>[^"\s]+)/u
 const HC_TIMEOUT_MS = 5_000
 const run = promisify(execFile)
 
-export type RelayedText = { sender: string | undefined; text: string }
+type RelayedText = { sender: string | undefined; text: string }
 
 export function ownTerminal(): string | undefined {
 	return process.env.HC_TERMINAL_ID

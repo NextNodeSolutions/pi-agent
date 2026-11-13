@@ -24,11 +24,11 @@ const JUDGMENT_SCHEMA = Type.Object({
 
 export type Judgment = Static<typeof JUDGMENT_SCHEMA>
 
-export type EditKind = 'new' | 'existing'
+type EditKind = 'new' | 'existing'
 export type ConsentKind = EditKind | 'none'
 /** `answered`: Jev decided, so the judgment can be recorded instead of asked again. */
-export type Judged = { judgment: Judgment; answered: boolean }
-export type Judge = (evidence: Evidence) => Promise<Judgment>
+type Judged = { judgment: Judgment; answered: boolean }
+type Judge = (evidence: Evidence) => Promise<Judgment>
 
 export async function judgeEvidence(
 	root: string,

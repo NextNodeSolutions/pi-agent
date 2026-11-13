@@ -28,7 +28,7 @@ const REQUEST_SCHEMA = Type.Object({
 	origin: ORIGIN_SCHEMA,
 })
 
-export type RequestOrigin = Static<typeof ORIGIN_SCHEMA>
+type RequestOrigin = Static<typeof ORIGIN_SCHEMA>
 export type PaceRequest = Static<typeof REQUEST_SCHEMA>
 
 export function readPaceRequest(candidate: unknown): PaceRequest | undefined {

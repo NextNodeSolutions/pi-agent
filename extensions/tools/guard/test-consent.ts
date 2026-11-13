@@ -15,7 +15,7 @@ import type {
 import type { Judgment } from '#lib/test-pace/consent.ts'
 import type { Evidence } from '#lib/test-pace/evidence.ts'
 
-export type ConsentReader = (ctx: ExtensionContext) => Promise<Judgment[]>
+type ConsentReader = (ctx: ExtensionContext) => Promise<Judgment[]>
 
 export function consentReader(pi: ExtensionAPI): ConsentReader {
 	const judging = new Map<string, Promise<Judgment>>()
