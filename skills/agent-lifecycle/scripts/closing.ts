@@ -4,7 +4,7 @@ import { endTerminal, readScreen, terminalAt } from './hc.ts'
 import { appendEvent } from './journal.ts'
 import { resumeRecipe } from './resume.ts'
 import { titleOf } from './terminal.ts'
-import { writeTrace } from './trace.ts'
+import { discardTrace, writeTrace } from './trace.ts'
 
 import type { Verdict } from './decide.ts'
 import type { ClosedEvent } from './journal.ts'
@@ -110,37 +110,55 @@ async function isUnchanged(terminal: Terminal): Promise<boolean> {
 	)
 }
 
-// The trace and every recipe are taken before the kill: Claude Code drops its session file when its process ends.
-async function closeTerminal(
+async function eventsOf(
 	candidate: Candidate,
+	trace: string | null,
 	scene: ClosingScene,
-): Promise<Closing> {
+): Promise<ClosedEvent[]> {
 	const { verdict, recipe } = candidate
 	const { terminal } = verdict
-	if (!(await isUnchanged(terminal)))
-		return refused('it changed after the sweep looked at it')
-	const trace = await traceOf(candidate, scene)
 	const dependents = await Promise.all(
 		endsWith(terminal.address, scene.terminals).map(dependent =>
 			dependentEvent(dependent, terminal, scene),
 		),
 	)
+	const detail = { kind: verdict.kind, reason: verdict.reason, recipe, trace }
+	return [closedEvent(terminal, detail, scene), ...dependents]
+}
+
+// The trace and every recipe are taken before the kill, since Claude Code drops its session file when its process ends; a close that does not happen leaves no trace behind.
+async function prepared(
+	candidate: Candidate,
+	scene: ClosingScene,
+): Promise<Closing> {
+	const trace = await traceOf(candidate, scene)
+	try {
+		const events = await eventsOf(candidate, trace, scene)
+		const objection = await scene.recheck(candidate.verdict.terminal)
+		if (objection === null) return { closed: events, refusal: null }
+		discardTrace(trace)
+		return refused(objection)
+	} catch (error) {
+		discardTrace(trace)
+		throw error
+	}
+}
+
+async function closeTerminal(
+	candidate: Candidate,
+	scene: ClosingScene,
+): Promise<Closing> {
+	const { terminal } = candidate.verdict
+	if (!(await isUnchanged(terminal)))
+		return refused('it changed after the sweep looked at it')
+	const preparation = await prepared(candidate, scene)
+	if (preparation.refusal !== null) return preparation
 	const owner = scene.terminals.find(
 		other => other.address === terminal.parent,
 	)
-	const objection = await scene.recheck(terminal)
-	if (objection !== null) return refused(objection)
 	await endTerminal(terminal.address, owner?.address ?? null)
-	const events = [
-		closedEvent(
-			terminal,
-			{ kind: verdict.kind, reason: verdict.reason, recipe, trace },
-			scene,
-		),
-		...dependents,
-	]
-	events.forEach(appendEvent)
-	return { closed: events, refusal: null }
+	preparation.closed.forEach(appendEvent)
+	return preparation
 }
 
 async function closeOne(

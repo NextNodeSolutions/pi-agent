@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { stateDirectory } from './storage.ts'
@@ -66,4 +66,8 @@ export function writeTrace(input: TraceInput): string {
 	const path = join(folder, file)
 	writeFileSync(path, traceText(input))
 	return path
+}
+
+export function discardTrace(path: string | null): void {
+	if (path !== null) rmSync(path, { force: true })
 }
