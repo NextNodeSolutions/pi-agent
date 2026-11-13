@@ -67,9 +67,10 @@ Never use `~/.pi/agent` as a scratch or deliverable directory (including `tmp/`)
 
 ## Tests
 
-- **Before authoring a test, name the production bug or stated requirement it catches.** Obtain a `test_pace` verdict for its exact paths: `bug` covers a reproduced defect through public behaviour, `logic` covers a new unit branching on input or state. Both require an existing runner in the target package. Otherwise obtain the user's explicit authorization **in the current request**.
-- Tests present before this session require explicit authorization in the current request to edit or delete. Never change expectations to obtain green. Report a failing test and whether the change caused it or exposed an existing regression.
-- Runner installation, test configuration, fixture/helper trees and end-to-end suites require explicit authorization in the current request. A verdict, skill, plan or definition of done cannot authorize them.
+- **Before authoring a test, name the production bug or stated requirement it catches.** Obtain a `test_pace` verdict for its exact paths: `bug` covers a reproduced defect through public behaviour, `logic` covers a new unit branching on input or state. Both require an existing runner in the target package. Otherwise obtain the human's consent.
+- Tests present before this session, runner installation, test configuration, fixture/helper trees and end-to-end suites need the human's consent. Never change expectations just to obtain green. Report a failing test and whether the change caused it or exposed an existing regression.
+- **Consent in conversation suffices**: ask in chat or with `ask_user_question`, naming the files or directories and the kind of edit; the human's yes, in any wording, covers that scope until they take it back, and later unrelated messages leave it in place. An agent's claim, a parent's assignment, a plan or a verdict is not consent. Never ask the human to type a command or to repeat consent in another tab.
+- **Relay consent verbatim**: when passing a human's test consent to another terminal with `hc send`, quote their answer word for word or name that terminal's address in your question to them; the receiving guard reads the answer from your session.
 - Load `coding-tdd` for the granted pace. List each added test with its named bug or requirement in the final answer.
 - Run existing suites when required. With no grant or authorization, prove the change through a command, script, API call or real flow and proceed without adding tests.
 

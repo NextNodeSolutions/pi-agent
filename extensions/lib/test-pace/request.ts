@@ -1,3 +1,5 @@
+import { readRelay } from '#lib/hc-relay.ts'
+
 import { redactSecrets } from '../../../security/secret-redact.ts'
 
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
@@ -6,36 +8,45 @@ export const PACE_REQUEST_ENTRY = 'test-pace-request-v1'
 export const PACE_GRANT_ENTRY = 'test-pace-grant-v1'
 export const PACE_CREATED_ENTRY = 'test-pace-created-v1'
 export const PACE_DECISION_ENTRY = 'test-pace-decision-v1'
-export const PACE_PERMISSION_ENTRY = 'test-pace-permission-v1'
 
-export type PaceRequest = {
-	id: string
-	text: string
-	/** Files or directories the human named with /test-pace allow. */
-	allowedPaths: string[]
-	/** Written by a parent agent for a subagent, so it carries no human permission. */
-	delegated: boolean
+/** `delegated`: a parent agent wrote it for a subagent. `relay`: another terminal typed it with `hc send`. */
+export type RequestOrigin =
+	| { kind: 'human' }
+	| { kind: 'delegated' }
+	| { kind: 'relay'; sender: string | undefined }
+
+export type PaceRequest = { id: string; text: string; origin: RequestOrigin }
+
+function readOrigin(candidate: unknown): RequestOrigin | undefined {
+	const kind: unknown = Reflect.get(Object(candidate), 'kind')
+	if (kind === 'human' || kind === 'delegated') return { kind }
+	if (kind !== 'relay') return undefined
+	const sender: unknown = Reflect.get(Object(candidate), 'sender')
+	return { kind, sender: typeof sender === 'string' ? sender : undefined }
 }
 
 export function readPaceRequest(candidate: unknown): PaceRequest | undefined {
-	if (!candidate || typeof candidate !== 'object') return undefined
-	const id: unknown = Reflect.get(candidate, 'id')
-	const text: unknown = Reflect.get(candidate, 'text')
-	const paths: unknown = Reflect.get(candidate, 'allowedPaths')
-	if (
-		typeof id !== 'string' ||
-		typeof text !== 'string' ||
-		!Array.isArray(paths)
-	)
+	const id: unknown = Reflect.get(Object(candidate), 'id')
+	const text: unknown = Reflect.get(Object(candidate), 'text')
+	const origin =
+		readOrigin(Reflect.get(Object(candidate), 'origin')) ??
+		recordedOrigin(candidate, text)
+	if (typeof id !== 'string' || typeof text !== 'string' || !origin)
 		return undefined
-	if (!paths.every((path: unknown) => typeof path === 'string'))
+	return { id, text, origin }
+}
+
+/** Sessions that loaded the extension before `origin` existed keep writing `delegated` until they reload. */
+function recordedOrigin(
+	candidate: unknown,
+	text: unknown,
+): RequestOrigin | undefined {
+	const delegated: unknown = Reflect.get(Object(candidate), 'delegated')
+	if (typeof delegated !== 'boolean' || typeof text !== 'string')
 		return undefined
-	return {
-		id,
-		text,
-		allowedPaths: paths,
-		delegated: Reflect.get(candidate, 'delegated') === true,
-	}
+	if (delegated) return { kind: 'delegated' }
+	const relay = readRelay(text)
+	return relay ? { kind: 'relay', sender: relay.sender } : { kind: 'human' }
 }
 
 export function currentPaceRequest(
@@ -78,27 +89,6 @@ export function grantedTestPaths(
 	requestId: string,
 ): string[] {
 	return recordedPaths(entries, PACE_GRANT_ENTRY, requestId)
-}
-
-export function recordedPermission(
-	entries: readonly SessionEntry[],
-	requestId: string,
-): 'new' | 'existing' | 'none' | undefined {
-	const saved = entries.findLast(
-		entry =>
-			entry.type === 'custom' &&
-			entry.customType === PACE_PERMISSION_ENTRY &&
-			Reflect.get(Object(entry.data), 'requestId') === requestId,
-	)
-	if (saved?.type !== 'custom') return undefined
-	const permission: unknown = Reflect.get(Object(saved.data), 'permission')
-	if (
-		permission === 'new' ||
-		permission === 'existing' ||
-		permission === 'none'
-	)
-		return permission
-	return undefined
 }
 
 export function safePaceText(text: string): string {

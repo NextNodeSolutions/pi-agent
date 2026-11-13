@@ -16,10 +16,15 @@
  *
  * `agent.title`: the session's name, generated from its first human prompt
  * by `title.ts`; the Herdr `agent-naming` mod names the tab after it.
+ *
+ * `pi.session` (`SESSION_LABEL`): the interactive session's file, so a
+ * terminal this session relays to with `hc send` can read the human answers
+ * behind the relay (`#lib/test-pace/relay-evidence.ts`).
  */
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
+import { SESSION_LABEL } from '#lib/hc-relay.ts'
 import {
 	BASH_JOBS_EVENT,
 	BASH_JOBS_VERSION,
@@ -104,8 +109,13 @@ export default function herdrStatus(pi: ExtensionAPI): void {
 		void label(WAITING_LABEL, pendingWork(pi))
 	})
 	registerSessionTitle(pi, title => label(TITLE_LABEL, title))
+	pi.on('session_start', (_event, ctx) => {
+		if (ctx.hasUI)
+			void label(SESSION_LABEL, ctx.sessionManager.getSessionFile() ?? '')
+	})
 	pi.on('session_shutdown', () => {
 		void label(WAITING_LABEL, '')
 		void label(TITLE_LABEL, '')
+		void label(SESSION_LABEL, '')
 	})
 }

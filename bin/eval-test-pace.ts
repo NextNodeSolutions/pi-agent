@@ -8,13 +8,13 @@ import {
 	PACE_CONFIDENCE,
 } from '../extensions/lib/test-pace/decision.ts'
 import {
-	classifyTestPermission,
+	classifyConsent,
 	PERMISSION_CONFIDENCE,
 } from '../extensions/lib/test-pace/permission.ts'
-
 import { forbidsTestAuthoring } from '../extensions/lib/test-pace/request.ts'
 
-import { paceCases, permissionCases } from './test-pace-cases.ts'
+import { operationCases, paceCases, permissionCases } from './test-pace-cases.ts'
+import { classifyOperation, OPERATION_CONFIDENCE } from '../extensions/lib/test-pace/operation.ts'
 
 import type { ChoiceResult } from '../extensions/lib/jev/client.ts'
 
@@ -24,7 +24,8 @@ const CONCURRENCY = 4
 const MEDIAN = 0.5
 const P95 = 0.95
 const JSON_INDENT = 2
-const PERMISSION_RANK = ['none', 'new', 'existing']
+/** A missed withdrawal keeps earlier consent alive, so it ranks below none. */
+const PERMISSION_RANK = ['withdraw', 'none', 'new', 'existing']
 
 type Sample = { id: string; request: string; expected: string }
 type Verdict = { actual: string; answer: ChoiceResult | undefined }
@@ -122,7 +123,7 @@ async function calibrate<Case extends Sample>(
 process.stdout.write(
 	`${JSON.stringify({
 		provenance:
-			'Pace cases: paraphrased short human requests from local Pi sessions, September-November 2026, client and product names removed. Permission cases: written for this calibration in the phrasing those sessions use. Agent-labelled expectations, not human-labelled ground truth. No session message copied verbatim.',
+			'Pace cases: paraphrased short human requests from local Pi sessions, September-November 2026, client and product names removed. Permission cases: written for this calibration in the phrasing those sessions use, some as a human reply to an agent question; the consent shapes of November 2026 paraphrase the refused live case. Agent-labelled expectations, not human-labelled ground truth. No session message copied verbatim except the human sentence of case c006, quoted in the request for this change.',
 	})}\n`,
 )
 const pace = await calibrate({
@@ -147,10 +148,24 @@ const permission = await calibrate({
 	labels: PERMISSION_RANK,
 	cases: permissionCases,
 	classify: async sample => {
-		const decision = await classifyTestPermission(sample.request)
-		return { actual: decision.permission, answer: decision.answer }
+		const decision = await classifyConsent({
+			question: sample.question,
+			reply: sample.request,
+		})
+		return { actual: decision.verdict, answer: decision.answer }
 	},
 	grantsTooMuch: (expected, actual) =>
 		PERMISSION_RANK.indexOf(actual) > PERMISSION_RANK.indexOf(expected),
 })
-if (!pace || !permission) process.exitCode = 1
+const operation = await calibrate({
+	name: 'operation',
+	threshold: OPERATION_CONFIDENCE,
+	labels: ['allowed', 'refused'],
+	cases: operationCases,
+	classify: async sample => {
+		const decision = await classifyOperation({ question: sample.question, reply: sample.request }, sample.operation)
+		return { actual: decision.allowed ? 'allowed' : 'refused', answer: decision.answer }
+	},
+	grantsTooMuch: (expected, actual) => expected === 'refused' && actual === 'allowed',
+})
+if (!pace || !permission || !operation) process.exitCode = 1
