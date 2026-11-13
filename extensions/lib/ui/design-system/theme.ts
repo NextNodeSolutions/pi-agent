@@ -42,6 +42,8 @@ export const UI_COLOR = {
 	),
 	/** Skill callout ink: a pink identity that no other surface uses. */
 	skill: PI_PALETTE.pink,
+	/** Thread titles named in answers: no inline code, code block, link or heading ink uses it. */
+	agent: PI_PALETTE.agent,
 } as const
 
 /** Skill callout band background at a 0..1 rose ratio: 0 is transparent, 1 is full pink. */
