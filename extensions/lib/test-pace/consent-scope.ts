@@ -17,20 +17,18 @@ type Named = { path: string; isDirectory: boolean }
 
 function namedPath(token: string): Named | undefined {
 	const bare = token.replace(BOLD, '$1').replace(TRAILING, '')
-	if (
-		bare.includes('://') ||
-		(!bare.includes('/') && !(bare.includes('.') && isTestPath(bare)))
-	)
-		return undefined
-	if (!bare.includes('/'))
+	const isTestFileName =
+		!bare.includes('/') && bare.includes('.') && isTestPath(bare)
+	if (isTestFileName)
 		return { path: `${ANY_DIRECTORY}${bare}`, isDirectory: true }
+	if (bare.includes('://') || !bare.includes('/')) return undefined
 	const expanded = bare.startsWith(HOME)
 		? join(homedir(), bare.slice(HOME.length))
 		: bare
-	const wildcard = expanded.search(WILDCARD)
-	if (wildcard < 0)
-		return { path: expanded, isDirectory: expanded.endsWith('/') }
-	return { path: expanded, isDirectory: true }
+	return {
+		path: expanded,
+		isDirectory: WILDCARD.test(expanded) || expanded.endsWith('/'),
+	}
 }
 
 async function isExistingDirectory(path: string): Promise<boolean> {
