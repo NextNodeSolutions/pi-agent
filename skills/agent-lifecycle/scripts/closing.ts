@@ -24,11 +24,6 @@ export type ClosingScene = {
 
 export type Closing = { closed: ClosedEvent[]; refusal: string | null }
 
-export type Closings = {
-	closed: ClosedEvent[]
-	refusals: Record<string, string>
-}
-
 const refused = (refusal: string): Closing => ({ closed: [], refusal })
 
 function endsWith(owner: string, terminals: readonly Terminal[]): Terminal[] {
@@ -144,7 +139,7 @@ async function prepared(
 	}
 }
 
-async function closeTerminal(
+export async function closeTerminal(
 	candidate: Candidate,
 	scene: ClosingScene,
 ): Promise<Closing> {
@@ -153,63 +148,47 @@ async function closeTerminal(
 		return refused('it changed after the sweep looked at it')
 	const preparation = await prepared(candidate, scene)
 	if (preparation.refusal !== null) return preparation
+	preparation.closed.forEach(appendEvent)
+	return endRecorded(preparation.closed, terminal, scene)
+}
+
+async function stillRunning(
+	events: readonly ClosedEvent[],
+): Promise<ClosedEvent[]> {
+	const running = await Promise.all(
+		events.map(async event => (await terminalAt(event.address)) !== null),
+	)
+	return events.filter((_event, index) => running[index])
+}
+
+// The journal holds every resume recipe before the kill, so a crash after it loses none; a terminal a failed kill left running is reopened as itself, which keeps it the conversation's one process.
+async function endRecorded(
+	events: readonly ClosedEvent[],
+	terminal: Terminal,
+	scene: ClosingScene,
+): Promise<Closing> {
 	const owner = scene.terminals.find(
 		other => other.address === terminal.parent,
 	)
-	await endTerminal(terminal.address, owner?.address ?? null)
-	preparation.closed.forEach(appendEvent)
-	return preparation
-}
-
-async function closeOne(
-	candidate: Candidate,
-	scene: ClosingScene,
-): Promise<Closing> {
 	try {
-		return await closeTerminal(candidate, scene)
+		await endTerminal(terminal.address, owner?.address ?? null)
+		return { closed: [...events], refusal: null }
 	} catch (error) {
-		const refusal = error instanceof Error ? error.message : String(error)
-		return { closed: [], refusal }
-	}
-}
-
-// One failed close must not stop the others, so each candidate's failure becomes its own refusal; a candidate an earlier close already ended is skipped.
-export function closeEach(
-	confirmed: readonly Candidate[],
-	scene: ClosingScene,
-): Promise<Closings> {
-	return confirmed.reduce<Promise<Closings>>(
-		async (earlier, candidate) => {
-			const done = await earlier
-			const { address } = candidate.verdict.terminal
-			if (done.closed.some(event => event.address === address))
-				return done
-			const { closed, refusal } = await closeOne(candidate, scene)
-			return {
-				closed: [...done.closed, ...closed],
-				refusals:
-					refusal === null
-						? done.refusals
-						: { ...done.refusals, [address]: refusal },
-			}
-		},
-		Promise.resolve({ closed: [], refusals: {} }),
-	)
-}
-
-export function withRefusals(
-	verdicts: readonly Verdict[],
-	refusals: Closings['refusals'],
-): Verdict[] {
-	return verdicts.map(verdict => {
-		const refusal = refusals[verdict.terminal.address]
-		if (refusal === undefined) return verdict
+		const survivors = await stillRunning(events)
+		survivors.forEach(({ address }) =>
+			appendEvent({
+				event: 'reopened',
+				atMs: Date.now(),
+				address,
+				as: address,
+			}),
+		)
+		const detail = error instanceof Error ? error.message : String(error)
 		return {
-			...verdict,
-			action: 'keep',
-			rule: 'refused',
-			reason: `the last check before closing objected: ${refusal}`,
-			closesAtMs: null,
+			closed: events.filter(event => !survivors.includes(event)),
+			refusal: survivors.some(event => event.address === terminal.address)
+				? `ending it failed: ${detail}`
+				: null,
 		}
-	})
+	}
 }

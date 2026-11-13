@@ -42,10 +42,9 @@ async function stillOpen(
 	closed: ClosedEvent,
 	events: readonly JournalEvent[],
 ): Promise<string | null> {
-	const reopened = reopenAfter(events, closed)
-	if (!reopened) return null
-	if ((await terminalAt(reopened.as)) === null) return null
-	return reopened.as
+	const current = reopenAfter(events, closed)?.as ?? closed.address
+	if ((await terminalAt(current)) === null) return null
+	return current
 }
 
 function restoredLabels(

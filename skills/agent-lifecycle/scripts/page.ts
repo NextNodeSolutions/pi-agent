@@ -32,6 +32,7 @@ function nextStep(
 	events: readonly JournalEvent[],
 ): string {
 	const reopened = reopenAfter(events, closed)
+	if (reopened?.as === closed.address) return 'still open: ending it failed'
 	if (reopened) return `reopened as ${reopened.as}`
 	return closed.recipe
 		? `\`${reopenCommand(closed.address)}\``
