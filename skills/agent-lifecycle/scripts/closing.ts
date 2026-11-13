@@ -86,7 +86,7 @@ async function dependentEvent(
 		{
 			kind,
 			reason: `closed with ${titleOf(owner)}, which started it`,
-			recipe: await resumeRecipe(dependent, scene.policy),
+			recipe: await resumeRecipe(dependent),
 			trace: null,
 		},
 		scene,

@@ -1,13 +1,9 @@
 import { mkdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
-import { readEvents } from './journal.ts'
-import {
-	readMemory,
-	stateDirectory,
-	triedWorktrees,
-	writeAtomically,
-} from './memory.ts'
+import { readEvents, reopenAfter } from './journal.ts'
+import { readMemory, triedWorktrees } from './memory.ts'
+import { stateDirectory, writeAtomically } from './storage.ts'
 import { reopenCommand } from './trace.ts'
 
 import type { ClosedEvent, JournalEvent } from './journal.ts'
@@ -35,13 +31,8 @@ function nextStep(
 	closed: ClosedEvent,
 	events: readonly JournalEvent[],
 ): string {
-	const reopened = events.findLast(
-		event =>
-			event.event === 'reopened' &&
-			event.address === closed.address &&
-			event.atMs >= closed.atMs,
-	)
-	if (reopened?.event === 'reopened') return `reopened as ${reopened.as}`
+	const reopened = reopenAfter(events, closed)
+	if (reopened) return `reopened as ${reopened.as}`
 	return closed.recipe
 		? `\`${reopenCommand(closed.address)}\``
 		: `nothing to resume; \`hc read ${closed.address}\` prints its last screen`

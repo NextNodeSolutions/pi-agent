@@ -4,7 +4,8 @@ import { join } from 'node:path'
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
-import { readOrNull, stateDirectory } from './memory.ts'
+import { RecipeSchema } from './resume.ts'
+import { readOrNull, stateDirectory } from './storage.ts'
 
 import type { Static } from 'typebox'
 
@@ -25,10 +26,7 @@ const ClosedSchema = Type.Object({
 	parent: nullableString,
 	owner: nullableString,
 	labels: Type.Record(Type.String(), Type.String()),
-	recipe: Type.Union([
-		Type.Object({ cwd: Type.String(), argv: Type.Array(Type.String()) }),
-		Type.Null(),
-	]),
+	recipe: Type.Union([RecipeSchema, Type.Null()]),
 	trace: nullableString,
 })
 
@@ -53,7 +51,23 @@ const EventSchema = Type.Union([
 ])
 
 export type ClosedEvent = Static<typeof ClosedSchema>
+export type ReopenedEvent = Static<typeof ReopenedSchema>
 export type JournalEvent = Static<typeof EventSchema>
+
+/** The last reopen of the conversation a close ended, or null while it was never reopened. */
+export function reopenAfter(
+	events: readonly JournalEvent[],
+	closed: ClosedEvent,
+): ReopenedEvent | null {
+	const reopened = events.findLast(
+		event =>
+			event.event === 'reopened' &&
+			event.address === closed.address &&
+			event.atMs >= closed.atMs,
+	)
+	if (reopened?.event !== 'reopened') return null
+	return reopened
+}
 
 const journalPath = (): string => join(stateDirectory(), JOURNAL_FILE)
 

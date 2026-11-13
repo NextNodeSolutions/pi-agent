@@ -6,7 +6,7 @@ import { promisify } from 'node:util'
 import { GOAL_LABEL, WAITING_LABEL } from '#lib/ui/herdr-labels.ts'
 
 import { labelTerminal, startTerminal, terminalAt } from './hc.ts'
-import { appendEvent, readEvents } from './journal.ts'
+import { appendEvent, readEvents, reopenAfter } from './journal.ts'
 import { loadPolicy } from './policy.ts'
 import { TAB_LABEL } from './terminal.ts'
 
@@ -42,13 +42,8 @@ async function stillOpen(
 	closed: ClosedEvent,
 	events: readonly JournalEvent[],
 ): Promise<string | null> {
-	const reopened = events.findLast(
-		event =>
-			event.event === 'reopened' &&
-			event.address === closed.address &&
-			event.atMs >= closed.atMs,
-	)
-	if (reopened?.event !== 'reopened') return null
+	const reopened = reopenAfter(events, closed)
+	if (!reopened) return null
 	if ((await terminalAt(reopened.as)) === null) return null
 	return reopened.as
 }

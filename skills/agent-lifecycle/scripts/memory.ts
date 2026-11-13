@@ -1,9 +1,10 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
+
+import { readOrNull, stateDirectory, writeAtomically } from './storage.ts'
 
 import type { Static } from 'typebox'
 
@@ -37,33 +38,6 @@ const EMPTY: Memory = {
 }
 export const NOT_TRIED = 0
 const MEMORY_FILE = 'memory.json'
-const STATE_FOLDER = 'agent-lifecycle'
-
-export function stateDirectory(): string {
-	const base =
-		process.env['XDG_STATE_HOME'] ?? join(homedir(), '.local', 'state')
-	return join(base, STATE_FOLDER)
-}
-
-export function writeAtomically(path: string, text: string): void {
-	const draft = `${path}.${process.pid}.tmp`
-	writeFileSync(draft, text)
-	renameSync(draft, path)
-}
-
-export function readOrNull(path: string): string | null {
-	try {
-		return readFileSync(path, 'utf8')
-	} catch (error) {
-		if (
-			error instanceof Error &&
-			'code' in error &&
-			error.code === 'ENOENT'
-		)
-			return null
-		throw error
-	}
-}
 
 export function readMemory(): Memory {
 	const text = readOrNull(join(stateDirectory(), MEMORY_FILE))

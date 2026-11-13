@@ -28,10 +28,12 @@ type Outcome = (typeof SETTLED)[number] | 'skipped'
 export type Removal = { folder: string; detail: string }
 type Attempt = Removal & { outcome: Outcome }
 
+// Without its owner there is nothing to compare against, so a worktree seen first while orphaned is never newly collected.
 async function ownWorktree(owned: Subject): Promise<string | null> {
+	if (owned.owner === null) return null
 	const checkout = await checkoutOf(owned.terminal.cwd)
 	if (!checkout?.isLinked) return null
-	const ownerCheckout = owned.owner ? await checkoutOf(owned.owner.cwd) : null
+	const ownerCheckout = await checkoutOf(owned.owner.cwd)
 	if (checkout.root === ownerCheckout?.root) return null
 	return checkout.root
 }

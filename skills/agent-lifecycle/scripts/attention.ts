@@ -31,6 +31,13 @@ const SpacesSchema = Type.Object({
 	),
 })
 
+function refusal(detail: string, cause?: unknown): Error {
+	return new Error(
+		`Cannot tell which terminals the person is on: ${detail} Nothing was closed.`,
+		{ cause },
+	)
+}
+
 async function ask<Schema extends TSchema>(
 	command: string,
 	schema: Schema,
@@ -43,13 +50,14 @@ async function ask<Schema extends TSchema>(
 		return Value.Parse(schema, parsed)
 	} catch (error) {
 		const detail = error instanceof Error ? error.message : String(error)
-		throw new Error(
-			`Cannot tell which terminals the person is on: herdr-app ${command} failed (${detail}). Nothing was closed. Pass --no-window only for a core no Herdr window shows.`,
-			{ cause: error },
+		throw refusal(
+			`herdr-app ${command} failed (${detail}). Pass --no-window only for a core no Herdr window shows.`,
+			error,
 		)
 	}
 }
 
+// The two answers can disagree when a tab opens or closes between them, and a tab that vanished from the listing must not read as no pane at all.
 async function onScreen(): Promise<string[]> {
 	const [status, listing] = await Promise.all([
 		ask('status', StatusSchema),
@@ -58,6 +66,10 @@ async function onScreen(): Promise<string[]> {
 	const shownTab = listing.spaces
 		.flatMap(space => space.tabs)
 		.find(tab => tab.id === status.tab)
+	if (status.tab !== null && !shownTab)
+		throw refusal(
+			`herdr-app status names tab ${status.tab}, which herdr-app ls does not list.`,
+		)
 	const inTab = shownTab?.terminals.map(pane => pane.terminal) ?? []
 	return status.agent === null ? inTab : [status.agent, ...inTab]
 }
