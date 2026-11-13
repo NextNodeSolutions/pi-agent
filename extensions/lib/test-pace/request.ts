@@ -1,8 +1,12 @@
+import { Type } from 'typebox'
+import { Value } from 'typebox/value'
+
 import { readRelay } from '#lib/hc-relay.ts'
 
 import { redactSecrets } from '../../../security/secret-redact.ts'
 
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
+import type { Static } from 'typebox'
 
 export const PACE_REQUEST_ENTRY = 'test-pace-request-v1'
 export const PACE_GRANT_ENTRY = 'test-pace-grant-v1'
@@ -10,33 +14,39 @@ export const PACE_CREATED_ENTRY = 'test-pace-created-v1'
 export const PACE_DECISION_ENTRY = 'test-pace-decision-v1'
 
 /** `delegated`: a parent agent wrote it for a subagent. `relay`: another terminal typed it with `hc send`. */
-export type RequestOrigin =
-	| { kind: 'human' }
-	| { kind: 'delegated' }
-	| { kind: 'relay'; sender: string | undefined }
+const ORIGIN_SCHEMA = Type.Union([
+	Type.Object({ kind: Type.Literal('human') }),
+	Type.Object({ kind: Type.Literal('delegated') }),
+	Type.Object({
+		kind: Type.Literal('relay'),
+		sender: Type.Optional(Type.String()),
+	}),
+])
+const REQUEST_SCHEMA = Type.Object({
+	id: Type.String(),
+	text: Type.String(),
+	origin: ORIGIN_SCHEMA,
+})
 
-export type PaceRequest = { id: string; text: string; origin: RequestOrigin }
+export type RequestOrigin = Static<typeof ORIGIN_SCHEMA>
+export type PaceRequest = Static<typeof REQUEST_SCHEMA>
 
-function readOrigin(candidate: unknown): RequestOrigin | undefined {
-	const kind: unknown = Reflect.get(Object(candidate), 'kind')
-	if (kind === 'human' || kind === 'delegated') return { kind }
-	if (kind !== 'relay') return undefined
-	const sender: unknown = Reflect.get(Object(candidate), 'sender')
-	return { kind, sender: typeof sender === 'string' ? sender : undefined }
+export function relayOrigin(sender: string | undefined): RequestOrigin {
+	return sender ? { kind: 'relay', sender } : { kind: 'relay' }
 }
 
 export function readPaceRequest(candidate: unknown): PaceRequest | undefined {
-	const id: unknown = Reflect.get(Object(candidate), 'id')
-	const text: unknown = Reflect.get(Object(candidate), 'text')
-	const origin = readOrigin(Reflect.get(Object(candidate), 'origin'))
-	if (typeof id !== 'string' || typeof text !== 'string' || !origin)
-		return undefined
-	return { id, text, origin }
+	if (!Value.Check(REQUEST_SCHEMA, candidate)) return undefined
+	const origin =
+		candidate.origin.kind === 'relay'
+			? relayOrigin(candidate.origin.sender)
+			: { kind: candidate.origin.kind }
+	return { id: candidate.id, text: candidate.text, origin }
 }
 
 export function typedOrigin(typed: string): RequestOrigin {
 	const relay = readRelay(typed)
-	return relay ? { kind: 'relay', sender: relay.sender } : { kind: 'human' }
+	return relay ? relayOrigin(relay.sender) : { kind: 'human' }
 }
 
 export function currentPaceRequest(

@@ -1,3 +1,6 @@
+import { Type } from 'typebox'
+import { Value } from 'typebox/value'
+
 import { consentCovers, consentScope } from './consent-scope.ts'
 import { classifyConsent, isConsentVerdict, isGrant } from './permission.ts'
 import { relayedEvidence } from './relay-evidence.ts'
@@ -9,6 +12,15 @@ export const PACE_CONSENT_ENTRY = 'test-pace-consent-v1'
 const JUDGE_CONCURRENCY = 6
 const TEST_TOPIC = /test|spec|fixture|suite|e2e|tdd/iu
 
+const JUDGMENT_SCHEMA = Type.Object({
+	evidenceId: Type.String(),
+	at: Type.String(),
+	verdict: Type.String(),
+	scope: Type.Array(Type.String()),
+	question: Type.String(),
+	reply: Type.String(),
+})
+
 export type Judgment = {
 	evidenceId: string
 	at: string
@@ -17,6 +29,7 @@ export type Judgment = {
 	question: string
 	reply: string
 }
+
 export type EditKind = 'new' | 'existing'
 export type ConsentKind = EditKind | 'none'
 /** `answered`: Jev decided, so the judgment can be recorded instead of asked again. */
@@ -114,21 +127,9 @@ export function consentKind(
 }
 
 function readJudgment(saved: unknown): Judgment | undefined {
-	const evidenceId: unknown = Reflect.get(Object(saved), 'evidenceId')
-	const at: unknown = Reflect.get(Object(saved), 'at')
-	const verdict: unknown = Reflect.get(Object(saved), 'verdict')
-	const scope: unknown = Reflect.get(Object(saved), 'scope')
-	const question: unknown = Reflect.get(Object(saved), 'question')
-	const reply: unknown = Reflect.get(Object(saved), 'reply')
-	const valid =
-		typeof evidenceId === 'string' &&
-		typeof at === 'string' &&
-		typeof question === 'string' &&
-		typeof reply === 'string' &&
-		isConsentVerdict(verdict) &&
-		Array.isArray(scope) &&
-		scope.every(path => typeof path === 'string')
-	if (!valid) return undefined
+	if (!Value.Check(JUDGMENT_SCHEMA, saved)) return undefined
+	const { evidenceId, at, verdict, scope, question, reply } = saved
+	if (!isConsentVerdict(verdict)) return undefined
 	return { evidenceId, at, verdict, scope, question, reply }
 }
 

@@ -84,6 +84,11 @@ export function requestRecords(
 	}
 }
 
+function savedRequest(entry: unknown): PaceRequest | undefined {
+	if (field(entry, 'customType') !== PACE_REQUEST_ENTRY) return undefined
+	return readPaceRequest(field(entry, 'data'))
+}
+
 export function sessionRecords(entries: readonly unknown[]): SessionRecords {
 	const records: SessionRecords = { evidence: [], relays: [] }
 	let question = ''
@@ -94,10 +99,7 @@ export function sessionRecords(entries: readonly unknown[]): SessionRecords {
 		if (role === 'assistant') question = messageText(message) || question
 		if (role === 'toolResult')
 			records.evidence.push(...questionnaireEvidence(message, at))
-		const request =
-			field(entry, 'customType') === PACE_REQUEST_ENTRY
-				? readPaceRequest(field(entry, 'data'))
-				: undefined
+		const request = savedRequest(entry)
 		if (!request) continue
 		const found = requestRecords(request, at, question)
 		records.evidence.push(...found.evidence)

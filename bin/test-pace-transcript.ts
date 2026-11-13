@@ -109,18 +109,29 @@ function typedRecords(
 	)
 }
 
+function claudeEntryRecords(
+	entry: object,
+	askIds: ReadonlySet<string>,
+	id: string,
+	at: string,
+	question: string,
+): SessionRecords {
+	const asked = answersAsk(entry, askIds) ? askAnswers(entry, id, at) : []
+	const found = typedRecords(entry, id, at, question)
+	return { evidence: [...asked, ...found.evidence], relays: found.relays }
+}
+
 function claudeRecords(entries: readonly object[]): SessionRecords {
 	const askIds = askToolIds(entries)
 	const records: SessionRecords = { evidence: [], relays: [] }
 	let question = ''
-	for (const entry of entries.filter(item => !field(item, 'isSidechain'))) {
+	for (const entry of entries) {
+		if (field(entry, 'isSidechain')) continue
 		const at = String(field(entry, 'timestamp') ?? '')
 		const id = String(field(entry, 'uuid') ?? '')
 		if (field(entry, 'type') === 'assistant')
 			question = messageText(field(entry, 'message')) || question
-		if (answersAsk(entry, askIds))
-			records.evidence.push(...askAnswers(entry, id, at))
-		const found = typedRecords(entry, id, at, question)
+		const found = claudeEntryRecords(entry, askIds, id, at, question)
 		records.evidence.push(...found.evidence)
 		records.relays.push(...found.relays)
 	}
