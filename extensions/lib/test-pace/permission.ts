@@ -1,7 +1,7 @@
 import { askChoice, isJevConfigured } from '#lib/jev/client.ts'
 
 import { PACE_TIMEOUT_MS } from './decision.ts'
-import { forbidsTestAuthoring, safePaceText } from './request.ts'
+import { safePaceText } from './request.ts'
 
 import type { ChoiceQuestion, ChoiceResult } from '#lib/jev/client.ts'
 
@@ -48,7 +48,6 @@ export async function classifyConsent(
 	signal?: AbortSignal,
 ): Promise<ConsentDecision> {
 	if (!exchange.reply.trim()) return { verdict: 'none' }
-	if (forbidsTestAuthoring(exchange.reply)) return { verdict: 'withdraw' }
 	if (!isJevConfigured()) return { verdict: 'none' }
 	try {
 		const answer = await askChoice(
