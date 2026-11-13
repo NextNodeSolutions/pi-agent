@@ -141,9 +141,15 @@ export async function consentScope(
 	isCovered: PathJudge,
 	texts: readonly string[],
 ): Promise<string[]> {
+	const judged = new Map<string, Promise<boolean>>()
+	const judgeOnce: PathJudge = written => {
+		const pending = judged.get(written) ?? isCovered(written)
+		judged.set(written, pending)
+		return pending
+	}
 	return texts.toReversed().reduce<Promise<string[]>>(async (found, text) => {
 		const newer = await found
-		return newer.length ? newer : coveredPaths(root, isCovered, text)
+		return newer.length ? newer : coveredPaths(root, judgeOnce, text)
 	}, Promise.resolve([]))
 }
 
