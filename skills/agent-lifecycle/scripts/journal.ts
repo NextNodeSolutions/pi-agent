@@ -76,13 +76,25 @@ export function appendEvent(event: JournalEvent): void {
 	appendFileSync(journalPath(), `${JSON.stringify(event)}\n`)
 }
 
+function parsedEvent(line: string): JournalEvent | null {
+	try {
+		const parsed: unknown = JSON.parse(line)
+		return Value.Parse(EventSchema, parsed)
+	} catch {
+		return null
+	}
+}
+
+// A torn or hand-edited line costs only its own event: the rest of the journal still answers reopen and the closed index.
 export function readEvents(): JournalEvent[] {
-	const text = readOrNull(journalPath()) ?? ''
-	return text
-		.split('\n')
-		.filter(line => line.trim() !== '')
-		.map(line => {
-			const parsed: unknown = JSON.parse(line)
-			return Value.Parse(EventSchema, parsed)
-		})
+	const lines = (readOrNull(journalPath()) ?? '').split('\n')
+	const read = lines.flatMap((line, index) =>
+		line.trim() ? [{ number: index + 1, event: parsedEvent(line) }] : [],
+	)
+	const unreadable = read.filter(line => !line.event)
+	if (unreadable.length)
+		process.stderr.write(
+			`agent-lifecycle: skipped unreadable line ${unreadable.map(line => line.number).join(', ')} of ${journalPath()}\n`,
+		)
+	return read.flatMap(line => (line.event ? [line.event] : []))
 }
