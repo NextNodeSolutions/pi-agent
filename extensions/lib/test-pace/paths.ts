@@ -36,14 +36,13 @@ export function isTestPathWithin(root: string, path: string): boolean {
 	return isTestPath(isAbsolute(path) ? relative(root, path) : path)
 }
 
-export function coversPath(roots: readonly string[], path: string): boolean {
-	return roots.some(root => path === root || path.startsWith(`${root}${sep}`))
+export function coversPath(root: string, path: string): boolean {
+	return path === root || path.startsWith(`${root}${sep}`)
 }
 
 export async function targetPaths(
 	cwd: string,
 	paths: readonly string[],
-	scope: 'tests' | 'permission' = 'tests',
 ): Promise<string[]> {
 	if (!paths.length) throw new Error('Name at least one target path.')
 	const root = await physicalPath(cwd)
@@ -53,11 +52,9 @@ export async function targetPaths(
 	return [...new Set(canonical)].map(path => {
 		const local = relative(root, path)
 		const outside = local.startsWith('..') || isAbsolute(local)
-		if (outside || (scope === 'tests' && !isTestPath(local)))
+		if (outside || !isTestPath(local))
 			throw new Error(
-				scope === 'tests'
-					? 'Target must be an exact test path inside the working directory.'
-					: 'Permission targets must be files or directories inside the working directory.',
+				'Target must be an exact test path inside the working directory.',
 			)
 		return path
 	})
@@ -127,11 +124,11 @@ export async function ineligibleTarget(
 ): Promise<string | undefined> {
 	const local = relative(root, path)
 	if (!TEST_CASE.test(local) || RESTRICTED_SETUP.test(local))
-		return 'Only new test cases qualify. Test setup, helpers and fixtures need explicit human authorization.'
+		return 'Only new test cases qualify. Test setup, helpers and fixtures need consent from the human.'
 	if (END_TO_END_PATH.test(local))
-		return 'End-to-end tests require explicit human authorization.'
+		return "End-to-end tests need the human's consent."
 	if (!createdPaths.includes(path) && (await runtimeFor(path).exists(path)))
-		return 'An existing test requires explicit human authorization to change.'
+		return "Changing an existing test needs the human's consent."
 	if (!(await packageRunner(path)))
 		return 'The target package has no recognized existing test runner.'
 	return undefined

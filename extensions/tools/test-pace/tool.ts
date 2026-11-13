@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import { classifyTestPace } from '#lib/test-pace/decision.ts'
+import { safePaceText } from '#lib/test-pace/pace-text.ts'
 import { ineligibleTarget, targetPaths } from '#lib/test-pace/paths.ts'
 import { physicalPath } from '#lib/test-pace/physical-path.ts'
 import {
@@ -8,7 +9,6 @@ import {
 	currentPaceRequest,
 	PACE_DECISION_ENTRY,
 	PACE_GRANT_ENTRY,
-	safePaceText,
 } from '#lib/test-pace/request.ts'
 
 import { testPaceParameters } from './schema.ts'
@@ -108,7 +108,7 @@ export function registerTestPaceTool(pi: ExtensionAPI): void {
 		name: 'test_pace',
 		label: 'test pace',
 		description:
-			'Before adding a bug or logic test, call with its named production defect or requirement and exact new test paths. Reads the human request itself. Free checks require an existing package runner and new unit/integration test files. One Jev verdict grants only those paths in this request. none means proceed without tests or use explicit human authorization. Load coding-tdd for bug or logic. Existing tests, fixtures, runner/config changes and end-to-end tests need explicit human permission.',
+			'Before adding a bug or logic test, call with its named production defect or requirement and exact new test paths. Reads the human request itself. Free checks require an existing package runner and new unit/integration test files. One Jev verdict grants only those paths in this request. none means proceed without tests or ask the human. Load coding-tdd for bug or logic. Existing tests, fixtures, runner/config changes and end-to-end tests need human consent: ask in chat or with ask_user_question naming the paths and kind of edit; their yes is enough.',
 		parameters: testPaceParameters,
 		execute: (...args) => executePace(pi, args),
 	})

@@ -1,41 +1,45 @@
-import { redactSecrets } from '../../../security/secret-redact.ts'
+import { Type } from 'typebox'
+import { Value } from 'typebox/value'
+
+import { readRelay } from '#lib/hc-relay.ts'
 
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
+import type { Static } from 'typebox'
 
 export const PACE_REQUEST_ENTRY = 'test-pace-request-v1'
 export const PACE_GRANT_ENTRY = 'test-pace-grant-v1'
 export const PACE_CREATED_ENTRY = 'test-pace-created-v1'
 export const PACE_DECISION_ENTRY = 'test-pace-decision-v1'
-export const PACE_PERMISSION_ENTRY = 'test-pace-permission-v1'
 
-export type PaceRequest = {
-	id: string
-	text: string
-	/** Files or directories the human named with /test-pace allow. */
-	allowedPaths: string[]
-	/** Written by a parent agent for a subagent, so it carries no human permission. */
-	delegated: boolean
-}
+/** `delegated`: a parent agent wrote it for a subagent. `relay`: another terminal typed it with `hc send`. */
+const ORIGIN_SCHEMA = Type.Union([
+	Type.Object({ kind: Type.Literal('human') }),
+	Type.Object({ kind: Type.Literal('delegated') }),
+	Type.Object({
+		kind: Type.Literal('relay'),
+		sender: Type.Optional(Type.String()),
+	}),
+])
+const REQUEST_SCHEMA = Type.Object({
+	id: Type.String(),
+	text: Type.String(),
+	origin: ORIGIN_SCHEMA,
+})
+
+type RequestOrigin = Static<typeof ORIGIN_SCHEMA>
+export type PaceRequest = Static<typeof REQUEST_SCHEMA>
 
 export function readPaceRequest(candidate: unknown): PaceRequest | undefined {
-	if (!candidate || typeof candidate !== 'object') return undefined
-	const id: unknown = Reflect.get(candidate, 'id')
-	const text: unknown = Reflect.get(candidate, 'text')
-	const paths: unknown = Reflect.get(candidate, 'allowedPaths')
-	if (
-		typeof id !== 'string' ||
-		typeof text !== 'string' ||
-		!Array.isArray(paths)
-	)
-		return undefined
-	if (!paths.every((path: unknown) => typeof path === 'string'))
-		return undefined
-	return {
-		id,
-		text,
-		allowedPaths: paths,
-		delegated: Reflect.get(candidate, 'delegated') === true,
-	}
+	if (!Value.Check(REQUEST_SCHEMA, candidate)) return undefined
+	return candidate
+}
+
+export function typedOrigin(typed: string): RequestOrigin {
+	const relay = readRelay(typed)
+	if (!relay) return { kind: 'human' }
+	return relay.sender
+		? { kind: 'relay', sender: relay.sender }
+		: { kind: 'relay' }
 }
 
 export function currentPaceRequest(
@@ -78,40 +82,6 @@ export function grantedTestPaths(
 	requestId: string,
 ): string[] {
 	return recordedPaths(entries, PACE_GRANT_ENTRY, requestId)
-}
-
-export function recordedPermission(
-	entries: readonly SessionEntry[],
-	requestId: string,
-): 'new' | 'existing' | 'none' | undefined {
-	const saved = entries.findLast(
-		entry =>
-			entry.type === 'custom' &&
-			entry.customType === PACE_PERMISSION_ENTRY &&
-			Reflect.get(Object(entry.data), 'requestId') === requestId,
-	)
-	if (saved?.type !== 'custom') return undefined
-	const permission: unknown = Reflect.get(Object(saved.data), 'permission')
-	if (
-		permission === 'new' ||
-		permission === 'existing' ||
-		permission === 'none'
-	)
-		return permission
-	return undefined
-}
-
-export function safePaceText(text: string): string {
-	return redactSecrets(text)
-		.replace(
-			/<file\b[^>]*>[\s\S]*?(?:<\/file>|$)/gi,
-			'[Attached file omitted]',
-		)
-		.replace(/```[\s\S]*?(?:```|$)/g, '[Code omitted]')
-		.replace(
-			/\b(?:password|token|secret|api[_ -]?key|mot de passe)\s*[:=]\s*\S+/gi,
-			'[REDACTED]',
-		)
 }
 
 export function forbidsTestAuthoring(text: string): boolean {

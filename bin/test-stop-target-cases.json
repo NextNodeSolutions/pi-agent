@@ -1,0 +1,22 @@
+[
+	{"id":"s001","thread":"t12b \"Cart totals rounding fix\"","question":"Should I also update the tests for the retry change?","request":"arrête, plus aucun edit de tests","expected":"here"},
+	{"id":"s002","thread":"t12b \"Cart totals rounding fix\"","question":"","request":"stop touching the tests, everywhere","expected":"here"},
+	{"id":"s003","thread":"t12b \"Cart totals rounding fix\"","question":"t12b wants to rewrite tests/cart.test.ts. Shall I relay your ok?","request":"non, pas de tests pour t12b","expected":"here"},
+	{"id":"s004","thread":"t12b \"Cart totals rounding fix\"","question":"The cart thread asks to delete tests/legacy/. Relay a yes?","request":"no, leave the tests alone","expected":"here"},
+	{"id":"s005","thread":"t12b \"Cart totals rounding fix\"","question":"Shall I add tests?","request":"no tests for this one, just ship the fix","expected":"here"},
+	{"id":"s006","thread":"t12b \"Cart totals rounding fix\"","question":"I am reviewing the logs of every thread. Anything else?","request":"plus de modif de tests nulle part tant que je n'ai pas relu","expected":"here"},
+	{"id":"s007","thread":"t12b \"Cart totals rounding fix\"","question":"Pull request 31 (docs) is ready. Do you want tests added before merging?","request":"no tests for the docs PR","expected":"elsewhere"},
+	{"id":"s008","thread":"t20a \"Docs: rewrite README for pull request 31\"","question":"Pull request 31 (docs) is ready. Do you want tests added before merging?","request":"no tests for the docs PR","expected":"here"},
+	{"id":"s009","thread":"t12b \"Cart totals rounding fix\"","question":"The Accor thread asks to update tests/booking.test.ts. Relay a yes?","request":"non, pas de tests sur Accor","expected":"elsewhere"},
+	{"id":"s010","thread":"t12b \"Cart totals rounding fix\"","question":"Should t30c rewrite the snapshot tests in packages/ui?","request":"no, t30c must not touch the tests","expected":"elsewhere"},
+	{"id":"s011","thread":"t12b \"Cart totals rounding fix\"","question":"I am about to fix the flaky tests in the billing repository. Go?","request":"don't touch the billing tests","expected":"elsewhere"},
+	{"id":"s012","thread":"t40d \"Billing: flaky invoice tests\"","question":"I am about to fix the flaky tests in the billing repository. Go?","request":"don't touch the billing tests","expected":"here"},
+	{"id":"s013","thread":"t12b \"Cart totals rounding fix\"","question":"Next I will update the tests in src/checkout/ for the new API.","request":"no wait, stop","expected":"here"},
+	{"id":"s014","thread":"t12b \"Cart totals rounding fix\"","question":"For the docs pull request I will skip tests. For t12b, may I relay its request to edit tests/cart.test.ts?","request":"no to both","expected":"here"},
+	{"id":"s015","thread":"t12b \"Cart totals rounding fix\"","question":"","request":"stop editing tests in the pi-agent repo","expected":"here"},
+	{"id":"s016","thread":"t12b \"Cart totals rounding fix\"","question":"Shall I tell t12b it may rewrite tests/cart.test.ts?","request":"no, and no test edits for the Accor thread either","expected":"here"},
+	{"id":"s017","thread":"t12b \"Cart totals rounding fix\"","question":"The README pull request is open. Should I add a doctest?","request":"pas de tests pour la PR README","expected":"elsewhere"},
+	{"id":"s018","thread":"t12b \"Cart totals rounding fix\"","question":"I finished the release notes. Shall I write tests for the changelog script?","request":"no, not for the changelog script","expected":"elsewhere"},
+	{"id":"s019","thread":"t12b \"Cart totals rounding fix\"","question":"Done with my part.","request":"ok, et on arrête les tests pour aujourd'hui","expected":"here"},
+	{"id":"s020","thread":"t12b \"Cart totals rounding fix\"","question":"Shall I relay to the cart thread that it may rewrite its rounding tests?","request":"non","expected":"here"}
+]

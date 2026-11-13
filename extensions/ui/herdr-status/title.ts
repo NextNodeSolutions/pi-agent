@@ -11,6 +11,7 @@
 import { uuidv7 } from '@earendil-works/pi-ai'
 
 import { readCheckpointModel } from '#lib/context-budget/model.ts'
+import { readRelay } from '#lib/hc-relay.ts'
 import { isHumanPrompt, typedPromptText } from '#lib/human-prompt.ts'
 
 import type { Api, Model, UserMessage } from '@earendil-works/pi-ai'
@@ -31,14 +32,12 @@ const MIN_TITLE_CHARS = 2
 const SYSTEM_PROMPT = 'You write terse session titles.'
 const INSTRUCTION =
 	'Name this coding agent session, based only on its first user message. Reply with ONLY the title: max 4 words, no quotes.'
-/** `hc send` relays text as `<hc from="t1">text</hc>`; the title reads the text. */
-const HC_WRAPPER = /^<hc\b[^>]*>([\s\S]*?)<\/hc>\s*$/u
 
 export type PublishTitle = (title: string) => Promise<void>
 
 function normalized(text: string): string {
 	const typed = typedPromptText(text).trim()
-	const relayed = HC_WRAPPER.exec(typed)?.[1] ?? typed
+	const relayed = readRelay(typed)?.text ?? typed
 	return relayed.replace(/\s+/gu, ' ').trim()
 }
 

@@ -1,56 +1,49 @@
 import { basename, resolve } from 'node:path'
 
 import { runtimeFor } from '#lib/runtime/runtime.ts'
-import {
-	coversPath,
-	isTestPathWithin,
-	packageRunner,
-} from '#lib/test-pace/paths.ts'
-import { classifyTestPermission } from '#lib/test-pace/permission.ts'
+import { consentsAllowing } from '#lib/test-pace/consent.ts'
+import { classifyOperation } from '#lib/test-pace/operation.ts'
+import { isTestPathWithin, packageRunner } from '#lib/test-pace/paths.ts'
 import { physicalPath } from '#lib/test-pace/physical-path.ts'
 import {
 	createdTestPaths,
 	currentPaceRequest,
 	grantedTestPaths,
 	PACE_CREATED_ENTRY,
-	PACE_PERMISSION_ENTRY,
-	recordedPermission,
 } from '#lib/test-pace/request.ts'
 import { changesTestSetup, proposedContent } from '#lib/test-pace/setup.ts'
 
 import { shellWrites } from './shell-writes.ts'
+import { consentReader } from './test-consent.ts'
 
 import type {
 	ExtensionAPI,
 	ExtensionContext,
 } from '@earendil-works/pi-coding-agent'
-import type { TestPermission } from '#lib/test-pace/permission.ts'
+import type { Judgment } from '#lib/test-pace/consent.ts'
 import type { PaceRequest } from '#lib/test-pace/request.ts'
 
 const REFUSAL =
-	'Test write refused. For a new bug or logic test, call test_pace with its exact paths and the production bug or requirement it names. Existing tests, fixtures, test configuration and end-to-end tests need the human to ask for them in this request, or to run /test-pace allow <file or directory>. Report an existing test failure instead of changing its expectation.'
+	"Test write refused. For a new bug or logic test, call test_pace with its exact paths and the production bug or requirement it names. Other test edits (existing tests, fixtures, test configuration, end-to-end tests) need the human's consent: ask in chat or with ask_user_question, naming the files or directories and the kind of edit, then retry after their yes; never ask them to type a command. A relayed consent counts only when the human's answer in the sender's Pi session names this terminal by its address or its agent.title label, or the relay quotes it. Report an existing test failure instead of changing its expectation."
 const UNRESOLVED_REFUSAL = `${REFUSAL} This command changes directory or names tests by pattern, so its targets cannot be matched to a permission: use write/edit, or run it from the session directory on exact paths.`
 const GLOB = /[*?[\]{}]/
 
 type Target = { path: string; setup: boolean }
-type Write = { targets: Target[]; resolvable: boolean }
+/** Unknown shell targets cannot prove that a scoped consent covers every effect. */
+type Write = Target[] | 'unresolved'
 type Admission = { requestId: string; paths: string[] }
-type PermissionReader = (
-	ctx: ExtensionContext,
-	request: PaceRequest,
-) => Promise<TestPermission>
 type Check = {
 	ctx: ExtensionContext
-	request: PaceRequest
-	write: Write
-	readPermission: PermissionReader
+	request: PaceRequest | undefined
+	consents: () => Promise<Judgment[]>
+	operation: string
 }
 
 async function fileWrite(
 	tool: string,
 	input: unknown,
 	cwd: string,
-): Promise<Write | undefined> {
+): Promise<Target[] | undefined> {
 	const path: unknown = Reflect.get(Object(input), 'path')
 	if (typeof path !== 'string') return undefined
 	const lexical = resolve(cwd, path)
@@ -62,14 +55,14 @@ async function fileWrite(
 			: ''
 		if (!changesTestSetup(before, proposedContent(tool, input, before)))
 			return undefined
-		return { targets: [{ path: canonical, setup: true }], resolvable: true }
+		return [{ path: canonical, setup: true }]
 	}
 	const isTest =
 		isTestPathWithin(cwd, lexical) ||
 		(canonical !== lexical &&
 			isTestPathWithin(await physicalPath(cwd), canonical))
 	if (!isTest) return undefined
-	return { targets: [{ path: canonical, setup: false }], resolvable: true }
+	return [{ path: canonical, setup: false }]
 }
 
 async function shellWrite(
@@ -92,19 +85,14 @@ async function shellWrite(
 		...present.flat(),
 	]
 	if (!paths.length) return undefined
-	const resolvable =
-		!writes.changesDirectory && !paths.some(path => GLOB.test(path))
-	return {
-		targets: resolvable
-			? await Promise.all(
-					paths.map(async path => ({
-						path: await physicalPath(resolve(cwd, path)),
-						setup: false,
-					})),
-				)
-			: paths.map(path => ({ path, setup: false })),
-		resolvable,
-	}
+	if (writes.changesDirectory || paths.some(path => GLOB.test(path)))
+		return 'unresolved'
+	return Promise.all(
+		paths.map(async path => ({
+			path: await physicalPath(resolve(cwd, path)),
+			setup: false,
+		})),
+	)
 }
 
 async function requestedWrite(
@@ -117,37 +105,6 @@ async function requestedWrite(
 	return undefined
 }
 
-async function readHumanPermission(
-	pi: ExtensionAPI,
-	request: PaceRequest,
-): Promise<TestPermission> {
-	const decision = await classifyTestPermission(request.text)
-	if (decision.answer)
-		pi.appendEntry(PACE_PERMISSION_ENTRY, {
-			requestId: request.id,
-			permission: decision.permission,
-			choice: decision.answer.choice,
-			confidence: decision.answer.confidence,
-		})
-	return decision.permission
-}
-
-function permissionReader(pi: ExtensionAPI): PermissionReader {
-	const reading = new Map<string, Promise<TestPermission>>()
-	return async (ctx, request) => {
-		if (request.delegated) return 'none'
-		const recorded = recordedPermission(
-			ctx.sessionManager.getBranch(),
-			request.id,
-		)
-		if (recorded) return recorded
-		const pending =
-			reading.get(request.id) ?? readHumanPermission(pi, request)
-		reading.set(request.id, pending)
-		return pending
-	}
-}
-
 async function isPresent(
 	ctx: ExtensionContext,
 	path: string,
@@ -158,65 +115,86 @@ async function isPresent(
 	)
 }
 
+async function isGranted(
+	ctx: ExtensionContext,
+	request: PaceRequest | undefined,
+	path: string,
+): Promise<boolean> {
+	if (!request) return false
+	return (
+		grantedTestPaths(ctx.sessionManager.getBranch(), request.id).includes(
+			path,
+		) && Boolean(await packageRunner(path))
+	)
+}
+
 async function admits(check: Check, target: Target): Promise<boolean> {
-	const { ctx, request, write, readPermission } = check
-	if (!write.resolvable)
-		return (await readPermission(ctx, request)) === 'existing'
-	if (coversPath(request.allowedPaths, target.path)) return true
+	const { ctx, request } = check
 	const present = await isPresent(ctx, target.path)
-	const granted =
+	if (
 		!target.setup &&
 		!present &&
-		grantedTestPaths(ctx.sessionManager.getBranch(), request.id).includes(
-			target.path,
-		) &&
-		Boolean(await packageRunner(target.path))
-	if (granted) return true
-	const permission = await readPermission(ctx, request)
-	return (
-		permission === 'existing' ||
-		(permission === 'new' && (target.setup || !present))
+		(await isGranted(ctx, request, target.path))
 	)
+		return true
+	const allowing = consentsAllowing(
+		await check.consents(),
+		target.path,
+		target.setup || !present ? 'new' : 'existing',
+	)
+	const decisions = await Promise.all(
+		allowing.map(consent => classifyOperation(consent, check.operation)),
+	)
+	return decisions.some(decision => decision.allowed)
+}
+
+async function newPaths(targets: readonly Target[]): Promise<string[]> {
+	const created = await Promise.all(
+		targets.map(async target =>
+			(await runtimeFor(target.path).exists(target.path))
+				? []
+				: [target.path],
+		),
+	)
+	return created.flat()
 }
 
 export function registerTestWriteGuard(pi: ExtensionAPI): void {
 	const pending = new Map<string, Admission>()
-	const readPermission = permissionReader(pi)
+	const readConsents = consentReader(pi)
 	pi.on('session_start', () => pending.clear())
 	pi.on('session_tree', () => pending.clear())
 	pi.on('tool_call', async (event, ctx) => {
 		const write = await requestedWrite(event.toolName, event.input, ctx.cwd)
 		if (!write) return undefined
-		const reason = write.resolvable ? REFUSAL : UNRESOLVED_REFUSAL
+		if (write === 'unresolved')
+			return { block: true, reason: UNRESOLVED_REFUSAL }
 		const request = currentPaceRequest(ctx.sessionManager.getBranch())
-		if (!request) return { block: true, reason }
-		const created = write.resolvable
-			? await Promise.all(
-					write.targets.map(async target =>
-						(await runtimeFor(target.path).exists(target.path))
-							? []
-							: [target.path],
-					),
-				)
-			: []
+		let reading: Promise<Judgment[]> | undefined
+		const consents = (): Promise<Judgment[]> =>
+			(reading ??= readConsents(ctx))
+		const created = await newPaths(write)
+		const operation = JSON.stringify({
+			tool: event.toolName,
+			input: event.input,
+		})
+		const check = { ctx, request, consents, operation }
 		const admitted = await Promise.all(
-			write.targets.map(target =>
-				admits({ ctx, request, write, readPermission }, target),
-			),
+			write.map(target => admits(check, target)),
 		)
-		if (!admitted.every(Boolean)) return { block: true, reason }
+		if (!admitted.every(Boolean)) return { block: true, reason: REFUSAL }
 		if (
 			currentPaceRequest(ctx.sessionManager.getBranch())?.id !==
-			request.id
+			request?.id
 		)
 			return {
 				block: true,
 				reason: 'Human request changed during the test write check. Retry under the current request.',
 			}
-		if (created.flat().length)
+		if (request && created.length)
 			pending.set(event.toolCallId, {
 				requestId: request.id,
-				paths: created.flat(),
+				paths: created,
 			})
 		return undefined
 	})

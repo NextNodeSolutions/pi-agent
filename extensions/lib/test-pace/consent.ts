@@ -1,0 +1,149 @@
+import { Type } from 'typebox'
+import { Value } from 'typebox/value'
+
+import { mapConcurrently } from './concurrently.ts'
+import { consentCovers } from './consent-scope.ts'
+import { grantScope, inheritedScopes, UNSCOPED } from './grant-scope.ts'
+import {
+	allowsKind,
+	classifyConsent,
+	CONSENT_VERDICTS,
+	isGrant,
+} from './permission.ts'
+import { relayedEvidence } from './relay-evidence.ts'
+import { classifyStopTarget } from './stop-target.ts'
+
+import type { Static } from 'typebox'
+import type { Evidence, SessionRecords } from './evidence.ts'
+import type { ConsentDecision, ConsentVerdict } from './permission.ts'
+
+export const PACE_CONSENT_ENTRY = 'test-pace-consent-v1'
+const JUDGE_CONCURRENCY = 6
+const TEST_TOPIC =
+	/test|spec|fixture|suite|e2e|tdd|snapshot|mock|jest|cypress|playwright/iu
+
+const JUDGMENT_SCHEMA = Type.Object({
+	evidenceId: Type.String(),
+	at: Type.String(),
+	verdict: Type.Enum(CONSENT_VERDICTS),
+	scope: Type.Array(Type.String()),
+	excluded: Type.Optional(Type.Array(Type.String())),
+	question: Type.String(),
+	reply: Type.String(),
+})
+
+export type Judgment = Static<typeof JUDGMENT_SCHEMA>
+
+type EditKind = 'new' | 'existing'
+export type ConsentKind = EditKind | 'none'
+/** `answered`: Jev decided, so the judgment can be recorded instead of asked again. */
+type Judged = { judgment: Judgment; answered: boolean }
+type Decided = { verdict: ConsentVerdict; answered: boolean }
+type Judge = (evidence: Evidence) => Promise<Judgment>
+
+async function stopVerdict(
+	evidence: Evidence,
+	decision: ConsentDecision,
+): Promise<Decided> {
+	const answered = Boolean(decision.answer)
+	if (!evidence.receiver || !answered)
+		return { verdict: 'withdraw', answered }
+	const stop = await classifyStopTarget(evidence, evidence.receiver)
+	return {
+		verdict: stop.target === 'elsewhere' ? 'none' : 'withdraw',
+		answered: Boolean(stop.answer),
+	}
+}
+
+async function decide(evidence: Evidence): Promise<Decided> {
+	if (!TEST_TOPIC.test(`${evidence.question}\n${evidence.reply}`))
+		return { verdict: 'none', answered: false }
+	const decision = await classifyConsent(evidence)
+	if (decision.verdict === 'withdraw') return stopVerdict(evidence, decision)
+	return {
+		verdict: evidence.mayGrant === false ? 'none' : decision.verdict,
+		answered: Boolean(decision.answer),
+	}
+}
+
+export async function judgeEvidence(
+	root: string,
+	evidence: Evidence,
+): Promise<Judged> {
+	const { verdict, answered } = await decide(evidence)
+	const granted = isGrant(verdict)
+		? await grantScope(root, evidence)
+		: UNSCOPED
+	return {
+		judgment: {
+			evidenceId: evidence.id,
+			at: evidence.at,
+			question: evidence.question,
+			reply: evidence.reply,
+			verdict: granted.answered ? verdict : 'none',
+			scope: granted.scope,
+			excluded: granted.excluded,
+		},
+		answered: answered && granted.answered,
+	}
+}
+
+function activeConsents(judgments: readonly Judgment[]): Judgment[] {
+	const ordered = judgments.toSorted((a, b) => a.at.localeCompare(b.at))
+	const withdrawn = ordered.findLastIndex(
+		judgment => judgment.verdict === 'withdraw',
+	)
+	return inheritedScopes(
+		ordered
+			.slice(withdrawn + 1)
+			.filter(judgment => isGrant(judgment.verdict)),
+	).filter(grant => grant.scope.length)
+}
+
+export async function sessionConsents(
+	records: SessionRecords,
+	judge: Judge,
+): Promise<Judgment[]> {
+	const relayed = await relayedEvidence(records.relays)
+	return activeConsents(
+		await mapConcurrently(
+			[...records.evidence, ...relayed],
+			JUDGE_CONCURRENCY,
+			judge,
+		),
+	)
+}
+
+export function consentsAllowing(
+	consents: readonly Judgment[],
+	path: string,
+	kind: EditKind,
+): Judgment[] {
+	return consents.filter(
+		consent =>
+			consentCovers(consent, path) && allowsKind(consent.verdict, kind),
+	)
+}
+
+export function consentKind(
+	consents: readonly Judgment[],
+	path: string,
+): ConsentKind {
+	if (consentsAllowing(consents, path, 'existing').length) return 'existing'
+	return consentsAllowing(consents, path, 'new').length ? 'new' : 'none'
+}
+
+export function recordedJudgments(
+	entries: readonly unknown[],
+): Map<string, Judgment> {
+	return new Map(
+		entries.flatMap(entry => {
+			if (Reflect.get(Object(entry), 'customType') !== PACE_CONSENT_ENTRY)
+				return []
+			const saved: unknown = Reflect.get(Object(entry), 'data')
+			return Value.Check(JUDGMENT_SCHEMA, saved)
+				? [[saved.evidenceId, saved] as const]
+				: []
+		}),
+	)
+}
