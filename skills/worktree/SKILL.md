@@ -56,7 +56,7 @@ The cleanup script owns the safety checks. It preserves the main checkout, paths
 
 `extensions/tools/worktree-cleanup/` automatically runs the same script after bash calls containing `gh pr merge` or `gh pr close`, then retries asynchronously once the agent settles. A skipped checkout stays for the next sweep. A PR ended on GitHub is discovered at the next hand-off. Terminal inspection must succeed before any deletion, including when no tab exists. All Git operations run from the main checkout. The caller's checkout is handled last, and its tab closes only after Git cleanup finishes.
 
-`scripts/cleanup --helper <worktree>` removes one worktree that has no pull request, for the lifecycle sweeper (`~/.pi/agent/skills/agent-lifecycle/SKILL.md`), which calls it once the helper that worked there is closed. It requires a clean checkout, no terminal open in it and another local branch holding its commits, and leaves a branch that has a pull request to the sweep above.
+`scripts/cleanup --helper <worktree>` removes one worktree for the lifecycle sweeper (`~/.pi/agent/skills/agent-lifecycle/SKILL.md`). The `worktree` class of `~/.pi/agent/skills/agent-lifecycle/policy.json` states when it may go.
 
 ## Open the tab
 
