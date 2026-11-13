@@ -44,11 +44,13 @@ const RecordSchema = Type.Object({
 	cwd: Type.String(),
 	die_with_parent: Type.Boolean(),
 	labels: nullable(Type.Record(Type.String(), Type.String())),
-	foreground: nullable(
-		Type.Object({
-			pid: nullable(Type.Number()),
-			cwd: nullable(Type.String()),
-		}),
+	foreground: Type.Optional(
+		nullable(
+			Type.Object({
+				pid: nullable(Type.Number()),
+				cwd: nullable(Type.String()),
+			}),
+		),
 	),
 })
 
