@@ -111,7 +111,8 @@ open_tab() {
   key="${key:-$folder}"
   caller
   local caller_record caller_space space hit
-  caller_record="$(herdr-core get "$HC_TERMINAL_ID" --json)"
+  caller_record="$(herdr-core get "$HC_TERMINAL_ID" --json)" \
+    || fail 2 "caller terminal $HC_TERMINAL_ID is not a herdr terminal"
   caller_space="$(jq -er '.labels["herdr.space"] // empty' <<<"$caller_record")" \
     || fail 2 "caller terminal $HC_TERMINAL_ID has no herdr.space label"
   space="$(project_space "$folder" "$caller_space")"
