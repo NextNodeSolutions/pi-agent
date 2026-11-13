@@ -7,7 +7,7 @@ import { reflectMember } from '#lib/ui/pi-members.ts'
 const HC_TIMEOUT_MS = 2000
 const LIST_REQUEST = `${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'terminal.list', params: {} })}\n`
 const PRINCIPAL_CHAT = 'principal-chat'
-const AUXILIARY_NAME = /^(?:monitor|shell)-/u
+const AUXILIARY_NAME = /^(?:monitor|shell|nvim)-/u
 const ANSWER_EXCERPT_CHARS = 200
 
 /** Mirrors isThread in ~/.config/herdr-app/mods/command-center/threads.js, so a styled title is one the list shows. */
