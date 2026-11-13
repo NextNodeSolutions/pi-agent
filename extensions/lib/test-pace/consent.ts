@@ -62,18 +62,17 @@ async function judgeAll(
 	evidence: readonly Evidence[],
 	judge: Judge,
 ): Promise<Judgment[]> {
-	const queue = evidence.map((subject, index) => ({ subject, index }))
-	const settled: { index: number; judgment: Judgment }[] = []
+	const queue = [...evidence.entries()]
+	const judgments: Judgment[] = []
 	async function next(): Promise<void> {
 		const task = queue.shift()
 		if (!task) return
-		settled.push({ index: task.index, judgment: await judge(task.subject) })
+		const [index, subject] = task
+		judgments[index] = await judge(subject)
 		await next()
 	}
 	await Promise.all(Array.from({ length: JUDGE_CONCURRENCY }, next))
-	return settled
-		.toSorted((a, b) => a.index - b.index)
-		.map(({ judgment }) => judgment)
+	return judgments
 }
 
 /** Grants accumulate in time order; a withdrawal clears every grant before it. */
