@@ -25,6 +25,7 @@ import {
 	BASH_JOBS_VERSION,
 	BashJobsPayloadSchema,
 } from '#lib/tools/bash-jobs-event.ts'
+import { TITLE_LABEL } from '#lib/ui/herdr-labels.ts'
 
 import { registerSessionTitle } from './title.ts'
 
@@ -35,7 +36,6 @@ import type { TSchema } from 'typebox'
 const ACTIVE_WORK_EVENT = 'pi-subagents:active-work:v1'
 const ACTIVE_WORK_VERSION = 1
 const WAITING_LABEL = 'agent.waiting'
-const TITLE_LABEL = 'agent.title'
 
 const ActiveWorkPayloadSchema = Type.Object({
 	version: Type.Literal(ACTIVE_WORK_VERSION),

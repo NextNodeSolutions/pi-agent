@@ -1,11 +1,11 @@
 /** Thread titles as the Command Center lists them, read from hc's terminal API in one call. */
 import { execFile } from 'node:child_process'
 
+import { TITLE_LABEL } from '#lib/ui/herdr-labels.ts'
 import { reflectMember } from '#lib/ui/pi-members.ts'
 
 const HC_TIMEOUT_MS = 2000
 const LIST_REQUEST = `${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'terminal.list', params: {} })}\n`
-const TITLE_LABEL = 'agent.title'
 const PRINCIPAL_CHAT = 'principal-chat'
 const AUXILIARY_NAME = /^(?:monitor|shell)-/u
 const ANSWER_EXCERPT_CHARS = 200
