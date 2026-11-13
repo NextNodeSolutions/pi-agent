@@ -45,10 +45,11 @@ function witnessed(
 	nowMs: number,
 ): Memory {
 	const lookedAt = [...attached].filter(address => live.has(address))
+	const living = forgetGone(memory, live)
 	return {
-		...forgetGone(memory, live),
+		...living,
 		attachedMs: {
-			...forgetGone(memory, live).attachedMs,
+			...living.attachedMs,
 			...Object.fromEntries(lookedAt.map(address => [address, nowMs])),
 		},
 	}
