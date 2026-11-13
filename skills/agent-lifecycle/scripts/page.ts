@@ -2,12 +2,8 @@ import { mkdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
 import { readEvents } from './journal.ts'
-import {
-	readMemory,
-	stateDirectory,
-	triedWorktrees,
-	writeAtomically,
-} from './memory.ts'
+import { readMemory, triedWorktrees } from './memory.ts'
+import { stateDirectory, writeAtomically } from './storage.ts'
 import { reopenCommand } from './trace.ts'
 
 import type { ClosedEvent, JournalEvent } from './journal.ts'

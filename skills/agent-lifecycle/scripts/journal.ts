@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
-import { readOrNull, stateDirectory } from './memory.ts'
+import { readOrNull, stateDirectory } from './storage.ts'
 
 import type { Static } from 'typebox'
 

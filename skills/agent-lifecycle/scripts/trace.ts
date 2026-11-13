@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { stateDirectory } from './memory.ts'
+import { stateDirectory } from './storage.ts'
 import { titleOf } from './terminal.ts'
 
 import type { Recipe } from './resume.ts'
