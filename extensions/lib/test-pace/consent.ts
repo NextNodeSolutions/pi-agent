@@ -4,10 +4,11 @@ import { Value } from 'typebox/value'
 import { consentCovers, consentScope } from './consent-scope.ts'
 import { classifyConsent, CONSENT_VERDICTS, isGrant } from './permission.ts'
 import { relayedEvidence } from './relay-evidence.ts'
+import { classifyStopTarget } from './stop-target.ts'
 
 import type { Static } from 'typebox'
 import type { Evidence, SessionRecords } from './evidence.ts'
-import type { ConsentDecision } from './permission.ts'
+import type { ConsentDecision, ConsentVerdict } from './permission.ts'
 
 export const PACE_CONSENT_ENTRY = 'test-pace-consent-v1'
 const JUDGE_CONCURRENCY = 6
@@ -29,21 +30,39 @@ type EditKind = 'new' | 'existing'
 export type ConsentKind = EditKind | 'none'
 /** `answered`: Jev decided, so the judgment can be recorded instead of asked again. */
 type Judged = { judgment: Judgment; answered: boolean }
+type Decided = { verdict: ConsentVerdict; answered: boolean }
 type Judge = (evidence: Evidence) => Promise<Judgment>
+
+async function stopVerdict(
+	evidence: Evidence,
+	decision: ConsentDecision,
+): Promise<Decided> {
+	const answered = Boolean(decision.answer)
+	if (!evidence.receiver || !answered)
+		return { verdict: 'withdraw', answered }
+	const stop = await classifyStopTarget(evidence, evidence.receiver)
+	return {
+		verdict: stop.target === 'elsewhere' ? 'none' : 'withdraw',
+		answered: Boolean(stop.answer),
+	}
+}
+
+async function decide(evidence: Evidence): Promise<Decided> {
+	if (!TEST_TOPIC.test(`${evidence.question}\n${evidence.reply}`))
+		return { verdict: 'none', answered: false }
+	const decision = await classifyConsent(evidence)
+	if (decision.verdict === 'withdraw') return stopVerdict(evidence, decision)
+	return {
+		verdict: evidence.mayGrant === false ? 'none' : decision.verdict,
+		answered: Boolean(decision.answer),
+	}
+}
 
 export async function judgeEvidence(
 	root: string,
 	evidence: Evidence,
 ): Promise<Judged> {
-	const decision: ConsentDecision = TEST_TOPIC.test(
-		`${evidence.question}\n${evidence.reply}`,
-	)
-		? await classifyConsent(evidence)
-		: { verdict: 'none' }
-	const verdict =
-		evidence.mayGrant === false && decision.verdict !== 'withdraw'
-			? 'none'
-			: decision.verdict
+	const { verdict, answered } = await decide(evidence)
 	return {
 		judgment: {
 			evidenceId: evidence.id,
@@ -58,7 +77,7 @@ export async function judgeEvidence(
 					])
 				: [],
 		},
-		answered: Boolean(decision.answer),
+		answered,
 	}
 }
 

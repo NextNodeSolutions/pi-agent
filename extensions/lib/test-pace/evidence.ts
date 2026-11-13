@@ -5,12 +5,13 @@ import type { PaceRequest } from './request.ts'
 
 const ASK_TOOL = 'ask_user_question'
 
-/** `at` is an ISO timestamp: consents are ordered by comparing it as text. `scopeText` replaces `question` as the source of a grant's paths. */
+/** `at` is an ISO timestamp: consents are ordered by comparing it as text. `scopeText` replaces `question` as the source of a grant's paths. `receiver` describes this terminal on another terminal's exchange that names neither it nor a relay quote. */
 export type Evidence = ConsentExchange & {
 	id: string
 	at: string
 	mayGrant?: boolean
 	scopeText?: string
+	receiver?: string
 }
 type AskedQuestion = Pick<Evidence, 'question' | 'scopeText'>
 export type Relay = { sender: string; at: string; text: string }

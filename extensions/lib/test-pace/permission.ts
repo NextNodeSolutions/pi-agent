@@ -38,6 +38,17 @@ export function isGrant(verdict: ConsentVerdict): boolean {
 	return verdict === 'new' || verdict === 'existing'
 }
 
+/** Every judge of an exchange reads the same slice of it. */
+export function judgedExchange(exchange: ConsentExchange): {
+	agentMessage: string
+	humanReply: string
+} {
+	return {
+		agentMessage: safePaceText(exchange.question).slice(-QUESTION_CHARS),
+		humanReply: safePaceText(exchange.reply),
+	}
+}
+
 export function decideConsent(
 	answer: Pick<ChoiceResult, 'choice' | 'confidence'>,
 ): ConsentVerdict {
@@ -54,12 +65,7 @@ export async function classifyConsent(
 	if (!isJevConfigured()) return { verdict: UNREAD_VERDICT }
 	try {
 		const answer = await askChoice(
-			{
-				agentMessage: safePaceText(exchange.question).slice(
-					-QUESTION_CHARS,
-				),
-				humanReply: safePaceText(exchange.reply),
-			},
+			judgedExchange(exchange),
 			CONSENT_QUESTION,
 			{ timeoutMs: PACE_TIMEOUT_MS, signal },
 		)

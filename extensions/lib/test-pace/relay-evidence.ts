@@ -24,11 +24,16 @@ function words(text: string): string {
 	return ` ${text.toLowerCase().split(NOT_ALPHANUMERIC).filter(Boolean).join(' ')} `
 }
 
-async function receiverNames(address: string): Promise<string[]> {
+type Receiver = { names: string[]; thread: string }
+
+async function receiverOf(address: string): Promise<Receiver> {
 	const title = (await terminalLabel(address, TITLE_LABEL)) ?? ''
-	return [address, title.length >= MIN_DISTINCT_CHARS ? title : '']
-		.map(words)
-		.filter(name => name.trim())
+	return {
+		names: [address, title.length >= MIN_DISTINCT_CHARS ? title : '']
+			.map(words)
+			.filter(name => name.trim()),
+		thread: title ? `${address} "${title}"` : address,
+	}
 }
 
 function isBound(
@@ -44,10 +49,31 @@ function isBound(
 	)
 }
 
+type SenderContext = {
+	file: string
+	cutoff: string
+	relayed: string
+	receiver: Receiver
+}
+
+function readHere(evidence: Evidence, sender: SenderContext): Evidence {
+	const { file, cutoff, relayed, receiver } = sender
+	if (!isBound(evidence, receiver.names, relayed))
+		return {
+			...evidence,
+			id: `${file}#other#${evidence.id}`,
+			mayGrant: false,
+			receiver: receiver.thread,
+		}
+	const mayGrant = evidence.at <= cutoff
+	const binding = mayGrant ? 'bound' : 'late'
+	return { ...evidence, id: `${file}#${binding}#${evidence.id}`, mayGrant }
+}
+
 async function senderEvidence(
 	sender: string,
 	relays: readonly Relay[],
-	receivers: readonly string[],
+	receiver: Receiver,
 ): Promise<Evidence[]> {
 	const file = await terminalLabel(sender, SESSION_LABEL)
 	if (!file) return []
@@ -58,33 +84,26 @@ async function senderEvidence(
 			.toSorted()
 			.at(-1) ?? ''
 	const relayed = normalized(relays.map(relay => relay.text).join('\n'))
-	return sessionRecords(sessionBranch(parseEntries(content)))
-		.evidence.filter(evidence => isBound(evidence, receivers, relayed))
-		.map(evidence => {
-			const mayGrant = evidence.at <= cutoff
-			const binding = mayGrant ? 'bound' : 'late'
-			return {
-				...evidence,
-				id: `${file}#${binding}#${evidence.id}`,
-				mayGrant,
-			}
-		})
+	const context = { file, cutoff, relayed, receiver }
+	return sessionRecords(sessionBranch(parseEntries(content))).evidence.map(
+		evidence => readHere(evidence, context),
+	)
 }
 
-/** A relay carries no consent: the sender's human exchanges that name this terminal or that a relay quotes count, and grant only up to the sender's latest relay here. */
+/** A relay carries no consent: the sender's human exchanges grant when they name this terminal or a relay quotes them, up to the sender's latest relay here; its stops count until now, and an unnamed one is judged against this thread (`stop-target.ts`). */
 export async function relayedEvidence(
 	relays: readonly Relay[],
 ): Promise<Evidence[]> {
 	const address = ownTerminal()
 	if (!address || !relays.length) return []
-	const receivers = await receiverNames(address)
+	const receiver = await receiverOf(address)
 	const senders = [...new Set(relays.map(relay => relay.sender))]
 	const evidence = await Promise.all(
 		senders.map(sender =>
 			senderEvidence(
 				sender,
 				relays.filter(relay => relay.sender === sender),
-				receivers,
+				receiver,
 			),
 		),
 	)
