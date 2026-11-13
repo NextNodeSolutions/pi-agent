@@ -1,3 +1,5 @@
+import { readRelay } from '#lib/hc-relay.ts'
+
 import { redactSecrets } from '../../../security/secret-redact.ts'
 
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
@@ -30,6 +32,11 @@ export function readPaceRequest(candidate: unknown): PaceRequest | undefined {
 	if (typeof id !== 'string' || typeof text !== 'string' || !origin)
 		return undefined
 	return { id, text, origin }
+}
+
+export function typedOrigin(typed: string): RequestOrigin {
+	const relay = readRelay(typed)
+	return relay ? { kind: 'relay', sender: relay.sender } : { kind: 'human' }
 }
 
 export function currentPaceRequest(

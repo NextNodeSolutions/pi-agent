@@ -1,6 +1,6 @@
-import { readRelay } from '../extensions/lib/hc-relay.ts'
 import {
 	messageText,
+	requestRecords,
 	sessionBranch,
 	sessionRecords,
 } from '../extensions/lib/test-pace/evidence.ts'
@@ -8,10 +8,13 @@ import {
 	PACE_REQUEST_ENTRY,
 	readPaceRequest,
 	safePaceText,
+	typedOrigin,
 } from '../extensions/lib/test-pace/request.ts'
 
-import type { Evidence } from '../extensions/lib/test-pace/consent.ts'
-import type { SessionRecords } from '../extensions/lib/test-pace/evidence.ts'
+import type {
+	Evidence,
+	SessionRecords,
+} from '../extensions/lib/test-pace/evidence.ts'
 
 const HARNESS_TEXT =
 	/^\s*<(?:command-(?:name|message|args)|local-command-|task-notification|system-reminder)/
@@ -68,17 +71,24 @@ function claudeRecords(entries: readonly object[]): SessionRecords {
 			question = messageText(field(entry, 'message')) || question
 		records.evidence.push(...askAnswers(entry, id, at))
 		const typed = claudeTyped(entry)
-		const relay = readRelay(typed)
-		if (relay?.sender)
-			records.relays.push({ sender: relay.sender, at, text: relay.text })
-		if (typed && !relay)
-			records.evidence.push({ id, at, question, reply: safePaceText(typed) })
+		if (!typed) continue
+		const found = requestRecords(
+			{ id, text: safePaceText(typed), origin: typedOrigin(typed) },
+			at,
+			question,
+		)
+		records.evidence.push(...found.evidence)
+		records.relays.push(...found.relays)
 	}
 	return records
 }
 
-export function transcriptRecords(entries: readonly object[]): SessionRecords {
+function isPiSession(entries: readonly object[]): boolean {
 	return entries.some(entry => field(entry, 'type') === 'session')
+}
+
+export function transcriptRecords(entries: readonly object[]): SessionRecords {
+	return isPiSession(entries)
 		? sessionRecords(sessionBranch(entries))
 		: claudeRecords(entries)
 }
@@ -93,5 +103,6 @@ function requestText(entry: object): string {
 }
 
 export function lastHumanRequest(entries: readonly object[]): string {
-	return entries.toReversed().map(requestText).find(Boolean) ?? ''
+	const current = isPiSession(entries) ? sessionBranch(entries) : entries
+	return current.toReversed().map(requestText).find(Boolean) ?? ''
 }

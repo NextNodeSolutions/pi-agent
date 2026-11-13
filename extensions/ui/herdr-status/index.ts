@@ -24,7 +24,7 @@
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
-import { SESSION_LABEL, TITLE_LABEL } from '#lib/hc-relay.ts'
+import { ownTerminal, SESSION_LABEL, TITLE_LABEL } from '#lib/hc-relay.ts'
 import {
 	BASH_JOBS_EVENT,
 	BASH_JOBS_VERSION,
@@ -95,7 +95,7 @@ function pendingWork(pi: Pick<ExtensionAPI, 'events'>): string {
 }
 
 export default function herdrStatus(pi: ExtensionAPI): void {
-	const terminal = process.env.HC_TERMINAL_ID
+	const terminal = ownTerminal()
 	if (!terminal) return
 	const label = async (key: string, shown: string): Promise<void> => {
 		try {

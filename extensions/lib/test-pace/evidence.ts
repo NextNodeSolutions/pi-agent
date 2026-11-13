@@ -1,10 +1,16 @@
 import { PACE_REQUEST_ENTRY, readPaceRequest } from './request.ts'
 
-import type { Evidence } from './consent.ts'
+import type { ConsentExchange } from './permission.ts'
 import type { PaceRequest } from './request.ts'
 
 const ASK_TOOL = 'ask_user_question'
 
+/** A human's words and the agent text they answer; `at` is an ISO timestamp. */
+export type Evidence = ConsentExchange & {
+	id: string
+	at: string
+	mayGrant?: boolean
+}
 export type Relay = { sender: string; at: string; text: string }
 /** Human words in one session, and the relays other terminals typed into it. */
 export type SessionRecords = { evidence: Evidence[]; relays: Relay[] }
@@ -62,7 +68,8 @@ function questionnaireEvidence(message: unknown, at: string): Evidence[] {
 	})
 }
 
-function requestRecords(
+/** A typed prompt answers the agent text before it; a relay carries no human words. */
+export function requestRecords(
 	request: PaceRequest,
 	at: string,
 	question: string,
@@ -77,7 +84,6 @@ function requestRecords(
 	}
 }
 
-/** Reads Pi session entries: typed requests answer the agent text before them; relays carry no human words. */
 export function sessionRecords(entries: readonly unknown[]): SessionRecords {
 	const records: SessionRecords = { evidence: [], relays: [] }
 	let question = ''

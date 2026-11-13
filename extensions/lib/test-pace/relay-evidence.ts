@@ -1,11 +1,15 @@
 import { readFile } from 'node:fs/promises'
 
-import { SESSION_LABEL, terminalLabel, TITLE_LABEL } from '#lib/hc-relay.ts'
+import {
+	ownTerminal,
+	SESSION_LABEL,
+	terminalLabel,
+	TITLE_LABEL,
+} from '#lib/hc-relay.ts'
 
 import { parseEntries, sessionBranch, sessionRecords } from './evidence.ts'
 
-import type { Evidence } from './consent.ts'
-import type { Relay } from './evidence.ts'
+import type { Evidence, Relay } from './evidence.ts'
 
 /** Shorter replies ("ok", "oui") and titles are too common to prove which answer or thread a relay means. */
 const MIN_DISTINCT_CHARS = 12
@@ -86,8 +90,8 @@ function prefixedEvidence(
  */
 export async function relayedEvidence(
 	relays: readonly Relay[],
-	address: string | undefined,
 ): Promise<Evidence[]> {
+	const address = ownTerminal()
 	if (!address) return []
 	const receivers = await receiverNames(address)
 	const senders = [...new Set(relays.map(relay => relay.sender))]

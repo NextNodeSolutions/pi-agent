@@ -17,6 +17,7 @@ import { operationCases, paceCases, permissionCases } from './test-pace-cases.ts
 import { classifyOperation, OPERATION_CONFIDENCE } from '../extensions/lib/test-pace/operation.ts'
 
 import type { ChoiceResult } from '../extensions/lib/jev/client.ts'
+import type { ConsentVerdict } from '../extensions/lib/test-pace/permission.ts'
 
 if (!isJevConfigured())
 	throw new Error('Run with TYPESAFE_API_KEY injected from the core vault.')
@@ -25,7 +26,12 @@ const MEDIAN = 0.5
 const P95 = 0.95
 const JSON_INDENT = 2
 /** A missed withdrawal keeps earlier consent alive, so it ranks below none. */
-const PERMISSION_RANK = ['withdraw', 'none', 'new', 'existing']
+const PERMISSION_RANK: readonly string[] = [
+	'withdraw',
+	'none',
+	'new',
+	'existing',
+] satisfies readonly ConsentVerdict[]
 
 type Sample = { id: string; request: string; expected: string }
 type Verdict = { actual: string; answer: ChoiceResult | undefined }

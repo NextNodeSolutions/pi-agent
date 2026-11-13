@@ -1,8 +1,8 @@
 import { basename, resolve } from 'node:path'
 
 import { runtimeFor } from '#lib/runtime/runtime.ts'
-import { consentCovers } from '#lib/test-pace/consent-scope.ts'
-import { permitsOperation } from '#lib/test-pace/operation.ts'
+import { consentsAllowing } from '#lib/test-pace/consent.ts'
+import { classifyOperation } from '#lib/test-pace/operation.ts'
 import { isTestPathWithin, packageRunner } from '#lib/test-pace/paths.ts'
 import { physicalPath } from '#lib/test-pace/physical-path.ts'
 import {
@@ -29,12 +29,12 @@ const UNRESOLVED_REFUSAL = `${REFUSAL} This command changes directory or names t
 const GLOB = /[*?[\]{}]/
 
 type Target = { path: string; setup: boolean }
-type Write = { targets: Target[]; resolvable: boolean }
+/** Unknown shell targets cannot prove that a scoped consent covers every effect. */
+type Write = Target[] | 'unresolved'
 type Admission = { requestId: string; paths: string[] }
 type Check = {
 	ctx: ExtensionContext
 	request: PaceRequest | undefined
-	write: Write
 	consents: () => Promise<Judgment[]>
 	operation: string
 }
@@ -43,7 +43,7 @@ async function fileWrite(
 	tool: string,
 	input: unknown,
 	cwd: string,
-): Promise<Write | undefined> {
+): Promise<Target[] | undefined> {
 	const path: unknown = Reflect.get(Object(input), 'path')
 	if (typeof path !== 'string') return undefined
 	const lexical = resolve(cwd, path)
@@ -55,14 +55,14 @@ async function fileWrite(
 			: ''
 		if (!changesTestSetup(before, proposedContent(tool, input, before)))
 			return undefined
-		return { targets: [{ path: canonical, setup: true }], resolvable: true }
+		return [{ path: canonical, setup: true }]
 	}
 	const isTest =
 		isTestPathWithin(cwd, lexical) ||
 		(canonical !== lexical &&
 			isTestPathWithin(await physicalPath(cwd), canonical))
 	if (!isTest) return undefined
-	return { targets: [{ path: canonical, setup: false }], resolvable: true }
+	return [{ path: canonical, setup: false }]
 }
 
 async function shellWrite(
@@ -85,19 +85,14 @@ async function shellWrite(
 		...present.flat(),
 	]
 	if (!paths.length) return undefined
-	const resolvable =
-		!writes.changesDirectory && !paths.some(path => GLOB.test(path))
-	return {
-		targets: resolvable
-			? await Promise.all(
-					paths.map(async path => ({
-						path: await physicalPath(resolve(cwd, path)),
-						setup: false,
-					})),
-				)
-			: paths.map(path => ({ path, setup: false })),
-		resolvable,
-	}
+	if (writes.changesDirectory || paths.some(path => GLOB.test(path)))
+		return 'unresolved'
+	return Promise.all(
+		paths.map(async path => ({
+			path: await physicalPath(resolve(cwd, path)),
+			setup: false,
+		})),
+	)
 }
 
 async function requestedWrite(
@@ -133,10 +128,8 @@ async function isGranted(
 	)
 }
 
-/** Unknown shell targets cannot prove that a scoped consent covers every effect. */
 async function admits(check: Check, target: Target): Promise<boolean> {
-	const { ctx, request, write } = check
-	if (!write.resolvable) return false
+	const { ctx, request } = check
 	const present = await isPresent(ctx, target.path)
 	if (
 		!target.setup &&
@@ -144,23 +137,20 @@ async function admits(check: Check, target: Target): Promise<boolean> {
 		(await isGranted(ctx, request, target.path))
 	)
 		return true
-	const covering = (await check.consents()).filter(
-		consent =>
-			consentCovers(consent.scope, target.path) &&
-			(consent.verdict === 'existing' ||
-				(consent.verdict === 'new' && (target.setup || !present))),
+	const allowing = consentsAllowing(
+		await check.consents(),
+		target.path,
+		target.setup || !present ? 'new' : 'existing',
 	)
-	return (
-		await Promise.all(
-			covering.map(consent => permitsOperation(consent, check.operation)),
-		)
-	).some(Boolean)
+	const decisions = await Promise.all(
+		allowing.map(consent => classifyOperation(consent, check.operation)),
+	)
+	return decisions.some(decision => decision.allowed)
 }
 
-async function newPaths(write: Write): Promise<string[]> {
-	if (!write.resolvable) return []
+async function newPaths(targets: readonly Target[]): Promise<string[]> {
 	const created = await Promise.all(
-		write.targets.map(async target =>
+		targets.map(async target =>
 			(await runtimeFor(target.path).exists(target.path))
 				? []
 				: [target.path],
@@ -177,7 +167,8 @@ export function registerTestWriteGuard(pi: ExtensionAPI): void {
 	pi.on('tool_call', async (event, ctx) => {
 		const write = await requestedWrite(event.toolName, event.input, ctx.cwd)
 		if (!write) return undefined
-		const reason = write.resolvable ? REFUSAL : UNRESOLVED_REFUSAL
+		if (write === 'unresolved')
+			return { block: true, reason: UNRESOLVED_REFUSAL }
 		const request = currentPaceRequest(ctx.sessionManager.getBranch())
 		const reading: { consents?: Promise<Judgment[]> } = {}
 		const consents = (): Promise<Judgment[]> =>
@@ -187,11 +178,11 @@ export function registerTestWriteGuard(pi: ExtensionAPI): void {
 			tool: event.toolName,
 			input: event.input,
 		})
-		const check = { ctx, request, write, consents, operation }
+		const check = { ctx, request, consents, operation }
 		const admitted = await Promise.all(
-			write.targets.map(target => admits(check, target)),
+			write.map(target => admits(check, target)),
 		)
-		if (!admitted.every(Boolean)) return { block: true, reason }
+		if (!admitted.every(Boolean)) return { block: true, reason: REFUSAL }
 		if (
 			currentPaceRequest(ctx.sessionManager.getBranch())?.id !==
 			request?.id
@@ -200,10 +191,10 @@ export function registerTestWriteGuard(pi: ExtensionAPI): void {
 				block: true,
 				reason: 'Human request changed during the test write check. Retry under the current request.',
 			}
-		if (request && created.flat().length)
+		if (request && created.length)
 			pending.set(event.toolCallId, {
 				requestId: request.id,
-				paths: created.flat(),
+				paths: created,
 			})
 		return undefined
 	})
