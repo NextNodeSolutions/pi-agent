@@ -15,16 +15,23 @@ export type Subject = {
 export const isRemote = (terminal: Terminal): boolean =>
 	terminal.address.includes(MACHINE_SEPARATOR)
 
-// The Command Center names a thread's monitor, shell and editor `<kind>-<thread address>` and starts them outside any tab.
+// The Command Center's own naming rule (threads.js `auxiliaryNames`), which starts them outside any tab.
+const auxiliarySlug = (address: string): string =>
+	address.replace(/[^a-z0-9]/g, '-')
+
 function isAuxiliary(
 	terminal: Terminal,
 	terminals: readonly Terminal[],
+	policy: Policy,
 ): boolean {
 	if (terminal.parent !== null || TAB_LABEL in terminal.labels) return false
 	return terminals.some(
 		other =>
 			other.address !== terminal.address &&
-			terminal.name?.endsWith(`-${other.address}`),
+			policy.auxiliaryKinds.some(
+				kind =>
+					terminal.name === `${kind}-${auxiliarySlug(other.address)}`,
+			),
 	)
 }
 
@@ -34,7 +41,7 @@ function classOf(
 	policy: Policy,
 ): TerminalClass {
 	if (terminal.name === policy.principalName) return 'principal'
-	if (isAuxiliary(terminal, terminals)) return 'auxiliary'
+	if (isAuxiliary(terminal, terminals, policy)) return 'auxiliary'
 	if (terminal.state === null || isRemote(terminal)) return 'unreported'
 	return terminal.parent === null ? 'thread' : 'helper'
 }

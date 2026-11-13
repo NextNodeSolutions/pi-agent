@@ -10,6 +10,8 @@ import sys
 import tempfile
 
 SCRIPTS = Path(__file__).resolve().parent
+SKILLS = SCRIPTS.parents[1]
+LIFECYCLE_POLICY = SKILLS / "agent-lifecycle" / "policy.json"
 CONFIG = Path.home() / ".pi/agent/extensions/subagent/config.json"
 COMMAND_TIMEOUT = 60
 PR_LIMIT = 1000
@@ -149,10 +151,14 @@ def remove(main, cleanup):
         drop(main, entry)
         removed(folder, pull, branch)
         return
+    # The snapshot keeps the skills layout: the adapters read the lifecycle policy beside their own skill.
     with tempfile.TemporaryDirectory(prefix="worktree-close-") as snapshot:
-        scripts = Path(snapshot) / "scripts"
+        scripts = Path(snapshot) / SCRIPTS.relative_to(SKILLS)
         shutil.copytree(SCRIPTS, scripts)
-        shutil.copyfile(SCRIPTS.parent / "terminal.conf", Path(snapshot) / "terminal.conf")
+        shutil.copyfile(SCRIPTS.parent / "terminal.conf", scripts.parent / "terminal.conf")
+        policy = Path(snapshot) / LIFECYCLE_POLICY.relative_to(SKILLS)
+        policy.parent.mkdir()
+        shutil.copyfile(LIFECYCLE_POLICY, policy)
         drop(main, entry)
         removed(folder, pull, branch)
         terminal(main, folder, scripts=scripts)

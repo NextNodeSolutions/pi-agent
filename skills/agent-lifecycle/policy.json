@@ -1,5 +1,6 @@
 {
 	"principalName": "principal-chat",
+	"auxiliaryKinds": ["monitor", "shell", "nvim"],
 	"restingStates": ["done", "idle"],
 	"labels": {
 		"keep": "lifecycle.keep",
@@ -26,7 +27,7 @@
 		},
 		{
 			"id": "auxiliary",
-			"is": "A monitor, shell or editor the Command Center opened beside a thread: in no tab, with no parent, named `<kind>-<thread address>`.",
+			"is": "A terminal the Command Center opened beside a thread: in no tab, with no parent, named `<kind>-<thread address>` with kind one of {auxiliaryKinds} and every address character outside a-z and 0-9 turned into `-`.",
 			"closes": "With its thread: the Command Center ends it once that thread is gone, and the worktree cleanup ends it with the thread of a merged or closed pull request.",
 			"trace": "None: it holds no result.",
 			"resume": "Opening the thread's monitor, shell or editor starts a new one.",

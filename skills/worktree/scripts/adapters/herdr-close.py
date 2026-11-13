@@ -2,10 +2,13 @@ import argparse
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 
 COMMAND_TIMEOUT = 15
+LIFECYCLE_POLICY = Path(__file__).resolve().parents[3] / "agent-lifecycle" / "policy.json"
+AUXILIARY_KINDS = json.loads(LIFECYCLE_POLICY.read_text())["auxiliaryKinds"]
 SHELLS = {"bash", "zsh", "sh", "fish"}
 SHELL_FLAGS = {"-l", "--login", "-i", "--interactive"}
 
@@ -52,11 +55,16 @@ def tab_id(terminal):
     return (terminal.get("labels") or {}).get("herdr.tab")
 
 
-def auxiliary_owner(terminal):
-    name = terminal.get("name") or ""
-    if tab_id(terminal) or terminal.get("parent") or "-" not in name:
+# The Command Center's own naming rule (threads.js `auxiliaryNames`).
+def auxiliary_name(kind, address):
+    return f"{kind}-{re.sub(r'[^a-z0-9]', '-', address)}"
+
+
+def auxiliary_owner(terminal, addresses):
+    if tab_id(terminal) or terminal.get("parent"):
         return None
-    return name.rsplit("-", 1)[1]
+    return next((address for address in addresses for kind in AUXILIARY_KINDS
+                 if terminal.get("name") == auxiliary_name(kind, address)), None)
 
 
 def descendants(all_terminals, members):
@@ -121,8 +129,8 @@ def inspect(folder):
                                         if tab_id(terminal) in tabs])
     member_addresses = {member["address"] for member in members}
     auxiliaries = {terminal["address"] for terminal in all_terminals
-                   if auxiliary_owner(terminal) in member_addresses
-                   or (auxiliary_owner(terminal) in finished and matches(terminal, folder))}
+                   if auxiliary_owner(terminal, member_addresses)
+                   or (auxiliary_owner(terminal, finished) and matches(terminal, folder))}
     if any(terminal["address"] not in member_addresses | auxiliaries for terminal in matching):
         raise Refused("matching terminal has no tab or parent tab", 3)
     for member in members:

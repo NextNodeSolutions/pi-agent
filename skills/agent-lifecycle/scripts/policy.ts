@@ -14,6 +14,7 @@ import type { Static } from 'typebox'
 
 const PolicySchema = Type.Object({
 	principalName: Type.String(),
+	auxiliaryKinds: Type.Array(Type.String()),
 	restingStates: Type.Array(Type.String()),
 	labels: Type.Object({
 		keep: Type.String(),
@@ -67,6 +68,7 @@ export function loadPolicy(file: string | null): Policy {
 function placeholders(policy: Policy): Record<string, string> {
 	return {
 		principalName: policy.principalName,
+		auxiliaryKinds: policy.auxiliaryKinds.join(', '),
 		keep: policy.labels.keep,
 		waiting: WAITING_LABEL,
 		unfinished: GOAL_LABEL,
