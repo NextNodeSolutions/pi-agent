@@ -60,7 +60,9 @@ async function decide(evidence: Evidence): Promise<Decided> {
 	}
 }
 
-/** A path Jev did not read stays out of the grant and keeps the judgment unrecorded, so it is read again. */
+const UNSCOPED: Scoped = { scope: [], answered: true }
+
+/** A path Jev did not read leaves the exchange granting nothing and its judgment unrecorded, so it is read again. */
 async function grantScope(root: string, evidence: Evidence): Promise<Scoped> {
 	let isEveryPathRead = true
 	const scope = await consentScope(
@@ -72,7 +74,9 @@ async function grantScope(root: string, evidence: Evidence): Promise<Scoped> {
 		},
 		[evidence.scopeText ?? evidence.question, evidence.reply],
 	)
-	return { scope, answered: isEveryPathRead }
+	return isEveryPathRead
+		? { scope, answered: true }
+		: { ...UNSCOPED, answered: false }
 }
 
 export async function judgeEvidence(
@@ -82,14 +86,14 @@ export async function judgeEvidence(
 	const { verdict, answered } = await decide(evidence)
 	const granted = isGrant(verdict)
 		? await grantScope(root, evidence)
-		: { scope: [], answered: true }
+		: UNSCOPED
 	return {
 		judgment: {
 			evidenceId: evidence.id,
 			at: evidence.at,
 			question: evidence.question,
 			reply: evidence.reply,
-			verdict,
+			verdict: granted.answered ? verdict : 'none',
 			scope: granted.scope,
 		},
 		answered: answered && granted.answered,
