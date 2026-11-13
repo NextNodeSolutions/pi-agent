@@ -3,7 +3,6 @@ import { promisify } from 'node:util'
 
 /** Pi publishes its session file under this terminal label, so a relay's receiver can read the sender's records. */
 export const SESSION_LABEL = 'pi.session'
-export const TITLE_LABEL = 'agent.title'
 
 const WRAPPER = /<hc\b(?<attributes>[^>]*)>(?<body>[\s\S]*?)<\/hc>/u
 const FROM = /\bfrom="(?<address>[^"\s]+)/u

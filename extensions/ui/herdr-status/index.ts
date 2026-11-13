@@ -24,12 +24,13 @@
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
 
-import { ownTerminal, SESSION_LABEL, TITLE_LABEL } from '#lib/hc-relay.ts'
+import { ownTerminal, SESSION_LABEL } from '#lib/hc-relay.ts'
 import {
 	BASH_JOBS_EVENT,
 	BASH_JOBS_VERSION,
 	BashJobsPayloadSchema,
 } from '#lib/tools/bash-jobs-event.ts'
+import { TITLE_LABEL } from '#lib/ui/herdr-labels.ts'
 
 import { registerSessionTitle } from './title.ts'
 

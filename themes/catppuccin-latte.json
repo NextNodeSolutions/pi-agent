@@ -2,6 +2,7 @@
 	"$schema": "https://pi.dev/schemas/theme.schema.json",
 	"name": "catppuccin-latte",
 	"vars": {
+		"agent": "#a64b00",
 		"rosewater": "#dc8a78",
 		"flamingo": "#dd7878",
 		"pink": "#ea76cb",

@@ -1,11 +1,7 @@
 import { readFile } from 'node:fs/promises'
 
-import {
-	ownTerminal,
-	SESSION_LABEL,
-	terminalLabel,
-	TITLE_LABEL,
-} from '#lib/hc-relay.ts'
+import { ownTerminal, SESSION_LABEL, terminalLabel } from '#lib/hc-relay.ts'
+import { TITLE_LABEL } from '#lib/ui/herdr-labels.ts'
 
 import { parseEntries, sessionBranch, sessionRecords } from './evidence.ts'
 
