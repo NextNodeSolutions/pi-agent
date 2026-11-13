@@ -13,7 +13,12 @@ import {
 } from '../extensions/lib/test-pace/permission.ts'
 import { forbidsTestAuthoring } from '../extensions/lib/test-pace/request.ts'
 
-import { operationCases, paceCases, permissionCases } from './test-pace-cases.ts'
+import {
+	OPERATION_OUTCOMES,
+	operationCases,
+	paceCases,
+	permissionCases,
+} from './test-pace-cases.ts'
 import { classifyOperation, OPERATION_CONFIDENCE } from '../extensions/lib/test-pace/operation.ts'
 
 import type { ChoiceResult } from '../extensions/lib/jev/client.ts'
@@ -166,7 +171,7 @@ const permission = await calibrate({
 const operation = await calibrate({
 	name: 'operation',
 	threshold: OPERATION_CONFIDENCE,
-	labels: ['allowed', 'refused'],
+	labels: OPERATION_OUTCOMES,
 	cases: operationCases,
 	classify: async sample => {
 		const decision = await classifyOperation({ question: sample.question, reply: sample.request }, sample.operation)
