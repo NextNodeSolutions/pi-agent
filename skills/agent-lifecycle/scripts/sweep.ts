@@ -1,18 +1,18 @@
 import { attachedTerminals } from './attention.ts'
 import { toSubject } from './classify.ts'
-import { closeTerminal } from './closing.ts'
+import { closeEach, withRefusals } from './closing.ts'
 import { decide } from './decide.ts'
 import { liveTerminals, screenFingerprint } from './hc.ts'
 import { appendEvent } from './journal.ts'
 import { forgetGone, readMemory, writeMemory } from './memory.ts'
 import { writeClosedPage } from './page.ts'
 import { loadPolicy } from './policy.ts'
-import { mayClose } from './recheck.ts'
+import { recheck } from './recheck.ts'
 import { resumeRecipe } from './resume.ts'
 import { holdOwnedWorktrees, releaseWorktrees } from './worktrees.ts'
 
 import type { WindowSource } from './attention.ts'
-import type { Candidate } from './closing.ts'
+import type { Candidate, Closings } from './closing.ts'
 import type { Verdict, World } from './decide.ts'
 import type { ClosedEvent } from './journal.ts'
 import type { Memory } from './memory.ts'
@@ -116,32 +116,20 @@ function receipts(verdicts: readonly Verdict[]): Memory['received'] {
 	)
 }
 
-async function closeConfirmed(
+function closeConfirmed(
 	candidates: readonly Candidate[],
 	world: World,
 	options: SweepOptions,
-): Promise<ClosedEvent[]> {
-	const scene = {
-		terminals: world.terminals,
-		verdicts: candidates.map(candidate => candidate.verdict),
-		policy: world.policy,
-		nowMs: world.nowMs,
-		mayClose: (terminal: Terminal) => mayClose(terminal, world, options),
-	}
-	const confirmed = candidates.filter(
-		candidate => candidate.verdict.action === 'close',
-	)
-	return confirmed.reduce<Promise<ClosedEvent[]>>(
-		async (earlier, candidate) => {
-			const closed = await earlier
-			const isGone = closed.some(
-				event => event.address === candidate.verdict.terminal.address,
-			)
-			return isGone
-				? closed
-				: [...closed, ...(await closeTerminal(candidate, scene))]
+): Promise<Closings> {
+	return closeEach(
+		candidates.filter(candidate => candidate.verdict.action === 'close'),
+		{
+			terminals: world.terminals,
+			verdicts: candidates.map(candidate => candidate.verdict),
+			policy: world.policy,
+			nowMs: world.nowMs,
+			recheck: (terminal: Terminal) => recheck(terminal, world, options),
 		},
-		Promise.resolve([]),
 	)
 }
 
@@ -187,9 +175,16 @@ async function apply(
 			mark === null ? [] : [[candidate.verdict.terminal.address, mark]],
 		),
 	)
-	const closed = await closeConfirmed(candidates, world, options)
+	const { closed, refusals } = await closeConfirmed(
+		candidates,
+		world,
+		options,
+	)
 	const worktrees = await collectWorktrees(world, closed)
-	const verdicts = candidates.map(candidate => candidate.verdict)
+	const verdicts = withRefusals(
+		candidates.map(candidate => candidate.verdict),
+		refusals,
+	)
 	writeMemory({
 		attachedMs: world.memory.attachedMs,
 		received: receipts(verdicts),

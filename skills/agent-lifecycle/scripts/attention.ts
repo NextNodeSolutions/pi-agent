@@ -33,7 +33,7 @@ const SpacesSchema = Type.Object({
 
 function refusal(detail: string, cause?: unknown): Error {
 	return new Error(
-		`Cannot tell which terminals the person is on: ${detail} Nothing was closed.`,
+		`Cannot tell which terminals the person is on: ${detail}`,
 		{ cause },
 	)
 }

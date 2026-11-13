@@ -19,8 +19,17 @@ export type ClosingScene = {
 	verdicts: readonly Verdict[]
 	policy: Policy
 	nowMs: number
-	mayClose: (terminal: Terminal) => Promise<boolean>
+	recheck: (terminal: Terminal) => Promise<string | null>
 }
+
+export type Closing = { closed: ClosedEvent[]; refusal: string | null }
+
+export type Closings = {
+	closed: ClosedEvent[]
+	refusals: Record<string, string>
+}
+
+const refused = (refusal: string): Closing => ({ closed: [], refusal })
 
 function endsWith(owner: string, terminals: readonly Terminal[]): Terminal[] {
 	const children = terminals.filter(
@@ -102,13 +111,14 @@ async function isUnchanged(terminal: Terminal): Promise<boolean> {
 }
 
 // The trace and every recipe are taken before the kill: Claude Code drops its session file when its process ends.
-export async function closeTerminal(
+async function closeTerminal(
 	candidate: Candidate,
 	scene: ClosingScene,
-): Promise<ClosedEvent[]> {
+): Promise<Closing> {
 	const { verdict, recipe } = candidate
 	const { terminal } = verdict
-	if (!(await isUnchanged(terminal))) return []
+	if (!(await isUnchanged(terminal)))
+		return refused('it changed after the sweep looked at it')
 	const trace = await traceOf(candidate, scene)
 	const dependents = await Promise.all(
 		endsWith(terminal.address, scene.terminals).map(dependent =>
@@ -118,7 +128,8 @@ export async function closeTerminal(
 	const owner = scene.terminals.find(
 		other => other.address === terminal.parent,
 	)
-	if (!(await scene.mayClose(terminal))) return []
+	const objection = await scene.recheck(terminal)
+	if (objection !== null) return refused(objection)
 	await endTerminal(terminal.address, owner?.address ?? null)
 	const events = [
 		closedEvent(
@@ -129,5 +140,58 @@ export async function closeTerminal(
 		...dependents,
 	]
 	events.forEach(appendEvent)
-	return events
+	return { closed: events, refusal: null }
+}
+
+async function closeOne(
+	candidate: Candidate,
+	scene: ClosingScene,
+): Promise<Closing> {
+	try {
+		return await closeTerminal(candidate, scene)
+	} catch (error) {
+		const refusal = error instanceof Error ? error.message : String(error)
+		return { closed: [], refusal }
+	}
+}
+
+// One failed close must not stop the others, so each candidate's failure becomes its own refusal; a candidate an earlier close already ended is skipped.
+export function closeEach(
+	confirmed: readonly Candidate[],
+	scene: ClosingScene,
+): Promise<Closings> {
+	return confirmed.reduce<Promise<Closings>>(
+		async (earlier, candidate) => {
+			const done = await earlier
+			const { address } = candidate.verdict.terminal
+			if (done.closed.some(event => event.address === address))
+				return done
+			const { closed, refusal } = await closeOne(candidate, scene)
+			return {
+				closed: [...done.closed, ...closed],
+				refusals:
+					refusal === null
+						? done.refusals
+						: { ...done.refusals, [address]: refusal },
+			}
+		},
+		Promise.resolve({ closed: [], refusals: {} }),
+	)
+}
+
+export function withRefusals(
+	verdicts: readonly Verdict[],
+	refusals: Closings['refusals'],
+): Verdict[] {
+	return verdicts.map(verdict => {
+		const refusal = refusals[verdict.terminal.address]
+		if (refusal === undefined) return verdict
+		return {
+			...verdict,
+			action: 'keep',
+			rule: 'refused',
+			reason: `the last check before closing objected: ${refusal}`,
+			closesAtMs: null,
+		}
+	})
 }

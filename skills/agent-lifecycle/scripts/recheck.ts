@@ -6,14 +6,16 @@ import type { World } from './decide.ts'
 import type { SweepOptions } from './sweep.ts'
 import type { Terminal } from './terminal.ts'
 
-export async function mayClose(
+/** Why the terminal may no longer close, judged on fresh state just before the kill, or null when it still may. */
+export async function recheck(
 	terminal: Terminal,
 	world: World,
 	options: SweepOptions,
-): Promise<boolean> {
+): Promise<string | null> {
 	const terminals = await liveTerminals()
 	const current = terminals.find(other => other.address === terminal.address)
-	if (JSON.stringify(current) !== JSON.stringify(terminal)) return false
+	if (JSON.stringify(current) !== JSON.stringify(terminal))
+		return 'it changed after the sweep looked at it'
 	const attached = await attachedTerminals(options.attached, options.window)
 	const verdict = decide({
 		...world,
@@ -21,7 +23,10 @@ export async function mayClose(
 		attached,
 		nowMs: Date.now(),
 	}).find(other => other.terminal.address === terminal.address)
-	if (verdict?.action !== 'close') return false
+	if (!verdict) return 'it is gone'
+	if (verdict.action !== 'close') return verdict.reason
 	const screen = await screenFingerprint(terminal.address)
-	return world.memory.marks[terminal.address]?.screen === screen
+	if (world.memory.marks[terminal.address]?.screen !== screen)
+		return 'its screen changed'
+	return null
 }
