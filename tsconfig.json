@@ -15,6 +15,7 @@
 		"bin/test-pace*.ts",
 		"bin/eval-test-pace.ts",
 		"skills/agent-lifecycle/scripts",
+		"skills/nextnode-design/scripts",
 		"*.ts"
 	]
 }
