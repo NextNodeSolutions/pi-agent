@@ -192,7 +192,7 @@ async function apply(
 		marks,
 		heldWorktrees: worktrees.held,
 	})
-	writeClosedPage()
+	writeClosedPage(worktrees.held)
 	return {
 		mode: 'apply',
 		verdicts,
@@ -204,8 +204,10 @@ async function apply(
 
 export async function sweep(options: SweepOptions): Promise<SweepReport> {
 	const policy = loadPolicy(options.policyFile)
-	const terminals = await liveTerminals()
-	const attached = await attachedTerminals(options.attached, options.window)
+	const [terminals, attached] = await Promise.all([
+		liveTerminals(),
+		attachedTerminals(options.attached, options.window),
+	])
 	const nowMs = Date.now()
 	const live = new Set(terminals.map(terminal => terminal.address))
 	const memory = witnessed(readMemory(), attached, live, nowMs)

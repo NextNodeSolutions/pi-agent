@@ -1,8 +1,6 @@
 import { parseArgs } from 'node:util'
 
-import { readEvents } from './journal.ts'
-import { readMemory } from './memory.ts'
-import { closedPage, writeClosedPage } from './page.ts'
+import { writeClosedPage } from './page.ts'
 import { loadPolicy, renderPolicy } from './policy.ts'
 import { keepOpen, reopen } from './reopen.ts'
 import { renderSweep } from './report.ts'
@@ -48,8 +46,7 @@ const COMMANDS: Readonly<Record<string, Command>> = {
 		return flags.json ? JSON.stringify(report) : renderSweep(report)
 	},
 	closed: () => {
-		const path = writeClosedPage()
-		const page = closedPage(readEvents(), readMemory().heldWorktrees)
+		const { path, page } = writeClosedPage()
 		return Promise.resolve(`${path}\n\n${page}`)
 	},
 	reopen: async (operands, flags) => {

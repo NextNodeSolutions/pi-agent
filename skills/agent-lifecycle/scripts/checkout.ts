@@ -7,7 +7,6 @@ const TIMEOUT_MS = 10_000
 export type Checkout = {
 	root: string
 	isLinked: boolean
-	branch: string | null
 }
 
 async function git(folder: string, args: string[]): Promise<string[]> {
@@ -27,12 +26,17 @@ export async function checkoutOf(folder: string): Promise<Checkout | null> {
 			'--git-common-dir',
 		])
 		if (!root) return null
+		return { root, isLinked: gitDirectory !== commonDirectory }
+	} catch {
+		return null
+	}
+}
+
+export async function branchOf(folder: string): Promise<string | null> {
+	try {
 		const [branch] = await git(folder, ['branch', '--show-current'])
-		return {
-			root,
-			isLinked: gitDirectory !== commonDirectory,
-			branch: branch || null,
-		}
+		if (!branch) return null
+		return branch
 	} catch {
 		return null
 	}

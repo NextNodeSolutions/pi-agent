@@ -1,4 +1,4 @@
-import { checkoutOf } from './checkout.ts'
+import { branchOf, checkoutOf } from './checkout.ts'
 import { ownerReferenceOf } from './classify.ts'
 import { endTerminal, readScreen, terminalAt } from './hc.ts'
 import { appendEvent } from './journal.ts'
@@ -62,16 +62,17 @@ async function traceOf(
 	const { verdict, recipe } = candidate
 	if (verdict.kind !== 'thread' || recipe === null) return null
 	const { terminal } = verdict
-	const [screen, checkout] = await Promise.all([
+	const [screen, checkout, branch] = await Promise.all([
 		readScreen(terminal.address, scene.policy.traceScreenLines),
 		checkoutOf(terminal.cwd),
+		branchOf(terminal.cwd),
 	])
 	return writeTrace({
 		terminal,
 		reason: verdict.reason,
 		screen,
 		recipe,
-		branch: checkout?.branch ?? null,
+		branch: checkout ? branch : null,
 		atMs: scene.nowMs,
 	})
 }

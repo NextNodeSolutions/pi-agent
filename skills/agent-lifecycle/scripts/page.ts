@@ -104,9 +104,12 @@ export function closedPage(
 	].join('\n')
 }
 
-export function writeClosedPage(): string {
+export function writeClosedPage(
+	held: Memory['heldWorktrees'] = readMemory().heldWorktrees,
+): { path: string; page: string } {
 	mkdirSync(stateDirectory(), { recursive: true })
 	const path = closedPagePath()
-	writeAtomically(path, closedPage(readEvents(), readMemory().heldWorktrees))
-	return path
+	const page = closedPage(readEvents(), held)
+	writeAtomically(path, page)
+	return { path, page }
 }
