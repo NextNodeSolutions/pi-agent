@@ -43,7 +43,6 @@ export function coversPath(roots: readonly string[], path: string): boolean {
 export async function targetPaths(
 	cwd: string,
 	paths: readonly string[],
-	scope: 'tests' | 'permission' = 'tests',
 ): Promise<string[]> {
 	if (!paths.length) throw new Error('Name at least one target path.')
 	const root = await physicalPath(cwd)
@@ -53,11 +52,9 @@ export async function targetPaths(
 	return [...new Set(canonical)].map(path => {
 		const local = relative(root, path)
 		const outside = local.startsWith('..') || isAbsolute(local)
-		if (outside || (scope === 'tests' && !isTestPath(local)))
+		if (outside || !isTestPath(local))
 			throw new Error(
-				scope === 'tests'
-					? 'Target must be an exact test path inside the working directory.'
-					: 'Permission targets must be files or directories inside the working directory.',
+				'Target must be an exact test path inside the working directory.',
 			)
 		return path
 	})
