@@ -83,8 +83,12 @@ function claudeRecords(entries: readonly object[]): SessionRecords {
 	return records
 }
 
-export function transcriptRecords(entries: readonly object[]): SessionRecords {
+function isPiSession(entries: readonly object[]): boolean {
 	return entries.some(entry => field(entry, 'type') === 'session')
+}
+
+export function transcriptRecords(entries: readonly object[]): SessionRecords {
+	return isPiSession(entries)
 		? sessionRecords(sessionBranch(entries))
 		: claudeRecords(entries)
 }
@@ -99,5 +103,6 @@ function requestText(entry: object): string {
 }
 
 export function lastHumanRequest(entries: readonly object[]): string {
-	return entries.toReversed().map(requestText).find(Boolean) ?? ''
+	const current = isPiSession(entries) ? sessionBranch(entries) : entries
+	return current.toReversed().map(requestText).find(Boolean) ?? ''
 }
