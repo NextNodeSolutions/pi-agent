@@ -14,8 +14,16 @@
  * answer crosses a boundary, so it is parsed against its schema and an answer
  * that does not match counts as no answer.
  *
+ * `agent.goal`: the open items of the session's goal checklist (`goal.ts`),
+ * empty once every item is ticked; the lifecycle sweeper
+ * (`skills/agent-lifecycle`) keeps a terminal open while it is set.
+ *
  * `agent.title`: the session's name, generated from its first human prompt
  * by `title.ts`; the Herdr `agent-naming` mod names the tab after it.
+ *
+ * `agent.read.<this terminal>`, set on another terminal: when this session
+ * read that terminal's screen with `hc read` (`receipt.ts`); the lifecycle
+ * sweeper takes a read after a helper finished as its result received.
  */
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
@@ -25,17 +33,26 @@ import {
 	BASH_JOBS_VERSION,
 	BashJobsPayloadSchema,
 } from '#lib/tools/bash-jobs-event.ts'
-import { TITLE_LABEL } from '#lib/ui/herdr-labels.ts'
+import {
+	GOAL_LABEL,
+	SESSION_LABEL,
+	TITLE_LABEL,
+	WAITING_LABEL,
+} from '#lib/ui/herdr-labels.ts'
 
+import { registerGoalLabel } from './goal.ts'
+import { registerReadReceipts } from './receipt.ts'
 import { registerSessionTitle } from './title.ts'
 
-import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from '@earendil-works/pi-coding-agent'
 import type { TSchema } from 'typebox'
 
 /** The event `pi-subagents` answers; its producer owns the payload's version. */
 const ACTIVE_WORK_EVENT = 'pi-subagents:active-work:v1'
 const ACTIVE_WORK_VERSION = 1
-const WAITING_LABEL = 'agent.waiting'
 
 const ActiveWorkPayloadSchema = Type.Object({
 	version: Type.Literal(ACTIVE_WORK_VERSION),
@@ -100,6 +117,14 @@ export default function herdrStatus(pi: ExtensionAPI): void {
 			return
 		}
 	}
+	const publishSession = (ctx: ExtensionContext): void => {
+		if (ctx.hasUI)
+			void label(SESSION_LABEL, ctx.sessionManager.getSessionFile() ?? '')
+	}
+	pi.on('session_start', (_event, ctx) => publishSession(ctx))
+	pi.on('agent_settled', (_event, ctx) => publishSession(ctx))
+	registerGoalLabel(pi, open => label(GOAL_LABEL, open))
+	registerReadReceipts(pi, terminal)
 	pi.on('agent_settled', () => {
 		void label(WAITING_LABEL, pendingWork(pi))
 	})
