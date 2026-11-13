@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 
+import { TEST_PACES } from '../extensions/lib/test-pace/decision.ts'
 import { OPERATION_OUTCOMES } from '../extensions/lib/test-pace/operation.ts'
 import { CONSENT_VERDICTS } from '../extensions/lib/test-pace/permission.ts'
 import { SCOPE_PATH_ROLES } from '../extensions/lib/test-pace/scope-path.ts'
@@ -47,34 +48,52 @@ function labelled<Label extends string>(
 	return samples
 }
 
+function cases<Label extends string, Case extends Labelled<Label>>(
+	file: string,
+	labels: readonly Label[],
+	isCase: (sample: Labelled<Label>) => sample is Case,
+): Case[] {
+	const samples = labelled(file, labels)
+	if (!samples.every(isCase))
+		throw new Error(`Expected every case in ${file} to carry its fields.`)
+	return samples
+}
+
 function withText<Case extends Labelled<string>>(...keys: readonly string[]) {
 	return (sample: Labelled<string>): sample is Case =>
 		keys.every(key => typeof Reflect.get(sample, key) === 'string')
 }
 
-export const operationCases = labelled(
+export const operationCases = cases(
 	'./test-operation-cases.json',
 	OPERATION_OUTCOMES,
-).filter(withText<OperationCase>('question', 'operation'))
-export const stopTargetCases = labelled(
+	withText<OperationCase>('question', 'operation'),
+)
+export const stopTargetCases = cases(
 	'./test-stop-target-cases.json',
 	STOP_TARGETS,
-).filter(withText<StopTargetCase>('question', 'thread'))
-export const scopePathCases = labelled(
+	withText<StopTargetCase>('question', 'thread'),
+)
+export const scopePathCases = cases(
 	'./test-scope-path-cases.json',
 	SCOPE_PATH_ROLES,
-).filter(withText<ScopePathCase>('question', 'path'))
-export const paceCases = labelled('./test-pace-cases.json', [
-	'bug',
-	'logic',
-	'none',
-]).filter(withText<PaceCase>('intent'))
-export const permissionCases = labelled(
+	withText<ScopePathCase>('question', 'path'),
+)
+export const paceCases = cases(
+	'./test-pace-cases.json',
+	TEST_PACES,
+	withText<PaceCase>('intent'),
+)
+export const permissionCases = cases(
 	'./test-permission-cases.json',
 	CONSENT_VERDICTS,
-).flatMap((sample): PermissionCase[] => {
-	const question: unknown = Reflect.get(sample, 'question') ?? ''
-	if (typeof question !== 'string') return []
-	const { id, request, expected } = sample
-	return [{ id, question, request, expected }]
-})
+	(sample): sample is Labelled<ConsentVerdict> & { question?: string } =>
+		['string', 'undefined'].includes(typeof Reflect.get(sample, 'question')),
+).map(
+	({ id, question, request, expected }): PermissionCase => ({
+		id,
+		question: question ?? '',
+		request,
+		expected,
+	}),
+)

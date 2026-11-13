@@ -3,11 +3,8 @@ import { randomUUID } from 'node:crypto'
 
 import { isHumanPrompt, typedPromptText } from '#lib/human-prompt.ts'
 import { isSubagentChild } from '#lib/subagent-child.ts'
-import {
-	PACE_REQUEST_ENTRY,
-	safePaceText,
-	typedOrigin,
-} from '#lib/test-pace/request.ts'
+import { safePaceText } from '#lib/test-pace/pace-text.ts'
+import { PACE_REQUEST_ENTRY, typedOrigin } from '#lib/test-pace/request.ts'
 
 import { registerTestPaceTool } from './tool.ts'
 

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import { classifyTestPace } from '#lib/test-pace/decision.ts'
+import { safePaceText } from '#lib/test-pace/pace-text.ts'
 import { ineligibleTarget, targetPaths } from '#lib/test-pace/paths.ts'
 import { physicalPath } from '#lib/test-pace/physical-path.ts'
 import {
@@ -8,7 +9,6 @@ import {
 	currentPaceRequest,
 	PACE_DECISION_ENTRY,
 	PACE_GRANT_ENTRY,
-	safePaceText,
 } from '#lib/test-pace/request.ts'
 
 import { testPaceParameters } from './schema.ts'

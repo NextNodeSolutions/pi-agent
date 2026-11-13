@@ -7,10 +7,8 @@ import {
 	sessionBranch,
 	sessionRecords,
 } from '../extensions/lib/test-pace/evidence.ts'
-import {
-	safePaceText,
-	typedOrigin,
-} from '../extensions/lib/test-pace/request.ts'
+import { safePaceText } from '../extensions/lib/test-pace/pace-text.ts'
+import { typedOrigin } from '../extensions/lib/test-pace/request.ts'
 
 import type {
 	Evidence,

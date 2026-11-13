@@ -142,7 +142,7 @@ async function judgedPaths(
 	}
 }
 
-/** The last text naming a covered path decides the scope; an exchange naming none covers nothing by itself (`consent.ts` gives it the earlier grants' scope). */
+/** The last text naming a covered path decides the scope; an exchange naming none covers nothing by itself (`inheritedScopes` in `grant-scope.ts` gives it the earlier grants' scope). */
 export async function consentPaths(
 	root: string,
 	isCovered: PathJudge,

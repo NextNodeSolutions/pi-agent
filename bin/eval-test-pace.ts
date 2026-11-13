@@ -3,10 +3,17 @@ import {
 	isJevConfigured,
 	JEV_MODEL,
 } from '../extensions/lib/jev/client.ts'
+import { mapConcurrently } from '../extensions/lib/test-pace/concurrently.ts'
 import {
 	classifyTestPace,
 	PACE_CONFIDENCE,
+	TEST_PACES,
 } from '../extensions/lib/test-pace/decision.ts'
+import {
+	classifyOperation,
+	OPERATION_CONFIDENCE,
+	OPERATION_OUTCOMES,
+} from '../extensions/lib/test-pace/operation.ts'
 import {
 	classifyConsent,
 	PERMISSION_CONFIDENCE,
@@ -30,11 +37,6 @@ import {
 	scopePathCases,
 	stopTargetCases,
 } from './test-pace-cases.ts'
-import {
-	classifyOperation,
-	OPERATION_CONFIDENCE,
-	OPERATION_OUTCOMES,
-} from '../extensions/lib/test-pace/operation.ts'
 
 import type { ChoiceResult } from '../extensions/lib/jev/client.ts'
 import type { ConsentVerdict } from '../extensions/lib/test-pace/permission.ts'
@@ -79,13 +81,9 @@ type Calibration<Case extends Sample> = {
 async function measure<Case extends Sample>(
 	calibration: Calibration<Case>,
 ): Promise<Measurement[]> {
-	const pending = [...calibration.cases]
-	const measurements: Measurement[] = []
-	async function measureNext(): Promise<void> {
-		const sample = pending.shift()
-		if (!sample) return
+	return mapConcurrently(calibration.cases, CONCURRENCY, async sample => {
 		const { actual, answer, vetoed } = await calibration.classify(sample)
-		measurements.push({
+		return {
 			id: sample.id,
 			expected: sample.expected,
 			actual,
@@ -93,11 +91,8 @@ async function measure<Case extends Sample>(
 			confidence: answer?.confidence ?? 0,
 			latencyMs: answer?.latencyMs ?? 0,
 			inputTokens: answer?.inputTokens ?? 0,
-		})
-		await measureNext()
-	}
-	await Promise.all(Array.from({ length: CONCURRENCY }, () => measureNext()))
-	return measurements
+		}
+	})
 }
 
 async function calibrate<Case extends Sample>(
@@ -158,7 +153,7 @@ process.stdout.write(
 const pace = await calibrate({
 	name: 'pace',
 	threshold: PACE_CONFIDENCE,
-	labels: ['bug', 'logic', 'none'],
+	labels: TEST_PACES,
 	cases: paceCases,
 	classify: async sample => {
 		const decision = await classifyTestPace({
@@ -226,7 +221,10 @@ const scopePath = await calibrate({
 			{ question: sample.question, reply: sample.request },
 			sample.path,
 		)
-		return { actual: decision.role, answer: decision.answer }
+		return {
+			actual: decision.isCovered ? 'covered' : 'context',
+			answer: decision.answer,
+		}
 	},
 	grantsTooMuch: (expected, actual) =>
 		expected === 'context' && actual === 'covered',

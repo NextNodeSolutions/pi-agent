@@ -8,13 +8,13 @@ import {
 } from '../extensions/lib/test-pace/consent.ts'
 import { classifyTestPace } from '../extensions/lib/test-pace/decision.ts'
 import { parseEntries } from '../extensions/lib/test-pace/evidence.ts'
+import { safePaceText } from '../extensions/lib/test-pace/pace-text.ts'
 import {
 	ineligibleTarget,
 	targetPaths,
 } from '../extensions/lib/test-pace/paths.ts'
 import { physicalPath } from '../extensions/lib/test-pace/physical-path.ts'
 import { classifyOperation } from '../extensions/lib/test-pace/operation.ts'
-import { safePaceText } from '../extensions/lib/test-pace/request.ts'
 
 import { lastHumanRequest, transcriptRecords } from './test-pace-transcript.ts'
 
