@@ -1,8 +1,8 @@
 import { askChoice, isJevConfigured } from '#lib/jev/client.ts'
 
-import { PACE_TIMEOUT_MS } from './decision.ts'
-
 import type { ChoiceQuestion, ChoiceResult } from '#lib/jev/client.ts'
+
+export const JUDGE_TIMEOUT_MS = 4_000
 
 type ClosedQuestion<Label extends string> = ChoiceQuestion & {
 	criteria: Record<Label, string>
@@ -22,7 +22,7 @@ export async function askClosedChoice<Label extends string>(
 	if (!isJevConfigured()) return { choice: failing }
 	try {
 		const answer = await askChoice(state, question, {
-			timeoutMs: PACE_TIMEOUT_MS,
+			timeoutMs: JUDGE_TIMEOUT_MS,
 		})
 		const isPassed =
 			answer.choice === passing && answer.confidence >= threshold
