@@ -113,11 +113,14 @@ async function judgeAll(
 	return judgments
 }
 
-/** A grant naming no path covers what the active grants before it cover, never the whole repository. */
+/** A grant naming no path covers what the active grants before it allowing its edit kind cover, never the whole repository. */
 function inheritedScopes(grants: readonly Judgment[]): Judgment[] {
 	return grants.map((grant, index) => {
 		if (grant.scope.length) return grant
-		const earlier = grants.slice(0, index).flatMap(before => before.scope)
+		const earlier = grants
+			.slice(0, index)
+			.filter(before => allowsKind(before.verdict, grant.verdict))
+			.flatMap(before => before.scope)
 		return { ...grant, scope: Array.from(new Set(earlier)) }
 	})
 }
@@ -152,9 +155,12 @@ export function consentsAllowing(
 	return consents.filter(
 		consent =>
 			consentCovers(consent.scope, path) &&
-			(consent.verdict === 'existing' ||
-				(kind === 'new' && consent.verdict === 'new')),
+			allowsKind(consent.verdict, kind),
 	)
+}
+
+function allowsKind(verdict: ConsentVerdict, kind: ConsentVerdict): boolean {
+	return verdict === 'existing' || (kind === 'new' && verdict === 'new')
 }
 
 export function consentKind(
