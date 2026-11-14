@@ -35,7 +35,7 @@ Use `Temporal` from `@js-temporal/polyfill` for new date/time code. Read "Date h
 | Bundling a publishable package | [tsdown.md](tsdown.md) |
 | Configuring an existing test suite | [vitest.md](vitest.md) |
 | Configuring formatting, commits, releases, Tailwind, editorconfig or npmrc | [configs.md](configs.md) |
-| Applying repository rules on a newly created repository | [scripts/apply-repo-rules.sh](scripts/apply-repo-rules.sh) |
+| Creating a repository or applying its repository rules | [setup.md](setup.md), section "GitHub repository", and [scripts/apply-repo-rules.sh](scripts/apply-repo-rules.sh) |
 | Declaring check scripts, making a project pass the organization's pull-request checks, or enabling them on a repository | [ci.md](ci.md) |
 | Installing an agent skill in a project | [setup.md](setup.md), section "Agent skills" |
 | Updating this skill against upstream | [SOURCE.md](SOURCE.md), [audit-source.md](audit-source.md) |
