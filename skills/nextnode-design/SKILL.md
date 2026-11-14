@@ -2,7 +2,9 @@
 name: nextnode-design
 description: >-
   NextNode Solutions design system and brand guidelines (colors, typography,
-  logos, UI conventions). Load when building UI or placing brand assets in any
+  logos, UI conventions) plus vendored Arc (uiarc.dev) React components mapped
+  to the brand. Load when building UI, picking a ready-made component (select,
+  drawer, tabs, range slider, button, badge) or placing brand assets in any
   NextNode front-end project.
 ---
 
@@ -26,6 +28,7 @@ Brand guidelines and visual identity for NextNode Solutions projects. The live s
 | Invent a custom spacing/radius scale | Use Tailwind v4 defaults — `global.css` defines none (see Scale discipline) |
 | Reach for arbitrary values by reflex — `text-[17px]`, `p-[13px]` | Default to the scale token — `text-sm`, `p-3`, `md:`; arbitrary only when the scale can't express the need |
 | Guess brand colors when `global.css` is unreachable | Fail hard — refuse to emit tokens rather than ship a wrong palette |
+| Hand-build a select, drawer, tabs or slider, or install Arc through its registry | Copy the component from `arc/` as [arc.md](arc.md) says |
 
 ## Instructions
 
@@ -44,6 +47,7 @@ Use the relevant sub-file for details:
 - [colors.md](colors.md) - full color palette, scales, and usage rules
 - [typography.md](typography.md) - font families, weights, sizes, and hierarchy
 - [logos.md](logos.md) - logo variants, assets kit, and usage rules
+- [arc.md](arc.md) - Arc components in `arc/`: which to use, copying one into a project, vendoring or updating from upstream, brand overrides. Load before adding a control, drawer, tab set or empty state to a NextNode UI.
 
 ## Surfaces
 
@@ -61,7 +65,11 @@ Mirrors `nextnode-landing/src/styles/global.css` (the brand source of truth) —
 - **Shadows** — three named brand tokens, the **only** ones to use (full values live in `global.css`):
   - `shadow-dimensional` — default elevated surface (cards, popovers, raised panels).
   - `shadow-mobile-toggle` / `shadow-mobile-toggle-open` — the mobile nav toggle, closed / open states.
-  - Anything else → reuse `shadow-dimensional`; never hand-roll a `box-shadow`.
+  - Anything else → reuse `shadow-dimensional`; never hand-roll a `box-shadow`. Arc's floating layers are the one exception (see [arc.md](arc.md)).
+
+## Components
+
+Ready-made React components come from `arc/`: Arc's free components, adapted to React 19 and strict TypeScript, with `arc/nextnode.css` mapping Arc's tokens to the brand. Projects copy the folders they need; Arc is never installed as a package or through its registry. Which component to use, how to copy, vendor and update, and the brand rules that override Arc's: [arc.md](arc.md).
 
 ## Brand assets package
 
