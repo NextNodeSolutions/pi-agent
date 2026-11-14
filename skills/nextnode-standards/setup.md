@@ -79,7 +79,7 @@ And these root package.json fields:
 
 ## GitHub repository
 
-If the project has no repository yet, create it (`gh repo create NextNodeSolutions/<name>`), then run `~/.pi/agent/skills/nextnode-standards/scripts/apply-repo-rules.sh <name>`. The organization rulesets apply their default-branch policy automatically; the script sets what GitHub does not propagate per repository (merge buttons, delete-on-merge, squash commit message, Dependabot, public-repo secret scanning). It refuses to run while the org rulesets are missing.
+If the project has no repository yet, name it, set its topics and place its checkout by "Create a repository" in `~/.pi/agent/skills/github-repositories/SKILL.md`. Create it with `gh repo create NextNodeSolutions/<name>`, then run `~/.pi/agent/skills/nextnode-standards/scripts/apply-repo-rules.sh <name>`. The organization rulesets apply their default-branch policy automatically; the script sets what GitHub does not propagate per repository (merge buttons, delete-on-merge, squash commit message, Dependabot, public-repo secret scanning). It refuses to run while the org rulesets are missing.
 
 ## Secrets and local environment
 
